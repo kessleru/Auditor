@@ -1,4 +1,6 @@
 export * from './auth.js';
+export * from './collections.js';
+export * from './conformity.js';
 export * from './domain.js';
 export * from './errors.js';
 export * from './health.js';
