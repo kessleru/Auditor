@@ -6,5 +6,5 @@
     "noEmit": false,
     "customConditions": []
   },
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/__fixtures__/**", "src/test/**"]
 }
