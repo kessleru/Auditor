@@ -7,6 +7,7 @@ import { createDatabase } from './client.js';
 import { runMigrations } from './migrate.js';
 import { institutions, pageFunctions, routes, targetTasks } from './schema.js';
 import { seed } from './seeds/seed.js';
+import { createTestDatabase } from '../test/db.js';
 
 const tempDirs: string[] = [];
 
@@ -14,11 +15,7 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function freshDatabase() {
-  const db = createDatabase(':memory:');
-  runMigrations(db);
-  return db;
-}
+const freshDatabase = createTestDatabase;
 
 describe('migrations', () => {
   it('criam o banco do zero em arquivo, inclusive a pasta', () => {
@@ -45,9 +42,10 @@ describe('migrations', () => {
         'target_tasks',
         'task_inspections',
         'assistive_checks',
+        'sessions',
       ]),
     );
-    expect(tables).toHaveLength(10);
+    expect(tables).toHaveLength(11);
   });
 
   it('podem ser reaplicadas sem erro', () => {
