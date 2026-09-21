@@ -1,7 +1,11 @@
 import { createApp } from './app.js';
+import { env } from './config/env.js';
+import { createDatabase } from './db/client.js';
+import { runMigrations } from './db/migrate.js';
+import { logger } from './shared/logger.js';
 
-const port = Number(process.env.API_PORT ?? 3333);
+runMigrations(createDatabase(env.DATABASE_PATH));
 
-createApp().listen(port, () => {
-  console.log(`API em http://localhost:${port}`);
+createApp().listen(env.API_PORT, () => {
+  logger.info(`API em http://localhost:${env.API_PORT}`);
 });
