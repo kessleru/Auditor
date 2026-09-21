@@ -1,0 +1,14 @@
+{
+  "name": "auditoria-rf",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks"
+  }
+}
