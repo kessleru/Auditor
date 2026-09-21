@@ -51,6 +51,10 @@ export function createAuthService(
       if (token) repo.deleteSession(hashToken(token));
     },
 
+    listAuditors(): AuthUser[] {
+      return repo.listUsers();
+    },
+
     async createAuditor(input: CreateAuditorInput): Promise<AuthUser> {
       const { email, name, password } = createAuditorSchema.parse(input);
       if (repo.findUserByEmail(email)) {
