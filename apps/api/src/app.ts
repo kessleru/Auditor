@@ -4,6 +4,12 @@ import express from 'express';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import type { DB } from './db/client.js';
+import {
+  buildUserAgent,
+  createHttpClient,
+  discoverRoutes,
+  ROBOTS_AGENT,
+} from './infra/crawler/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { requireAuditor as requireAuditorFor } from './middlewares/requireAuditor.js';
@@ -16,12 +22,30 @@ import { createInstitutionsController } from './modules/institutions/institution
 import { createInstitutionsRepository } from './modules/institutions/institutions.repository.js';
 import { createInstitutionsRoutes } from './modules/institutions/institutions.routes.js';
 import { createInstitutionsService } from './modules/institutions/institutions.service.js';
+import {
+  type DiscoverFn,
+  createDiscoveryService,
+} from './modules/routes-discovery/discovery.service.js';
+import { createRoutesDiscoveryController } from './modules/routes-discovery/routes-discovery.controller.js';
+import { createRoutesDiscoveryRoutes } from './modules/routes-discovery/routes-discovery.routes.js';
+import { createRoutesRepository } from './modules/routes-discovery/routes.repository.js';
+import { createRoutesService } from './modules/routes-discovery/routes.service.js';
 
 export interface AppOptions {
   db: DB;
   webOrigin?: string;
   secureCookies?: boolean;
   clock?: () => Date;
+  /** Descoberta de rotas; por padrão, o crawler real configurado pelo env. */
+  discover?: DiscoverFn | null;
+}
+
+function defaultDiscover(): DiscoverFn | null {
+  const contactEmail = env.CRAWLER_CONTACT_EMAIL;
+  if (!contactEmail) return null;
+  const client = createHttpClient({ userAgent: buildUserAgent(contactEmail) });
+  return (domain) =>
+    discoverRoutes({ domain, client, robotsAgent: ROBOTS_AGENT, maxUrls: env.CRAWLER_MAX_URLS });
 }
 
 export function createApp({
@@ -29,6 +53,7 @@ export function createApp({
   webOrigin = env.WEB_ORIGIN,
   secureCookies = env.NODE_ENV === 'production',
   clock,
+  discover = defaultDiscover(),
 }: AppOptions) {
   const timing = clock && { now: clock };
 
@@ -36,6 +61,14 @@ export function createApp({
   const requireAuditor = requireAuditorFor(authService);
 
   const institutionsService = createInstitutionsService(createInstitutionsRepository(db));
+  const routesRepository = createRoutesRepository(db);
+  const routesService = createRoutesService(routesRepository, institutionsService, timing);
+  const discoveryService = createDiscoveryService(
+    routesRepository,
+    institutionsService,
+    discover,
+    timing,
+  );
 
   const app = express();
 
@@ -50,6 +83,12 @@ export function createApp({
   api.use(createAuthRoutes(createAuthController(authService, { secureCookies }), requireAuditor));
   api.use(
     createInstitutionsRoutes(createInstitutionsController(institutionsService), requireAuditor),
+  );
+  api.use(
+    createRoutesDiscoveryRoutes(
+      createRoutesDiscoveryController(discoveryService, routesService),
+      requireAuditor,
+    ),
   );
   app.use('/api/v1', api);
 

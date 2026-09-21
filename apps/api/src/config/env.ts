@@ -6,6 +6,12 @@ const envSchema = z.object({
   WEB_ORIGIN: z.url().default('http://localhost:5173'),
   DATABASE_PATH: z.string().min(1).default('./data/auditoria.sqlite'),
   SNAPSHOTS_DIR: z.string().min(1).default('./data/snapshots'),
+  // Contato no user-agent do crawler (seção 3.1.3); sem ele a descoberta não roda.
+  CRAWLER_CONTACT_EMAIL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.email('CRAWLER_CONTACT_EMAIL deve ser um e-mail.').optional(),
+  ),
+  CRAWLER_MAX_URLS: z.coerce.number().int().positive().default(200),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
 });
 

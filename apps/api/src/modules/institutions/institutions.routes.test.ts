@@ -16,7 +16,7 @@ let agent: Awaited<ReturnType<typeof loggedInAgent>>;
 
 beforeEach(async () => {
   const db = createTestDatabase();
-  app = createApp({ db });
+  app = createApp({ db, discover: null });
   agent = await loggedInAgent(app, db);
 });
 
