@@ -39,6 +39,21 @@ export const users = sqliteTable('users', {
   createdAt: createdAt(),
 });
 
+// Sessões do auditor: o cookie guarda um token aleatório; aqui fica só o hash SHA-256 dele.
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    id: id(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    createdAt: createdAt(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (t) => [index('sessions_expires_at_idx').on(t.expiresAt)],
+);
+
 export const institutions = sqliteTable('institutions', {
   id: id(),
   name: text('name').notNull(),

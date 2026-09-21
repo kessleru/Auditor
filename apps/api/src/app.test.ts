@@ -2,9 +2,10 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { apiErrorSchema, healthResponseSchema } from '@auditoria-rf/contracts';
 import { createApp } from './app.js';
+import { createTestDatabase } from './test/db.js';
 
 const webOrigin = 'http://localhost:5173';
-const app = createApp({ webOrigin });
+const app = createApp({ db: createTestDatabase(), webOrigin });
 
 describe('GET /api/v1/health', () => {
   it('responde com o contrato de health', async () => {
