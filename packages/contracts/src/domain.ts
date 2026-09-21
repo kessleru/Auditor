@@ -1,0 +1,61 @@
+// Valores de domínio compartilhados entre o banco (api) e a interface (web).
+// Modelo de dados: seção 2 do plano.
+
+export const pageFunctionKeys = [
+  'home',
+  'admission',
+  'student_aid_notices',
+  'library',
+  'student_support',
+] as const;
+export type PageFunctionKey = (typeof pageFunctionKeys)[number];
+
+export const routeSources = ['sitemap', 'crawler', 'manual'] as const;
+export type RouteSource = (typeof routeSources)[number];
+
+export const routeStatuses = ['suggested', 'confirmed', 'excluded', 'authenticated'] as const;
+export type RouteStatus = (typeof routeStatuses)[number];
+
+export const collectionStatuses = [
+  'queued',
+  'running',
+  'completed',
+  'partial',
+  'cancelled',
+] as const;
+export type CollectionStatus = (typeof collectionStatuses)[number];
+
+export const collectionPageStatuses = ['queued', 'running', 'done', 'failed'] as const;
+export type CollectionPageStatus = (typeof collectionPageStatuses)[number];
+
+export const wcagPrinciples = ['perceivable', 'operable', 'understandable', 'robust'] as const;
+export type WcagPrinciple = (typeof wcagPrinciples)[number];
+
+export const axeImpacts = ['critical', 'serious', 'moderate', 'minor'] as const;
+export type AxeImpact = (typeof axeImpacts)[number];
+
+// critical/serious → Crítico; moderate/minor → Moderado (seção 3.2.7).
+export const severities = ['critical', 'moderate'] as const;
+export type Severity = (typeof severities)[number];
+
+export const findingValidations = ['pending', 'confirmed', 'false_positive'] as const;
+export type FindingValidation = (typeof findingValidations)[number];
+
+export const taskResults = ['completed', 'completed_with_difficulty', 'interrupted'] as const;
+export type TaskResult = (typeof taskResults)[number];
+
+// Heurísticas de Nielsen priorizadas (seção 3.4).
+export const heuristics = ['H1', 'H2', 'H3', 'H4', 'H6'] as const;
+export type Heuristic = (typeof heuristics)[number];
+
+export const assistiveCheckKinds = [
+  'keyboard',
+  'screen_reader',
+  'zoom_200',
+  'captions',
+  'contrast',
+] as const;
+export type AssistiveCheckKind = (typeof assistiveCheckKinds)[number];
+
+export const assistiveCheckStates = ['pass', 'barrier', 'not_applicable', 'pending'] as const;
+export type AssistiveCheckState = (typeof assistiveCheckStates)[number];
