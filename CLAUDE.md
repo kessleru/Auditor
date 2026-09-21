@@ -69,6 +69,14 @@ Detalhes na seção 3 do plano. As que mais facilmente se quebram por engano:
 
 Regras do design system na seção 4 do plano; revisar todo PR que toque em `apps/web` com a skill `a11y-code-review`. Pontos obrigatórios: nenhum texto abaixo de 13 px; cor nunca é a única informação (selos sempre com texto); `border-strong` só em controles, `border` em cards/divisórias; ícones `lucide-react` sempre `aria-hidden` com texto visível; foco movido para o `<h1>` a cada troca de rota e `<title>` atualizado; skip link; `aria-live="polite"` para mensagens assíncronas (no máximo uma a cada 10 s no progresso da coleta); alvos ≥ 24×24 px; `prefers-reduced-motion`. Modo escuro está fora do escopo.
 
+### Front: como construir telas
+
+- Componentes em `components/ui` (exportados por `index.ts`); tokens tipográficos `text-page|section|card|metric|body|label|badge|code` e cores `text-text`, `text-text-muted`, `bg-surface` etc. Decisões na ADR 0005.
+- Toda página começa com `<PageTitle>` (h1 com `tabIndex={-1}` que atualiza o `<title>`); o `Root` move o foco para ele a cada troca de rota.
+- Dados via TanStack Query + `apiRequest` (`lib/api.ts`), validando a resposta com o schema de `contracts`; erros viram `ApiError` (`code`, `message`).
+- Testes: `renderRoute(path)` e `stubApi()` em `src/test/render.tsx`; `expectNoAxeViolations(container)` em `src/test/axe.ts`. Estado oculto usa o atributo `hidden`, não só a classe CSS.
+- Catálogo `/dev/ui` (só em desenvolvimento) deve continuar sem violações no axe.
+
 ## Convenções
 
 - Commits: Conventional Commits **em português, no imperativo**, pequenos e atômicos (ex.: `feat(api): adiciona descoberta de rotas por sitemap`). Nunca misturar refatoração com funcionalidade.
