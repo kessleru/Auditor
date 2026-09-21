@@ -1,0 +1,10 @@
+# robots.txt de exemplo, no formato comum em portais Plone/WordPress
+User-agent: *
+Disallow: /restrito/
+Disallow: /busca
+Crawl-delay: 2
+
+User-agent: AuditoriaRF
+Disallow: /somente-humanos/
+
+Sitemap: https://www.if.edu.br/sitemap_index.xml
