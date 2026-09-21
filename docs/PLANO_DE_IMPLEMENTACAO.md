@@ -82,11 +82,7 @@ Conjunto enxuto, escolhido para esta stack. Não instalar outras sem necessidade
 | design-system-a11y | arquivo | auditar os tokens (contraste, foco, alvos de toque) na Fase 5 |
 | a11y-testing-coach | arquivo | apoio ao protocolo da inspeção manual (Fase 8) — ler o `SKILL.md` antes |
 
-**1) Skills em arquivo** — na raiz do repositório:
-
-```bash
-bash scripts/install-skills.sh
-```
+**1) Skills em arquivo** — já versionadas em `.claude/skills/`; nada a instalar.
 
 **2) Plugins** — dentro do Claude Code, um comando por vez:
 
@@ -106,7 +102,7 @@ bash scripts/install-skills.sh
 Cuidados:
 
 - Skills da comunidade são código de terceiros. Ler cada `SKILL.md` antes do primeiro uso.
-- **Não usar `npx skills add` para coleções inteiras**: ele instala todas as skills do repositório (dezenas) e em `.agents/skills/`, pasta de outros agentes. O `install-skills.sh` copia só as escolhidas, direto em `.claude/skills/`.
+- **Não usar `npx skills add` para coleções inteiras**: ele instala todas as skills do repositório (dezenas) e em `.agents/skills/`, pasta de outros agentes. Nova skill em arquivo entra copiada manualmente em `.claude/skills/`.
 - Scripts `.sh` precisam de fim de linha LF: manter `.gitattributes` com `*.sh text eol=lf`.
 - A Superpowers faz commits por conta própria — o hook da seção 0.1 é o que garante a regra de não atribuição nesses commits. Instalar o hook **antes** dos plugins.
 - Se alguma skill contradisser este plano (estrutura, stack, regras metodológicas), **o plano prevalece**.
@@ -123,7 +119,6 @@ Monorepo com npm workspaces: **duas aplicações** e **um pacote compartilhado**
 auditoria-rf/
 ├── .claude/settings.json
 ├── .githooks/commit-msg
-├── scripts/install-skills.sh # instala as skills baseadas em arquivo (seção 0.4)
 ├── CLAUDE.md
 ├── package.json              # workspaces + scripts raiz
 ├── tsconfig.base.json
@@ -551,7 +546,7 @@ Cada fase termina com **lint + typecheck + testes passando** e um PR próprio.
 ### Fase 0 — Fundação do repositório
 - Workspaces, `tsconfig.base.json`, ESLint, Prettier, `.editorconfig`, `.gitignore`, `.env.example`.
 - `.claude/settings.json`, `CLAUDE.md`, `.githooks/commit-msg` e script `prepare` (seção 0.1).
-- `scripts/install-skills.sh` versionado e skills instaladas (seção 0.4).
+- Skills em arquivo versionadas em `.claude/skills/` (seção 0.4).
 - Pacote `packages/contracts` (`@auditoria-rf/contracts`) com os schemas Zod de entrada e os tipos de resposta, consumido por `web` e `api` via workspace.
 - `.npmrc` com `save-exact=true`; versões exatas de axe-core, `@axe-core/playwright` e Playwright.
 - Scripts raiz: `dev` (sobe web e api juntos), `build`, `lint`, `typecheck`, `test`.
