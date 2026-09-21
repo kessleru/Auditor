@@ -11,6 +11,10 @@ export function createAuthRepository(db: DB) {
       return db.select().from(users).where(eq(users.email, email)).get();
     },
 
+    listUsers(): AuthUser[] {
+      return db.select(authUserColumns).from(users).orderBy(users.id).all();
+    },
+
     insertUser(values: { email: string; name: string; passwordHash: string }): AuthUser {
       return db.insert(users).values(values).returning(authUserColumns).get();
     },

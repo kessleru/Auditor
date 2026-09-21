@@ -19,7 +19,8 @@
     "test": "npm run test --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w @auditoria-rf/api",
     "db:seed": "npm run db:seed -w @auditoria-rf/api",
-    "create-auditor": "npm run create-auditor -w @auditoria-rf/api --"
+    "create-auditor": "npm run create-auditor -w @auditoria-rf/api --",
+    "collect": "npm run collect -w @auditoria-rf/api --"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
