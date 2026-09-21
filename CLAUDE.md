@@ -28,7 +28,9 @@ npm run db:seed                 # funções de página, tarefas-alvo e IFTM; ide
 npm run db:generate -w @auditoria-rf/api   # gera migration após mudar src/db/schema.ts
 ```
 
-`npm run create-auditor -- --email <e-mail> --name <nome>` é o único jeito de criar auditor; a senha é pedida sem eco (ou lida da entrada padrão), nunca como argumento. Previsto pelo plano, ainda não criado: `npm run collect -- --institution=<sigla|id> [--functions=home,admission]`.
+`npm run create-auditor -- --email <e-mail> --name <nome>` é o único jeito de criar auditor; a senha é pedida sem eco (ou lida da entrada padrão), nunca como argumento. `npm run collect -- --institution=<sigla|id> [--functions=home,admission] [--auditor=<e-mail>]` executa uma coleta. Descoberta e coleta exigem `CRAWLER_CONTACT_EMAIL` no `.env`.
+
+O motor precisa do Chromium do Playwright: `npx playwright install chromium` (e `sudo npx playwright install-deps chromium` se faltarem bibliotecas do sistema). Os testes de aceite da Fase 4 abrem o navegador de verdade contra HTML servido em `127.0.0.1`.
 
 Testes: Vitest (unidade), Supertest (integração da API), Testing Library + `vitest-axe` (componentes), Playwright (E2E). Testes do crawler usam fixtures locais — **sem rede nos testes**; o motor de auditoria é testado contra HTML servido localmente.
 
@@ -43,6 +45,8 @@ Monorepo npm workspaces:
 API organizada **por módulo de domínio** (`src/modules/<módulo>/`), com camadas dentro de cada módulo. Dependências fluem só para baixo: `routes → controllers → services → repositories → db`. Services não conhecem `req/res`; repositories são o único acesso ao banco. `infra/` (crawler, auditor, queue, storage, events, locks) é consumida **apenas por services**. A CLI (`src/cli/`) usa os **mesmos services** da API — nunca duplicar lógica.
 
 Descoberta de rotas: `infra/crawler/discover.ts` (puro, recebe um `HttpClient`); os testes usam o site falso em memória de `infra/crawler/__fixtures__/site.ts`. Detalhes e decisões em `docs/decisoes/0002-descoberta-de-rotas.md`; palavras-chave em `FUNCTION_KEYWORDS`. Controllers validam a entrada com os schemas de `contracts` e passam dados já tipados aos services.
+
+`src/services.ts` compõe todos os services; `createApp` e as CLIs usam essa mesma função (nunca montar services à mão). Métricas em `modules/reports/metrics.ts` (ADR 0003); motor, fila e travas na ADR 0004.
 
 Fluxo da coleta: descoberta de rotas (robots → sitemap → crawler) → auditor confirma rotas e funções → coleta enfileirada em `collection_pages` (fila persistida, retomável, concorrência padrão 2) → Playwright + AxeBuilder por página → snapshot `.html.gz` em disco (`data/snapshots/<collectionId>/<pageId>.html.gz`, nunca BLOB) → progresso por SSE (`/collections/:id/events`, heartbeat 15 s; o front cai para polling de 5 s após 3 falhas).
 
