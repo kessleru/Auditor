@@ -28,7 +28,7 @@ npm run db:seed                 # funções de página, tarefas-alvo e IFTM; ide
 npm run db:generate -w @auditoria-rf/api   # gera migration após mudar src/db/schema.ts
 ```
 
-Previstos pelo plano, ainda não criados: `npm run create-auditor` (único jeito de criar auditor) e `npm run collect -- --institution=<sigla|id> [--functions=home,admission]`.
+`npm run create-auditor -- --email <e-mail> --name <nome>` é o único jeito de criar auditor; a senha é pedida sem eco (ou lida da entrada padrão), nunca como argumento. Previsto pelo plano, ainda não criado: `npm run collect -- --institution=<sigla|id> [--functions=home,admission]`.
 
 Testes: Vitest (unidade), Supertest (integração da API), Testing Library + `vitest-axe` (componentes), Playwright (E2E). Testes do crawler usam fixtures locais — **sem rede nos testes**; o motor de auditoria é testado contra HTML servido localmente.
 
@@ -44,7 +44,7 @@ API organizada **por módulo de domínio** (`src/modules/<módulo>/`), com camad
 
 Fluxo da coleta: descoberta de rotas (robots → sitemap → crawler) → auditor confirma rotas e funções → coleta enfileirada em `collection_pages` (fila persistida, retomável, concorrência padrão 2) → Playwright + AxeBuilder por página → snapshot `.html.gz` em disco (`data/snapshots/<collectionId>/<pageId>.html.gz`, nunca BLOB) → progresso por SSE (`/collections/:id/events`, heartbeat 15 s; o front cai para polling de 5 s após 3 falhas).
 
-API: prefixo `/api/v1`; erros sempre `{ error: { code, message, details? } }`.
+API: prefixo `/api/v1`; erros sempre `{ error: { code, message, details? } }` (lançar `AppError`; `ZodError` vira 400). Módulos montados como fábricas (`createXRepository(db)` → `createXService(repo)` → `createXController(service)`), ligadas em `createApp({ db })`; testes usam `createTestDatabase()` (SQLite em memória migrado). Rotas de auditor passam por `requireAuditor`, que preenche `req.auditor`. Sessão: ver `docs/decisoes/0001-sessao-do-auditor.md`.
 
 ## Regras metodológicas que o código deve respeitar
 

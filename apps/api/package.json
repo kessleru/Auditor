@@ -11,14 +11,19 @@
     "test": "vitest run",
     "db:generate": "node --conditions=development ../../node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/db-migrate.ts",
-    "db:seed": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/db-seed.ts"
+    "db:seed": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/db-seed.ts",
+    "create-auditor": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/create-auditor.ts"
   },
   "dependencies": {
     "@auditoria-rf/contracts": "0.0.0",
+    "argon2": "0.45.1",
     "better-sqlite3": "13.0.3",
+    "commander": "15.0.0",
+    "cookie-parser": "1.4.7",
     "cors": "2.8.6",
     "drizzle-orm": "0.45.3",
     "express": "5.2.1",
+    "express-rate-limit": "8.7.0",
     "helmet": "8.3.0",
     "pino": "10.3.1",
     "zod": "4.6.5"
@@ -26,6 +31,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@types/better-sqlite3": "9.6.0",
+    "@types/cookie-parser": "1.4.10",
     "@types/cors": "2.8.19",
     "@types/express": "5.0.6",
     "@types/node": "26.6.2",
