@@ -6,18 +6,22 @@ import { env } from './config/env.js';
 import type { DB } from './db/client.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
-import { requireAuditor } from './middlewares/requireAuditor.js';
+import { requireAuditor as requireAuditorFor } from './middlewares/requireAuditor.js';
 import { createAuthController } from './modules/auth/auth.controller.js';
 import { createAuthRepository } from './modules/auth/auth.repository.js';
 import { createAuthRoutes } from './modules/auth/auth.routes.js';
-import { type AuthServiceOptions, createAuthService } from './modules/auth/auth.service.js';
+import { createAuthService } from './modules/auth/auth.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { createInstitutionsController } from './modules/institutions/institutions.controller.js';
+import { createInstitutionsRepository } from './modules/institutions/institutions.repository.js';
+import { createInstitutionsRoutes } from './modules/institutions/institutions.routes.js';
+import { createInstitutionsService } from './modules/institutions/institutions.service.js';
 
 export interface AppOptions {
   db: DB;
   webOrigin?: string;
   secureCookies?: boolean;
-  clock?: AuthServiceOptions['now'];
+  clock?: () => Date;
 }
 
 export function createApp({
@@ -26,8 +30,12 @@ export function createApp({
   secureCookies = env.NODE_ENV === 'production',
   clock,
 }: AppOptions) {
-  const authService = createAuthService(createAuthRepository(db), clock && { now: clock });
-  const authController = createAuthController(authService, { secureCookies });
+  const timing = clock && { now: clock };
+
+  const authService = createAuthService(createAuthRepository(db), timing);
+  const requireAuditor = requireAuditorFor(authService);
+
+  const institutionsService = createInstitutionsService(createInstitutionsRepository(db));
 
   const app = express();
 
@@ -39,7 +47,10 @@ export function createApp({
 
   const api = express.Router();
   api.use(healthRoutes);
-  api.use(createAuthRoutes(authController, requireAuditor(authService)));
+  api.use(createAuthRoutes(createAuthController(authService, { secureCookies }), requireAuditor));
+  api.use(
+    createInstitutionsRoutes(createInstitutionsController(institutionsService), requireAuditor),
+  );
   app.use('/api/v1', api);
 
   app.use(notFound);
