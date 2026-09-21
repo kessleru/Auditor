@@ -1,0 +1,65 @@
+NUNCA adicionar Co-Authored-By, "Generated with Claude Code", link de sessão ou qualquer atribuição a IA em commits, PRs ou comentários.
+
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Estado do repositório
+
+Projeto de TCC (Ciência da Computação, IFTM): plataforma que audita a acessibilidade e a usabilidade dos portais dos Institutos Federais em duas camadas — **automatizada** (descoberta de rotas + axe-core via Playwright) e **manual** (tarefas-alvo, verificação assistiva, validação de achados).
+
+**Ainda não há código.** A fonte da verdade é `docs/PLANO_DE_IMPLEMENTACAO.md`: executar o plano, não reescrevê-lo. Se uma skill ou sugestão contradisser o plano (estrutura, stack, regras metodológicas), o plano prevalece. Ler a seção relevante do plano antes de cada tarefa.
+
+- Trabalhar **uma fase por vez**, na ordem da seção 7 do plano. Não avançar sem cumprir os critérios de aceite da fase; ao fim, rodar lint, typecheck e testes.
+- Em ambiguidade, **perguntar** em vez de supor — principalmente nas regras metodológicas (seção 3), que afetam a validade da pesquisa.
+- Já existem: `.claude/skills/` (skills em arquivo), `public/logo.svg` e `public/favicon.svg` (destino final: `apps/web/public/`), `.gitattributes`.
+
+## Comandos (a criar na Fase 0 — atualizar esta seção quando existirem)
+
+```bash
+npm install && npm run dev      # sobe web e api juntos
+npm run build | lint | typecheck | test
+npm run create-auditor          # único jeito de criar auditor (sem cadastro público)
+npm run collect -- --institution=<sigla|id> [--functions=home,admission]
+```
+
+Testes: Vitest (unidade), Supertest (integração da API), Testing Library + `vitest-axe` (componentes), Playwright (E2E). Testes do crawler usam fixtures locais — **sem rede nos testes**; o motor de auditoria é testado contra HTML servido localmente.
+
+## Arquitetura
+
+Monorepo npm workspaces:
+
+- `apps/web` — React 19, Vite, TypeScript, Tailwind v4 (tokens via `@theme` em `src/styles/tokens.css`), React Router, TanStack Query, React Hook Form + Zod. Organizado por `features/` (auth, audits, collections, inspection, results) + `components/ui/` (design system).
+- `apps/api` — Node 22, Express 5, TypeScript, SQLite (`better-sqlite3`) + Drizzle. `app.ts` cria o app sem `listen` (para Supertest); `server.ts` faz o `listen`.
+- `packages/contracts` (`@auditoria-rf/contracts`) — schemas Zod e tipos compartilhados: o mesmo schema valida a entrada na API e tipa as respostas no front.
+
+API organizada **por módulo de domínio** (`src/modules/<módulo>/`), com camadas dentro de cada módulo. Dependências fluem só para baixo: `routes → controllers → services → repositories → db`. Services não conhecem `req/res`; repositories são o único acesso ao banco. `infra/` (crawler, auditor, queue, storage, events, locks) é consumida **apenas por services**. A CLI (`src/cli/`) usa os **mesmos services** da API — nunca duplicar lógica.
+
+Fluxo da coleta: descoberta de rotas (robots → sitemap → crawler) → auditor confirma rotas e funções → coleta enfileirada em `collection_pages` (fila persistida, retomável, concorrência padrão 2) → Playwright + AxeBuilder por página → snapshot `.html.gz` em disco (`data/snapshots/<collectionId>/<pageId>.html.gz`, nunca BLOB) → progresso por SSE (`/collections/:id/events`, heartbeat 15 s; o front cai para polling de 5 s após 3 falhas).
+
+API: prefixo `/api/v1`; erros sempre `{ error: { code, message, details? } }`.
+
+## Regras metodológicas que o código deve respeitar
+
+Detalhes na seção 3 do plano. As que mais facilmente se quebram por engano:
+
+- `axe-core`, `@axe-core/playwright` e `playwright` com **versão exata** (`.npmrc` `save-exact=true`) e **nunca atualizados** durante o período de coleta. Registrar versões do axe e do navegador em cada coleta.
+- Crawler: mesma origem, profundidade 2, teto 200 URLs, intervalo mínimo 1,5 s por host, user-agent identificável; respeitar `robots.txt`. Nunca duas coletas simultâneas no mesmo domínio (`infra/locks`).
+- Sugestões (função de página, substituição de rota) **nunca são aplicadas sem confirmação** do auditor.
+- Salvar passes, violations, incomplete e inapplicable. Conformidade = `passes / (passes + violations)`; `incomplete` fica fora do cálculo.
+- Portal que falhou = **ausência de dado**, nunca 0% nem incluído na média.
+- Métrica principal do comparativo = problemas **distintos** (por `fingerprint`); problema em ≥ 80% das páginas = de template.
+- Falso positivo **nunca é apagado**: exige justificativa e permanece registrado.
+- Severidade: `critical`/`serious` → Crítico; `moderate`/`minor` → Moderado.
+
+## Acessibilidade do próprio front (WCAG 2.2 AA)
+
+Regras do design system na seção 4 do plano; revisar todo PR que toque em `apps/web` com a skill `a11y-code-review`. Pontos obrigatórios: nenhum texto abaixo de 13 px; cor nunca é a única informação (selos sempre com texto); `border-strong` só em controles, `border` em cards/divisórias; ícones `lucide-react` sempre `aria-hidden` com texto visível; foco movido para o `<h1>` a cada troca de rota e `<title>` atualizado; skip link; `aria-live="polite"` para mensagens assíncronas (no máximo uma a cada 10 s no progresso da coleta); alvos ≥ 24×24 px; `prefers-reduced-motion`. Modo escuro está fora do escopo.
+
+## Convenções
+
+- Commits: Conventional Commits **em português, no imperativo**, pequenos e atômicos (ex.: `feat(api): adiciona descoberta de rotas por sitemap`). Nunca misturar refatoração com funcionalidade.
+- Branches `feat/<assunto>`, `fix/<assunto>`, `chore/<assunto>`; um PR por fase/subfase, com *o que muda*, *como testar* e *critérios de aceite atendidos*.
+- Código (identificadores) em inglês; interface, comentários de domínio e documentação em português.
+- Decisões relevantes viram ADR curto em `docs/decisoes/` (uma por arquivo).
+- Consultar o Context7 antes de usar APIs de Tailwind v4, Express 5, React 19, Drizzle, Playwright e lucide-react (nomes de ícones mudam entre versões).
