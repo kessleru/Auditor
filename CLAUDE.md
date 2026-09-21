@@ -23,6 +23,9 @@ npm run format                  # prettier --write
 npm run typecheck               # tsc --noEmit em cada workspace
 npm test                        # vitest run em cada workspace
 npm test -w @auditoria-rf/api -- src/app.test.ts   # um arquivo de teste
+npm run db:migrate              # aplica migrations (o servidor também aplica ao subir)
+npm run db:seed                 # funções de página, tarefas-alvo e IFTM; idempotente
+npm run db:generate -w @auditoria-rf/api   # gera migration após mudar src/db/schema.ts
 ```
 
 Previstos pelo plano, ainda não criados: `npm run create-auditor` (único jeito de criar auditor) e `npm run collect -- --institution=<sigla|id> [--functions=home,admission]`.
@@ -34,8 +37,8 @@ Testes: Vitest (unidade), Supertest (integração da API), Testing Library + `vi
 Monorepo npm workspaces:
 
 - `apps/web` — React 19, Vite, TypeScript, Tailwind v4 (tokens via `@theme` em `src/styles/tokens.css`), React Router, TanStack Query, React Hook Form + Zod. Organizado por `features/` (auth, audits, collections, inspection, results) + `components/ui/` (design system).
-- `apps/api` — Node 22, Express 5, TypeScript, SQLite (`better-sqlite3`) + Drizzle. `app.ts` cria o app sem `listen` (para Supertest); `server.ts` faz o `listen`.
-- `packages/contracts` (`@auditoria-rf/contracts`) — schemas Zod e tipos compartilhados: o mesmo schema valida a entrada na API e tipa as respostas no front. O `exports` usa a condição `development` para apontar direto para `src/*.ts` (Vite, `tsx --conditions=development` e Vitest); fora dela resolve `dist/`, por isso o build de contracts vem antes. Imports relativos em código Node usam extensão `.js`. O `exports` usa a condição `development` para apontar direto para `src/*.ts` (Vite, `tsx --conditions=development` e Vitest); fora dela resolve `dist/`, por isso o build de contracts vem antes. Imports relativos em código Node usam extensão `.js`.
+- `apps/api` — Node 22, Express 5, TypeScript, SQLite (`better-sqlite3`) + Drizzle. `app.ts` cria o app sem `listen` (para Supertest); `server.ts` aplica as migrations e faz o `listen`. Variáveis de ambiente validadas em `config/env.ts`; o `.env` fica na raiz e caminhos relativos resolvem a partir de `apps/api`.
+- `packages/contracts` (`@auditoria-rf/contracts`) — schemas Zod e tipos compartilhados: o mesmo schema valida a entrada na API e tipa as respostas no front. O `exports` usa a condição `development` para apontar direto para `src/*.ts` (Vite, `tsx --conditions=development` e Vitest); fora dela resolve `dist/`, por isso o build de contracts vem antes. Imports relativos em código Node usam extensão `.js`.
 
 API organizada **por módulo de domínio** (`src/modules/<módulo>/`), com camadas dentro de cada módulo. Dependências fluem só para baixo: `routes → controllers → services → repositories → db`. Services não conhecem `req/res`; repositories são o único acesso ao banco. `infra/` (crawler, auditor, queue, storage, events, locks) é consumida **apenas por services**. A CLI (`src/cli/`) usa os **mesmos services** da API — nunca duplicar lógica.
 
