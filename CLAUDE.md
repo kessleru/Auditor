@@ -8,20 +8,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Projeto de TCC (Ciência da Computação, IFTM): plataforma que audita a acessibilidade e a usabilidade dos portais dos Institutos Federais em duas camadas — **automatizada** (descoberta de rotas + axe-core via Playwright) e **manual** (tarefas-alvo, verificação assistiva, validação de achados).
 
-**Ainda não há código.** A fonte da verdade é `docs/PLANO_DE_IMPLEMENTACAO.md`: executar o plano, não reescrevê-lo. Se uma skill ou sugestão contradisser o plano (estrutura, stack, regras metodológicas), o plano prevalece. Ler a seção relevante do plano antes de cada tarefa.
+Fase 0 (fundação) concluída; demais fases ainda não implementadas. A fonte da verdade é `docs/PLANO_DE_IMPLEMENTACAO.md`: executar o plano, não reescrevê-lo. Se uma skill ou sugestão contradisser o plano (estrutura, stack, regras metodológicas), o plano prevalece. Ler a seção relevante do plano antes de cada tarefa.
 
 - Trabalhar **uma fase por vez**, na ordem da seção 7 do plano. Não avançar sem cumprir os critérios de aceite da fase; ao fim, rodar lint, typecheck e testes.
 - Em ambiguidade, **perguntar** em vez de supor — principalmente nas regras metodológicas (seção 3), que afetam a validade da pesquisa.
-- Já existem: `.claude/skills/` (skills em arquivo), `public/logo.svg` e `public/favicon.svg` (destino final: `apps/web/public/`), `.gitattributes`.
 
-## Comandos (a criar na Fase 0 — atualizar esta seção quando existirem)
+## Comandos
 
 ```bash
-npm install && npm run dev      # sobe web e api juntos
-npm run build | lint | typecheck | test
-npm run create-auditor          # único jeito de criar auditor (sem cadastro público)
-npm run collect -- --institution=<sigla|id> [--functions=home,admission]
+npm install && npm run dev      # api (tsx watch, :3333) + web (Vite, :5173, proxy /api -> api)
+npm run build                   # contracts primeiro, depois api e web
+npm run lint                    # ESLint (inclui jsx-a11y strict no web) + prettier --check
+npm run format                  # prettier --write
+npm run typecheck               # tsc --noEmit em cada workspace
+npm test                        # vitest run em cada workspace
+npm test -w @auditoria-rf/api -- src/app.test.ts   # um arquivo de teste
 ```
+
+Previstos pelo plano, ainda não criados: `npm run create-auditor` (único jeito de criar auditor) e `npm run collect -- --institution=<sigla|id> [--functions=home,admission]`.
 
 Testes: Vitest (unidade), Supertest (integração da API), Testing Library + `vitest-axe` (componentes), Playwright (E2E). Testes do crawler usam fixtures locais — **sem rede nos testes**; o motor de auditoria é testado contra HTML servido localmente.
 
@@ -31,7 +35,7 @@ Monorepo npm workspaces:
 
 - `apps/web` — React 19, Vite, TypeScript, Tailwind v4 (tokens via `@theme` em `src/styles/tokens.css`), React Router, TanStack Query, React Hook Form + Zod. Organizado por `features/` (auth, audits, collections, inspection, results) + `components/ui/` (design system).
 - `apps/api` — Node 22, Express 5, TypeScript, SQLite (`better-sqlite3`) + Drizzle. `app.ts` cria o app sem `listen` (para Supertest); `server.ts` faz o `listen`.
-- `packages/contracts` (`@auditoria-rf/contracts`) — schemas Zod e tipos compartilhados: o mesmo schema valida a entrada na API e tipa as respostas no front.
+- `packages/contracts` (`@auditoria-rf/contracts`) — schemas Zod e tipos compartilhados: o mesmo schema valida a entrada na API e tipa as respostas no front. O `exports` usa a condição `development` para apontar direto para `src/*.ts` (Vite, `tsx --conditions=development` e Vitest); fora dela resolve `dist/`, por isso o build de contracts vem antes. Imports relativos em código Node usam extensão `.js`. O `exports` usa a condição `development` para apontar direto para `src/*.ts` (Vite, `tsx --conditions=development` e Vitest); fora dela resolve `dist/`, por isso o build de contracts vem antes. Imports relativos em código Node usam extensão `.js`.
 
 API organizada **por módulo de domínio** (`src/modules/<módulo>/`), com camadas dentro de cada módulo. Dependências fluem só para baixo: `routes → controllers → services → repositories → db`. Services não conhecem `req/res`; repositories são o único acesso ao banco. `infra/` (crawler, auditor, queue, storage, events, locks) é consumida **apenas por services**. A CLI (`src/cli/`) usa os **mesmos services** da API — nunca duplicar lógica.
 
