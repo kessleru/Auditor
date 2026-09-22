@@ -12,6 +12,8 @@ import { createAuthRoutes } from './modules/auth/auth.routes.js';
 import { createCollectionsController } from './modules/collections/collections.controller.js';
 import { createCollectionsRoutes } from './modules/collections/collections.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { createInspectionsController } from './modules/inspections/inspections.controller.js';
+import { createInspectionsRoutes } from './modules/inspections/inspections.routes.js';
 import { createInstitutionsController } from './modules/institutions/institutions.controller.js';
 import { createInstitutionsRoutes } from './modules/institutions/institutions.routes.js';
 import { createPublicController } from './modules/reports/public.controller.js';
@@ -65,6 +67,7 @@ export function createApp({
       requireAuditor,
     ),
   );
+  api.use(createInspectionsRoutes(createInspectionsController(s.inspections), requireAuditor));
   app.use('/api/v1', api);
 
   app.use(notFound);
