@@ -1,8 +1,12 @@
 import type { RequestHandler } from 'express';
+import { z } from 'zod';
+import { type ExportService, exportDatasets } from './export.service.js';
 import { parseId } from '../../shared/params.js';
 import type { PublicReportsService } from './public-reports.service.js';
 
-export function createPublicController(service: PublicReportsService) {
+const datasetSchema = z.object({ conjunto: z.enum(exportDatasets).default('instituicoes') });
+
+export function createPublicController(service: PublicReportsService, exporter: ExportService) {
   const summary: RequestHandler = (_req, res) => {
     res.json(service.summary());
   };
@@ -18,5 +22,18 @@ export function createPublicController(service: PublicReportsService) {
   const methodology: RequestHandler = (_req, res) => {
     res.json(service.methodology());
   };
-  return { summary, institutions, institution, findings, methodology };
+  const exportCsv: RequestHandler = (req, res) => {
+    const { conjunto } = datasetSchema.parse(req.query);
+    res
+      .type('text/csv; charset=utf-8')
+      .attachment(`auditoria-rf-${conjunto}.csv`)
+      .send(exporter.csv(conjunto));
+  };
+  const dictionary: RequestHandler = (_req, res) => {
+    res
+      .type('text/csv; charset=utf-8')
+      .attachment('auditoria-rf-dicionario.csv')
+      .send(exporter.dictionary());
+  };
+  return { summary, institutions, institution, findings, methodology, exportCsv, dictionary };
 }

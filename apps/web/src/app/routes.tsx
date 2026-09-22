@@ -2,7 +2,6 @@ import { Navigate, type RouteObject, useParams } from 'react-router';
 import { AuditorLayout } from './layouts/AuditorLayout';
 import { PublicLayout } from './layouts/PublicLayout';
 import { NotFoundPage } from './NotFoundPage';
-import { PlaceholderPage } from './PlaceholderPage';
 import { Root } from './Root';
 import { LoginPage } from '../features/auth/LoginPage';
 import { NewAuditPage } from '../features/audits/NewAuditPage';
@@ -18,6 +17,8 @@ import { InspectionHomePage } from '../features/inspection/InspectionHomePage';
 import { PortalLayout } from '../features/inspection/PortalLayout';
 import { TasksTab } from '../features/inspection/TasksTab';
 import { ValidationTab } from '../features/inspection/ValidationTab';
+import { AuditorInstitutionPage } from '../features/results/AuditorInstitutionPage';
+import { ComparisonPage } from '../features/results/ComparisonPage';
 import { InstitutionDetailPage } from '../features/results/InstitutionDetailPage';
 import { MethodologyPage } from '../features/results/MethodologyPage';
 import { PublicHomePage } from '../features/results/PublicHomePage';
@@ -31,10 +32,6 @@ function TabSwitch() {
   if (tab === 'validacao') return <ValidationTab />;
   return <Navigate to="../validacao" replace />;
 }
-
-const placeholder = (title: string, phase: number) => (
-  <PlaceholderPage title={title} phase={phase} />
-);
 
 /** Catálogo de componentes: só em desenvolvimento (fica fora do build de produção). */
 const devRoutes: RouteObject[] = import.meta.env.DEV
@@ -70,7 +67,8 @@ export const routes: RouteObject[] = [
         Component: AuditorLayout,
         children: [
           { path: 'painel', Component: DashboardPage },
-          { path: 'comparativo', element: placeholder('Comparativo', 9) },
+          { path: 'comparativo', Component: ComparisonPage },
+          { path: 'painel/instituicoes/:id', Component: AuditorInstitutionPage },
           { path: 'gestao/instituicoes', Component: InstitutionsAdminPage },
           { path: 'auditorias/nova', Component: NewAuditPage },
           { path: 'auditorias/nova/rotas', Component: RouteReviewOverviewPage },
