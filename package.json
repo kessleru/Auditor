@@ -10,7 +10,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks",
+    "prepare": "node scripts/setup-hooks.mjs",
     "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @auditoria-rf/api\" \"npm run dev -w @auditoria-rf/web\"",
     "build": "npm run build -w @auditoria-rf/contracts && npm run build -w @auditoria-rf/api -w @auditoria-rf/web",
     "lint": "eslint . && prettier --check .",
