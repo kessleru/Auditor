@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { ButtonLink, DataTable, EmptyState, PageTitle } from '../../components/ui';
+import { ButtonLink, DataTable, EmptyState, Page, PageHeader } from '../../components/ui';
 import { formatDate } from '../../lib/format';
 import { useCollections } from '../collections/api';
 import { QueryState } from '../results/QueryState';
@@ -8,8 +8,11 @@ import { QueryState } from '../results/QueryState';
 export function InspectionHomePage() {
   const collections = useCollections(['completed', 'partial']);
   return (
-    <div className="flex flex-col gap-6">
-      <PageTitle>Inspeção manual</PageTitle>
+    <Page>
+      <PageHeader
+        title="Inspeção manual"
+        description="Escolha a coleta terminada cujos portais você vai inspecionar."
+      />
       <QueryState
         query={collections}
         loadingText="Carregando coletas…"
@@ -36,7 +39,7 @@ export function InspectionHomePage() {
                   cell: (r) => (
                     <Link
                       to={`/inspecao/${r.id}`}
-                      className="text-accent underline underline-offset-2"
+                      className="font-medium text-accent-text underline-offset-2 hover:underline"
                     >
                       Coleta #{r.id}
                     </Link>
@@ -57,6 +60,6 @@ export function InspectionHomePage() {
           )
         }
       </QueryState>
-    </div>
+    </Page>
   );
 }

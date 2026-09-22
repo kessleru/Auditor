@@ -31,7 +31,8 @@ describe('visão pública (0.2)', () => {
     expect(screen.getByRole('link', { name: 'Abrir relatório do IFTM' }).getAttribute('href')).toBe(
       '/instituicoes/1',
     );
-    expect(screen.getByText(/Última coleta: 12\/09\/2026 · 1 de 3 portais avaliados/)).toBeTruthy();
+    expect(screen.getByText('Última coleta').nextElementSibling?.textContent).toBe('12/09/2026');
+    expect(screen.getByText('Portais avaliados').nextElementSibling?.textContent).toBe('1 de 3');
     expect(screen.getByRole('link', { name: 'Entenda a metodologia' })).toBeTruthy();
     await expectNoAxeViolations(container);
   });
@@ -84,8 +85,10 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     expect(screen.getByRole('navigation', { name: 'Trilha de navegação' }).textContent).toContain(
       'IFTM',
     );
-    expect(screen.getByText('78% — Bom')).toBeTruthy();
-    expect(screen.getByText(/3 achados aguardam validação manual/)).toBeTruthy();
+    expect(
+      screen.getByRole('meter', { name: 'Conformidade do IFTM' }).getAttribute('aria-valuetext'),
+    ).toBe('78%, Bom');
+    expect(screen.getByText('Ainda fora da lista de problemas')).toBeTruthy();
 
     const chart = screen.getByRole('img', { name: /Conformidade por coleta/ });
     expect(chart.getAttribute('aria-label')).toBe(

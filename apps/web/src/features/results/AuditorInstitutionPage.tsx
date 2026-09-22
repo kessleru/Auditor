@@ -1,22 +1,22 @@
 import { assistiveCheckTexts, heuristicLabels } from '@auditoria-rf/contracts';
 import { Download } from 'lucide-react';
 import { useId, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import {
   Badge,
   buttonClasses,
   cn,
-  conformityLabel,
   EmptyState,
   ErrorState,
   FindingCard,
-  formatPercent,
-  PageTitle,
-  StatCard,
+  Page,
+  PageHeader,
 } from '../../components/ui';
-import { formatDate, formatNumber } from '../../lib/format';
+import { formatDate } from '../../lib/format';
 import { CSV_PROBLEMS_URL, useAuditorInstitution } from './auditorApi';
+import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
+import { ConformitySummary } from './ConformitySummary';
 import { QueryState } from './QueryState';
 
 type Filter = 'all' | 'automated' | 'inspection' | 'critical';
@@ -87,38 +87,31 @@ export function AuditorInstitutionPage() {
             (filter === 'critical' && c.critical),
         );
         return (
-          <div className="flex flex-col gap-6">
-            <nav aria-label="Trilha de navegação">
-              <ol className="flex flex-wrap items-center gap-2 text-label">
-                <li>
-                  <Link to="/painel" className="text-accent underline underline-offset-2">
-                    Painel de auditoria
-                  </Link>
-                </li>
-                <li aria-hidden="true" className="text-text-muted">
-                  ›
-                </li>
-                <li aria-current="page">{institution.acronym}</li>
-              </ol>
-            </nav>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <PageTitle>{institution.name}</PageTitle>
-                <p className="text-label text-text-muted">
-                  {institution.domain}
-                  {institution.collectedAt
-                    ? ` · última coleta em ${formatDate(institution.collectedAt)}`
-                    : ''}
-                  {institution.status === 'evaluated'
-                    ? ` · ${institution.pagesEvaluated} páginas avaliadas`
-                    : ''}
-                </p>
-              </div>
-              <a href={CSV_PROBLEMS_URL} download className={buttonClasses('secondary')}>
-                <Download aria-hidden="true" size={16} strokeWidth={1.75} /> Exportar problemas
-                (CSV)
-              </a>
-            </div>
+          <Page>
+            <PageHeader
+              breadcrumb={
+                <Breadcrumb
+                  items={[{ to: '/painel', label: 'Painel de auditoria' }]}
+                  current={institution.acronym}
+                />
+              }
+              title={institution.name}
+              meta={[
+                { label: 'Portal', value: institution.domain },
+                ...(institution.collectedAt
+                  ? [{ label: 'Última coleta', value: formatDate(institution.collectedAt) }]
+                  : []),
+                ...(institution.status === 'evaluated'
+                  ? [{ label: 'Páginas avaliadas', value: institution.pagesEvaluated }]
+                  : []),
+              ]}
+              actions={
+                <a href={CSV_PROBLEMS_URL} download className={buttonClasses('secondary')}>
+                  <Download aria-hidden="true" size={16} strokeWidth={1.75} /> Exportar problemas
+                  (CSV)
+                </a>
+              }
+            />
 
             {institution.status === 'no_data' ? (
               <ErrorState
@@ -131,43 +124,28 @@ export function AuditorInstitutionPage() {
             ) : null}
 
             {institution.status === 'evaluated' ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard
-                  label="Conformidade"
-                  value={
-                    institution.conformity === null
-                      ? 'Sem dado'
-                      : `${formatPercent(institution.conformity)} — ${conformityLabel(institution.conformity)}`
-                  }
-                  hint={
-                    <Link to="/metodologia" className="text-accent underline underline-offset-2">
-                      Só critérios automatizáveis
-                    </Link>
-                  }
-                />
-                <StatCard
-                  label="Problemas"
-                  value={formatNumber(institution.problems ?? 0)}
-                  hint={`${institution.pendingValidation} achados com validação pendente`}
-                />
-                <StatCard
-                  label="Críticos"
-                  value={formatNumber(institution.criticalProblems ?? 0)}
-                />
-                <StatCard
-                  label="Tarefas concluídas"
-                  value={
-                    institution.tasks
+              <ConformitySummary
+                conformity={institution.conformity}
+                acronym={institution.acronym}
+                figures={[
+                  {
+                    label: 'Problemas',
+                    value: institution.problems ?? 0,
+                    hint: `${institution.pendingValidation} aguardando validação`,
+                  },
+                  { label: 'Críticos', value: institution.criticalProblems ?? 0 },
+                  { label: 'De template', value: institution.templateProblems ?? 0 },
+                  {
+                    label: 'Tarefas concluídas',
+                    value: institution.tasks
                       ? `${institution.tasks.done} de ${institution.tasks.total}`
-                      : '—'
-                  }
-                  hint={
-                    institution.inspection === 'not_in_sample'
-                      ? 'Fora da subamostra da inspeção'
-                      : undefined
-                  }
-                />
-              </div>
+                      : '—',
+                    ...(institution.inspection === 'not_in_sample' && {
+                      hint: 'Fora da subamostra',
+                    }),
+                  },
+                ]}
+              />
             ) : null}
 
             {history.length > 0 ? (
@@ -235,7 +213,7 @@ export function AuditorInstitutionPage() {
                               href={c.p.helpUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-accent underline underline-offset-2"
+                              className="text-accent-text underline underline-offset-2 hover:decoration-2"
                             >
                               como corrigir (documentação do axe, em inglês; abre em nova aba)
                             </a>
@@ -270,7 +248,7 @@ export function AuditorInstitutionPage() {
                 </ul>
               </section>
             ) : null}
-          </div>
+          </Page>
         );
       }}
     </QueryState>

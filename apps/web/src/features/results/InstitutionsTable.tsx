@@ -41,10 +41,16 @@ export function InstitutionsTable({
           header: 'Instituição',
           rowHeader: true,
           cell: (row) => (
-            <span className="flex flex-col">
-              <span className="font-medium text-text">{row.acronym}</span>
+            // O nome da instituição é o próprio link do relatório: um alvo grande, no começo da
+            // linha, em vez de um "Abrir" solto na ponta (padrão das tabelas do Linear).
+            <Link
+              to={`/instituicoes/${row.id}`}
+              aria-label={`Abrir relatório do ${row.acronym}`}
+              className="flex flex-col rounded-md underline-offset-2 hover:underline"
+            >
+              <span className="font-medium text-accent-text">{row.acronym}</span>
               <span className="text-label text-text-muted">{row.name}</span>
-            </span>
+            </Link>
           ),
         },
         { key: 'conformity', header: 'Conformidade', cell: (row) => <Conformity row={row} /> },
@@ -53,20 +59,6 @@ export function InstitutionsTable({
           header: 'Problemas confirmados',
           align: 'end',
           cell: (row) => <Problems row={row} />,
-        },
-        {
-          key: 'report',
-          header: 'Relatório',
-          align: 'end',
-          cell: (row) => (
-            <Link
-              to={`/instituicoes/${row.id}`}
-              aria-label={`Abrir relatório do ${row.acronym}`}
-              className="inline-flex min-h-6 items-center text-accent underline underline-offset-2 hover:text-accent-text"
-            >
-              Abrir
-            </Link>
-          ),
         },
       ]}
     />

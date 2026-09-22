@@ -181,7 +181,7 @@ function TaskForm({
                 <span className="flex-1">{p}</span>
                 <button
                   type="button"
-                  className="min-h-6 text-label text-accent underline"
+                  className="min-h-6 text-label text-accent-text underline"
                   aria-label={`Remover passo ${i + 1}: ${p}`}
                   onClick={() => setPath((list) => list.filter((_, j) => j !== i))}
                 >

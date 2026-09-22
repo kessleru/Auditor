@@ -20,7 +20,7 @@ describe('movimento', () => {
     const offenders = sources(SRC).flatMap((file) => {
       const text = readFileSync(file, 'utf8');
       return [...text.matchAll(/(\S*)(animate-[a-z-]+|transition-transform)/g)]
-        .filter(([, prefix]) => !prefix?.endsWith('motion-safe:'))
+        .filter(([, prefix]) => !prefix?.includes('motion-safe:'))
         .map(([match]) => `${file.replace(SRC, 'src')}: ${match}`);
     });
     expect(offenders).toEqual([]);

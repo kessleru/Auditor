@@ -366,7 +366,7 @@ export function RouteReviewPage() {
           <li>
             <Link
               to={`/auditorias/nova${search}`}
-              className="text-accent underline underline-offset-2"
+              className="text-accent-text underline underline-offset-2 hover:decoration-2"
             >
               Nova auditoria
             </Link>
@@ -377,7 +377,7 @@ export function RouteReviewPage() {
           <li>
             <Link
               to={`/auditorias/nova/rotas${search}`}
-              className="text-accent underline underline-offset-2"
+              className="text-accent-text underline underline-offset-2 hover:decoration-2"
             >
               Revisão de rotas
             </Link>
