@@ -20,7 +20,9 @@
     "db:migrate": "npm run db:migrate -w @auditoria-rf/api",
     "db:seed": "npm run db:seed -w @auditoria-rf/api",
     "create-auditor": "npm run create-auditor -w @auditoria-rf/api --",
-    "collect": "npm run collect -w @auditoria-rf/api --"
+    "collect": "npm run collect -w @auditoria-rf/api --",
+    "dogfood": "npm run dogfood -w @auditoria-rf/api --",
+    "test:e2e": "npm run test:e2e -w @auditoria-rf/web"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
@@ -34,6 +36,7 @@
     "prettier": "3.9.8",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.1",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "wait-on": "9.1.0"
   }
 }
