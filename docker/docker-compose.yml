@@ -3,6 +3,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    expose:
+      - '3333'
     ports:
       - '3333:3333'
     env_file:
@@ -10,8 +12,21 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: '3333'
+      WEB_ORIGIN: http://localhost:8080
       DATABASE_PATH: /app/data/auditoria.sqlite
       SNAPSHOTS_DIR: /app/data/snapshots
     volumes:
       - ../data:/app/data
+    restart: unless-stopped
+
+  # Front estático servido por nginx, que também encaminha /api para a API: quem usa abre
+  # http://localhost:8080 e pronto.
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - '8080:80'
+    depends_on:
+      - api
     restart: unless-stopped
