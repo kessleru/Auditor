@@ -1,4 +1,9 @@
-import { routeListQuerySchema, updateRouteSchema } from '@auditoria-rf/contracts';
+import {
+  createRouteSchema,
+  replaceRouteSchema,
+  routeListQuerySchema,
+  updateRouteSchema,
+} from '@auditoria-rf/contracts';
 import type { RequestHandler } from 'express';
 import { parseId } from '../../shared/params.js';
 import type { DiscoveryService } from './discovery.service.js';
@@ -27,5 +32,19 @@ export function createRoutesDiscoveryController(
     res.json({ route: toRoute(route) });
   };
 
-  return { startDiscovery, getDiscovery, listRoutes, updateRoute };
+  const createRoute: RequestHandler = (req, res) => {
+    const route = routes.create(parseId(req.params.id), createRouteSchema.parse(req.body));
+    res.status(201).json({ route: toRoute(route) });
+  };
+
+  const replaceRoute: RequestHandler = (req, res) => {
+    const { replaced, route } = routes.replace(
+      parseId(req.params.id),
+      replaceRouteSchema.parse(req.body),
+    );
+    discovery.resolveReplacement(replaced.institutionId, replaced.id);
+    res.json({ replaced: toRoute(replaced), route: toRoute(route) });
+  };
+
+  return { startDiscovery, getDiscovery, listRoutes, updateRoute, createRoute, replaceRoute };
 }
