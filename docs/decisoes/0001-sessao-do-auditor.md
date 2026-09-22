@@ -23,4 +23,4 @@ O plano pede sessão em cookie `httpOnly`, `secure` em produção e `sameSite=la
 
 - `SESSION_SECRET` deixou de ser necessário e saiu do `.env.example`.
 - Sessões podem ser revogadas individualmente (logout) ou todas de um auditor (apagar as linhas).
-- O rate limit guarda contagens em memória: reinício do servidor zera os contadores. Aceitável para uma instância única; atrás de proxy reverso será preciso configurar `trust proxy` (Fase 11).
+- O rate limit guarda contagens em memória: reinício do servidor zera os contadores. Aceitável para uma instância única; atrás de proxy reverso será preciso configurar `trust proxy` (Fase 12).
