@@ -609,7 +609,7 @@ Cada fase termina com **lint + typecheck + testes passando** e um PR próprio.
 - Testes E2E dos fluxos principais (Playwright).
 - **Dogfooding:** rodar o próprio motor de auditoria contra o front em CI; o build falha se houver violação crítica.
 - `docker/Dockerfile` baseado na imagem oficial do Playwright (já traz Chromium e dependências do sistema, na **mesma versão** fixada no `package.json`); `docker-compose.yml` com volume persistente para `data/` (banco SQLite e snapshots).
-- README com instalação, execução, uso da CLI, decisões e limitações conhecidas.
+- README com instalação, execução, uso da CLI, decisões e limitações conhecidas, seguindo o guia `docs/readme-impressionante.md`.
 
 ---
 
