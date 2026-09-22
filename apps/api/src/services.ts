@@ -19,7 +19,9 @@ import { createInspectionsService } from './modules/inspections/inspections.serv
 import { createInstitutionsRepository } from './modules/institutions/institutions.repository.js';
 import { createInstitutionsService } from './modules/institutions/institutions.service.js';
 import { createReportsRepository } from './modules/reports/reports.repository.js';
+import { createExportService } from './modules/reports/export.service.js';
 import { createPublicReportsService } from './modules/reports/public-reports.service.js';
+import { createResultsService } from './modules/reports/results.service.js';
 import { createReportsService } from './modules/reports/reports.service.js';
 import {
   createDiscoveryService,
@@ -90,6 +92,11 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
   });
 
   const inspections = createInspectionsService(createInspectionsRepository(db), timing);
+  const results = createResultsService(
+    createPublicReportsService(reportsRepository, { contactEmail: null, problems: 'valid' }),
+    inspections,
+  );
+  const exporter = createExportService(publicReports, reportsRepository);
 
   return {
     auth,
@@ -100,6 +107,8 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     reports,
     publicReports,
     inspections,
+    results,
+    exporter,
   };
 }
 

@@ -9,5 +9,7 @@ export function createPublicRoutes(controller: ReturnType<typeof createPublicCon
   router.get('/public/institutions/:id', controller.institution);
   router.get('/public/institutions/:id/findings', controller.findings);
   router.get('/public/methodology', controller.methodology);
+  router.get('/public/export.csv', controller.exportCsv);
+  router.get('/public/export-dictionary.csv', controller.dictionary);
   return router;
 }

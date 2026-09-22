@@ -56,6 +56,7 @@ export const problems: PublicProblem[] = [
     wcagCriteria: '1.1.1',
     principle: 'perceivable',
     severity: 'critical',
+    validation: 'confirmed',
     template: true,
     pages: 4,
     occurrences: 4,
@@ -74,6 +75,7 @@ export const problems: PublicProblem[] = [
     wcagCriteria: '2.4.4, 4.1.2',
     principle: 'operable',
     severity: 'moderate',
+    validation: 'confirmed',
     template: false,
     pages: 1,
     occurrences: 2,
@@ -116,4 +118,17 @@ export const publicRoutes = {
   'GET /public/institutions/2': { institution: ifx, history: [] },
   'GET /public/methodology': methodology,
   'GET /collections': { collections: [] },
+  'GET /reports/overview': {
+    lastCollectionAt: '2026-09-12T15:00:00.000Z',
+    institutionsTotal: 3,
+    institutionsEvaluated: 1,
+    averageConformity: 0.78,
+    distinctProblems: 24,
+    tasks: { done: 1, total: 2 },
+    institutions: [
+      { ...iftm, inspection: 'in_progress', tasks: { done: 1, total: 2 } },
+      { ...ifx, inspection: null, tasks: null },
+      { ...ifn, inspection: null, tasks: null },
+    ],
+  },
 };

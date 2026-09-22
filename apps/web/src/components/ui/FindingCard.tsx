@@ -13,10 +13,13 @@ export interface FindingCardProps {
   title: string;
   severity: Severity;
   origin: 'automated' | 'inspection';
-  wcagCriteria: string;
-  principle: WcagPrinciple;
+  /** Critério WCAG (achado automatizado)... */
+  wcagCriteria?: string;
+  principle?: WcagPrinciple;
+  /** ...ou outra referência, como a heurística violada (achado da inspeção). */
+  reference?: string;
   description: string;
-  pageUrl: string;
+  pageUrl?: string;
   snippet?: string;
   recommendation: ReactNode;
   /** Problema de template: presente em todas (ou quase todas) as páginas avaliadas. */
@@ -33,6 +36,7 @@ export function FindingCard({
   origin,
   wcagCriteria,
   principle,
+  reference,
   description,
   pageUrl,
   snippet,
@@ -51,14 +55,19 @@ export function FindingCard({
         <Badge variant={origin}>{origin === 'automated' ? 'Automatizada' : 'Inspeção'}</Badge>
         {template ? <Badge variant="neutral">Template</Badge> : null}
         <span className="text-label text-text-muted">
-          WCAG {wcagCriteria} — {principleLabels[principle]}
+          {reference ??
+            (wcagCriteria && principle
+              ? `WCAG ${wcagCriteria} — ${principleLabels[principle]}`
+              : '')}
         </span>
       </div>
       <Heading className="mt-3 text-card text-text">{title}</Heading>
       <p className="mt-2 text-body text-text-muted">{description}</p>
-      <p className="mt-2 text-label text-text-muted">
-        Página: <span className="break-all">{pageUrl}</span>
-      </p>
+      {pageUrl ? (
+        <p className="mt-2 text-label text-text-muted">
+          Página: <span className="break-all">{pageUrl}</span>
+        </p>
+      ) : null}
       {meta ? <p className="mt-1 text-label text-text-muted">{meta}</p> : null}
       {snippet ? (
         <pre className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-code break-all whitespace-pre-wrap text-text">
