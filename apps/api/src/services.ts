@@ -17,6 +17,7 @@ import { createCollectionsService } from './modules/collections/collections.serv
 import { createInstitutionsRepository } from './modules/institutions/institutions.repository.js';
 import { createInstitutionsService } from './modules/institutions/institutions.service.js';
 import { createReportsRepository } from './modules/reports/reports.repository.js';
+import { createPublicReportsService } from './modules/reports/public-reports.service.js';
 import { createReportsService } from './modules/reports/reports.service.js';
 import {
   createDiscoveryService,
@@ -74,9 +75,13 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     concurrency: options.concurrency ?? env.COLLECTION_CONCURRENCY,
     ...timing,
   });
-  const reports = createReportsService(createReportsRepository(db));
+  const reportsRepository = createReportsRepository(db);
+  const reports = createReportsService(reportsRepository);
+  const publicReports = createPublicReportsService(reportsRepository, {
+    contactEmail: env.CRAWLER_CONTACT_EMAIL ?? null,
+  });
 
-  return { auth, institutions, routes, discovery, collections, reports };
+  return { auth, institutions, routes, discovery, collections, reports, publicReports };
 }
 
 export type Services = ReturnType<typeof createServices>;
