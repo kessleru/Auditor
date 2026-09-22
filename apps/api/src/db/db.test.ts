@@ -43,9 +43,10 @@ describe('migrations', () => {
         'task_inspections',
         'assistive_checks',
         'sessions',
+        'inspection_sample',
       ]),
     );
-    expect(tables).toHaveLength(11);
+    expect(tables).toHaveLength(12);
   });
 
   it('podem ser reaplicadas sem erro', () => {
