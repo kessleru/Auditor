@@ -5,11 +5,28 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { vi } from 'vitest';
 import { routes } from '../app/routes';
 
-/** Simula a API: responde 401 em /auth/me (visitante) ou devolve o auditor informado. */
-export function stubApi(auditor: { id: number; email: string; name: string } | null = null) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-    const url = String(input);
-    if (url.endsWith('/auth/me')) {
+type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;
+
+export interface StubOptions {
+  /** Respostas por "MÉTODO /caminho" (sem o prefixo /api/v1). Valor = corpo JSON ou função. */
+  routes?: Record<string, unknown | Handler>;
+}
+
+/**
+ * Simula a API. `auditor = null` → visitante (401 em /auth/me). Rotas não simuladas respondem 404.
+ */
+export function stubApi(
+  auditor: { id: number; email: string; name: string } | null = null,
+  { routes: handlers = {} }: StubOptions = {},
+) {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input), 'http://localhost').pathname.replace(/^\/api\/v1/, '');
+    const key = `${init?.method ?? 'GET'} ${path}`;
+    const handler = handlers[key];
+    if (handler !== undefined) {
+      return typeof handler === 'function' ? (handler as Handler)(init) : Response.json(handler);
+    }
+    if (key === 'GET /auth/me') {
       return auditor
         ? Response.json({ user: auditor })
         : Response.json(
@@ -17,9 +34,9 @@ export function stubApi(auditor: { id: number; email: string; name: string } | n
             { status: 401 },
           );
     }
-    if (url.endsWith('/auth/logout')) return new Response(null, { status: 204 });
+    if (key === 'POST /auth/logout') return new Response(null, { status: 204 });
     return Response.json(
-      { error: { code: 'NOT_FOUND', message: 'não simulado' } },
+      { error: { code: 'NOT_FOUND', message: `não simulado: ${key}` } },
       { status: 404 },
     );
   });
