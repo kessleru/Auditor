@@ -1,7 +1,9 @@
 import { Link } from 'react-router';
-import { EmptyState, Note, PageTitle } from '../../components/ui';
+import { Download } from 'lucide-react';
+import { buttonClasses, EmptyState, Note, PageTitle } from '../../components/ui';
 import { formatDate } from '../../lib/format';
 import { usePublicInstitutions, usePublicSummary } from './api';
+import { CSV_DICTIONARY_URL, CSV_URL } from './auditorApi';
 import { InstitutionsTable } from './InstitutionsTable';
 import { QueryState } from './QueryState';
 
@@ -17,17 +19,33 @@ export function PublicHomePage() {
         auditor.
       </Note>
 
-      <div className="flex flex-col gap-1">
-        <PageTitle documentTitle="Resultados">Acessibilidade dos portais da Rede Federal</PageTitle>
-        {summary.data ? (
-          <p className="text-label text-text-muted">
-            {summary.data.lastCollectionAt
-              ? `Última coleta: ${formatDate(summary.data.lastCollectionAt)}`
-              : 'Nenhuma coleta publicada ainda'}{' '}
-            · {summary.data.institutionsEvaluated} de {summary.data.institutionsTotal} portais
-            avaliados
-          </p>
-        ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <PageTitle documentTitle="Resultados">
+            Acessibilidade dos portais da Rede Federal
+          </PageTitle>
+          {summary.data ? (
+            <p className="text-label text-text-muted">
+              {summary.data.lastCollectionAt
+                ? `Última coleta: ${formatDate(summary.data.lastCollectionAt)}`
+                : 'Nenhuma coleta publicada ainda'}{' '}
+              · {summary.data.institutionsEvaluated} de {summary.data.institutionsTotal} portais
+              avaliados · dados abertos
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <a href={CSV_URL} download className={buttonClasses('secondary')}>
+            <Download aria-hidden="true" size={16} strokeWidth={1.75} /> Baixar dados (CSV)
+          </a>
+          <a
+            href={CSV_DICTIONARY_URL}
+            download
+            className="inline-flex min-h-6 items-center text-label text-accent underline underline-offset-2"
+          >
+            Dicionário de dados
+          </a>
+        </div>
       </div>
 
       <QueryState

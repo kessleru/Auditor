@@ -1,15 +1,117 @@
-import { ButtonLink, EmptyState, PageTitle } from '../../components/ui';
+import { Link } from 'react-router';
+import {
+  ButtonLink,
+  ConformityBar,
+  EmptyState,
+  formatPercent as percent,
+  Note,
+  PageTitle,
+  StatCard,
+} from '../../components/ui';
+import { formatDate, formatNumber } from '../../lib/format';
+import { useResultsOverview } from '../results/auditorApi';
 import { QueryState } from '../results/QueryState';
 import { FINISHED_STATUSES, useCollections } from './api';
 
 const ALL = ['queued', 'running', 'completed', 'partial', 'cancelled'] as const;
 
-/** Painel do auditor. Nesta fase, só o estado vazio (tela 5.1); os indicadores chegam na Fase 9. */
+/** Indicadores da coleta mais recente de cada instituição (tela 4.1). */
+function Overview({ running }: { running: number }) {
+  const overview = useResultsOverview();
+  return (
+    <QueryState
+      query={overview}
+      loadingText="Carregando indicadores…"
+      errorTitle="Não foi possível carregar os indicadores"
+    >
+      {(data) => (
+        <>
+          <p className="-mt-4 text-label text-text-muted">
+            {data.lastCollectionAt ? `Última coleta: ${formatDate(data.lastCollectionAt)} — ` : ''}
+            {data.institutionsTotal} portais cadastrados
+          </p>
+          {running > 0 ? (
+            <Note>
+              {running} {running === 1 ? 'coleta em andamento' : 'coletas em andamento'}.{' '}
+              <Link to="/coletas" className="underline underline-offset-2">
+                Acompanhar
+              </Link>
+            </Note>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Portais avaliados"
+              value={`${data.institutionsEvaluated} de ${data.institutionsTotal}`}
+            />
+            <StatCard
+              label="Problemas distintos"
+              value={formatNumber(data.distinctProblems)}
+              hint="Inclui achados ainda não validados."
+            />
+            <StatCard
+              label="Conformidade média"
+              value={data.averageConformity === null ? 'Sem dado' : percent(data.averageConformity)}
+              hint={
+                <Link to="/metodologia" className="text-accent underline underline-offset-2">
+                  Só critérios automatizáveis
+                </Link>
+              }
+            />
+            <StatCard label="Tarefas concluídas" value={`${data.tasks.done}/${data.tasks.total}`} />
+          </div>
+          <section aria-labelledby="painel-instituicoes" className="flex flex-col gap-3">
+            <h2 id="painel-instituicoes" className="text-section text-text">
+              Instituições
+            </h2>
+            <ul className="flex flex-col divide-y divide-border rounded-lg bg-surface shadow-card">
+              {data.institutions.map((i) => (
+                <li
+                  key={i.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+                >
+                  {i.status === 'evaluated' ? (
+                    <Link
+                      to={`/painel/instituicoes/${i.id}`}
+                      className="font-medium text-accent underline underline-offset-2"
+                    >
+                      {i.acronym}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-text-muted">{i.acronym}</span>
+                  )}
+                  <span className="flex flex-wrap items-center gap-4">
+                    {i.status === 'evaluated' ? (
+                      <ConformityBar value={i.conformity} label={`Conformidade do ${i.acronym}`} />
+                    ) : (
+                      <span className="text-label text-text-muted">
+                        {i.status === 'no_data' ? 'Sem dado' : 'Ainda não avaliado'}
+                      </span>
+                    )}
+                    <span className="min-w-28 text-right text-label text-text-muted">
+                      {i.problems === null ? '—' : `${formatNumber(i.problems)} problemas`}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+    </QueryState>
+  );
+}
+
+/** Painel do auditor (tela 4.1); sem coletas, o estado vazio (tela 5.1). */
 export function DashboardPage() {
   const collections = useCollections(ALL);
   return (
     <div className="flex flex-col gap-6">
-      <PageTitle>Painel de auditoria</PageTitle>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageTitle>Painel de auditoria</PageTitle>
+        <ButtonLink to="/auditorias/nova" variant="secondary">
+          Nova auditoria
+        </ButtonLink>
+      </div>
       <QueryState
         query={collections}
         loadingText="Carregando…"
@@ -45,26 +147,7 @@ export function DashboardPage() {
             );
           }
           const running = rows.filter((r) => !FINISHED_STATUSES.includes(r.status));
-          const latest = rows[0];
-          return (
-            <section className="flex flex-col gap-3 rounded-lg bg-surface p-5 shadow-card">
-              <h2 className="text-card text-text">Coletas</h2>
-              <p className="text-body text-text-muted">
-                {running.length > 0
-                  ? `${running.length} coleta(s) em andamento.`
-                  : 'Nenhuma coleta em andamento.'}{' '}
-                Os indicadores consolidados deste painel chegam na próxima etapa do projeto.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                {latest ? (
-                  <ButtonLink to={`/coletas/${latest.id}`}>Ver a coleta mais recente</ButtonLink>
-                ) : null}
-                <ButtonLink to="/historico" variant="secondary">
-                  Histórico
-                </ButtonLink>
-              </div>
-            </section>
-          );
+          return <Overview running={running.length} />;
         }}
       </QueryState>
     </div>

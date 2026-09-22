@@ -88,7 +88,9 @@ describe('LoginPage', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/comparativo'));
     expect(body).toEqual({ email: 'auditora@iftm.edu.br', password: 'senha-bem-longa-123' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Comparativo' })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Comparativo entre instituições' }),
+    ).toBeTruthy();
   });
 
   it('já logado, vai direto para o painel', async () => {
