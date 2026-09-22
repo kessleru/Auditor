@@ -27,14 +27,24 @@ type InstitutionRow = NonNullable<ReturnType<ReportsRepository['findInstitution'
  */
 export function createPublicReportsService(
   repo: ReportsRepository,
-  { contactEmail }: { contactEmail: string | null },
+  {
+    contactEmail,
+    problems: countedProblems = 'confirmed',
+  }: {
+    contactEmail: string | null;
+    /** `confirmed` = visão pública; `valid` = visão do auditor (tudo que não é falso positivo). */
+    problems?: 'confirmed' | 'valid';
+  },
 ) {
   const summarize = (collectionId: number, institutionId: number) => {
     const pages = repo
       .pagesOfCollection(collectionId)
       .filter((p) => p.institutionId === institutionId);
     const findings = repo.findingDetailsOf(collectionId, institutionId);
-    return { summary: summarizeInstitution(pages, findings, { problems: 'confirmed' }), findings };
+    return {
+      summary: summarizeInstitution(pages, findings, { problems: countedProblems }),
+      findings,
+    };
   };
 
   const view = (institution: InstitutionRow): PublicInstitution => {
@@ -158,7 +168,11 @@ export function createPublicReportsService(
 
       return summary.problems.map((problem) => {
         const example = findings.find(
-          (f) => f.fingerprint === problem.fingerprint && f.validation === 'confirmed',
+          (f) =>
+            f.fingerprint === problem.fingerprint &&
+            (countedProblems === 'confirmed'
+              ? f.validation === 'confirmed'
+              : f.validation !== 'false_positive'),
         );
         if (!example) throw new Error(`Achado sem exemplo: ${problem.fingerprint}`);
         return {
@@ -169,6 +183,7 @@ export function createPublicReportsService(
           wcagCriteria: problem.wcagCriteria,
           principle: example.principle,
           severity: problem.severity,
+          validation: example.validation,
           template: problem.template,
           pages: problem.pages,
           occurrences: problem.occurrences,

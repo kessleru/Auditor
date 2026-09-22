@@ -157,6 +157,50 @@ export function createInspectionsService(
   });
 
   return {
+    /** Situação do portal na camada manual de uma coleta; `null` se não está na subamostra. */
+    portalStatus(collectionId: number, institutionId: number): InspectionPortal | null {
+      const collection = repo.collection(collectionId);
+      if (!collection || !FINISHED.includes(collection.status)) return null;
+      if (!repo.sampleIds(collectionId).includes(institutionId)) return null;
+      const [institution] = repo.institutionsByIds([institutionId]);
+      if (!institution) return null;
+      return portalOf(collectionId, collection.scopeJson as CollectionScope, institution);
+    },
+
+    /** Achados da camada manual: tarefas com dificuldade ou interrompidas e barreiras assistivas. */
+    manualFindings(collectionId: number, institutionId: number) {
+      const tasks = repo.allTasks();
+      const taskFindings = repo
+        .taskInspectionsOf(collectionId, institutionId)
+        .filter((i) => i.result !== 'completed')
+        .map((i) => {
+          const task = tasks.find((t) => t.id === i.taskId);
+          const inspection = toInspection(i);
+          return {
+            taskTitle: task?.title ?? '',
+            taskDescription: task?.description ?? '',
+            result: inspection.result,
+            heuristic: inspection.heuristic,
+            severity: inspection.severity,
+            interactions: inspection.interactions,
+            durationSeconds: inspection.durationSeconds,
+            path: inspection.path,
+            note: inspection.note,
+          };
+        });
+      const pages = repo.pagesOf(collectionId, institutionId);
+      const barriers = repo
+        .assistiveChecksOf(pages.map((p) => p.id))
+        .filter((c) => c.state === 'barrier')
+        .map((c) => ({
+          pageUrl: pages.find((p) => p.id === c.collectionPageId)?.url ?? '',
+          kind: c.kind,
+          severity: c.severity,
+          note: c.note,
+        }));
+      return { tasks: taskFindings, barriers };
+    },
+
     summary(collectionId: number): InspectionSummary {
       const collection = finishedCollection(collectionId);
       const evaluated = evaluatedInstitutions(collectionId);

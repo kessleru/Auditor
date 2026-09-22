@@ -18,6 +18,8 @@ import { createInstitutionsController } from './modules/institutions/institution
 import { createInstitutionsRoutes } from './modules/institutions/institutions.routes.js';
 import { createPublicController } from './modules/reports/public.controller.js';
 import { createPublicRoutes } from './modules/reports/public.routes.js';
+import { createResultsController } from './modules/reports/results.controller.js';
+import { createResultsRoutes } from './modules/reports/results.routes.js';
 import { createRoutesDiscoveryController } from './modules/routes-discovery/routes-discovery.controller.js';
 import { createRoutesDiscoveryRoutes } from './modules/routes-discovery/routes-discovery.routes.js';
 import { createServices, type ServiceOptions, type Services } from './services.js';
@@ -52,7 +54,7 @@ export function createApp({
 
   const api = express.Router();
   api.use(healthRoutes);
-  api.use(createPublicRoutes(createPublicController(s.publicReports)));
+  api.use(createPublicRoutes(createPublicController(s.publicReports, s.exporter)));
   api.use(createAuthRoutes(createAuthController(s.auth, { secureCookies }), requireAuditor));
   api.use(createInstitutionsRoutes(createInstitutionsController(s.institutions), requireAuditor));
   api.use(
@@ -67,6 +69,7 @@ export function createApp({
       requireAuditor,
     ),
   );
+  api.use(createResultsRoutes(createResultsController(s.results), requireAuditor));
   api.use(createInspectionsRoutes(createInspectionsController(s.inspections), requireAuditor));
   app.use('/api/v1', api);
 
