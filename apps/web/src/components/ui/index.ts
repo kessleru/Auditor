@@ -1,5 +1,6 @@
 export { Badge, type BadgeVariant } from './Badge';
 export { Button, ButtonLink, buttonClasses } from './Button';
+export { Choice } from './Choice';
 export { cn } from './cn';
 export { ConformityBar } from './ConformityBar';
 export { type Column, DataTable } from './DataTable';

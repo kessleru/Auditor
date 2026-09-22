@@ -64,9 +64,34 @@ export const collectionPageSchema = z.object({
 });
 export type CollectionPage = z.infer<typeof collectionPageSchema>;
 
+export const collectionInstitutionSchema = z.object({
+  id: z.number().int(),
+  acronym: z.string(),
+  name: z.string(),
+});
+
+export const collectionListItemSchema = collectionSchema.extend({
+  institutions: z.array(collectionInstitutionSchema),
+});
+export type CollectionListItem = z.infer<typeof collectionListItemSchema>;
+
+export const collectionListQuerySchema = z.object({
+  /** Situações separadas por vírgula, ex.: `queued,running`. */
+  status: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value.split(',').map((s) => s.trim()) : undefined))
+    .pipe(z.array(z.enum(collectionStatuses)).optional()),
+});
+
+export const collectionListResponseSchema = z.object({
+  collections: z.array(collectionListItemSchema),
+});
+
 export const collectionResponseSchema = z.object({ collection: collectionSchema });
 export const collectionDetailResponseSchema = z.object({
   collection: collectionSchema,
+  institutions: z.array(collectionInstitutionSchema),
   pages: z.array(collectionPageSchema),
 });
 export const collectionPageResponseSchema = z.object({ page: collectionPageSchema });

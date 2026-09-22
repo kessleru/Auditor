@@ -6,6 +6,7 @@ export function createCollectionsRoutes(
   requireAuditor: RequestHandler,
 ) {
   const router = Router();
+  router.get('/collections', requireAuditor, controller.list);
   router.post('/collections', requireAuditor, controller.create);
   router.get('/collections/:id', requireAuditor, controller.get);
   router.get('/collections/:id/events', requireAuditor, controller.events);

@@ -39,8 +39,8 @@ function iftmSite(extraLinks: string[] = []) {
 
 const crawl =
   (site: ReturnType<typeof fakeSite>): DiscoverFn =>
-  (domain) =>
-    discoverRoutes({ domain, client: site.client, robotsAgent: 'AuditoriaRF' });
+  (domain, checkUrls) =>
+    discoverRoutes({ domain, client: site.client, robotsAgent: 'AuditoriaRF', checkUrls });
 
 let db: DB;
 let discover: DiscoverFn;
@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 async function setup() {
-  const app = createApp({ db, discover: (domain) => discover(domain) });
+  const app = createApp({ db, discover: (domain, checkUrls) => discover(domain, checkUrls) });
   const agent = await loggedInAgent(app, db);
   return { app, agent };
 }
@@ -167,6 +167,7 @@ describe('descoberta de rotas', () => {
       routes: [],
       blockedByRobots: 0,
       failed: 0,
+      checks: [],
     });
     expect((await waitForDiscovery(agent)).status).toBe('completed');
   });
@@ -274,5 +275,159 @@ describe('PATCH /api/v1/routes/:id', () => {
     expect((await agent.patch('/api/v1/routes/999').send({ status: 'confirmed' })).status).toBe(
       404,
     );
+  });
+});
+
+describe('uma rota confirmada por função', () => {
+  async function discovered() {
+    const ctx = await setup();
+    await ctx.agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(ctx.agent);
+    const byUrl = Object.fromEntries(
+      (await listRoutes(ctx.agent)).map((r) => [r.normalizedUrl, r]),
+    );
+    return { ...ctx, byUrl };
+  }
+
+  it('recusa uma segunda rota confirmada para a mesma função, a menos que seja troca', async () => {
+    const { agent, byUrl } = await discovered();
+    const ingresso = byUrl[`${ORIGIN}/ingresso`]!;
+    const noticias = byUrl[`${ORIGIN}/noticias`]!;
+    await agent
+      .patch(`/api/v1/routes/${ingresso.id}`)
+      .send({ status: 'confirmed', functionKey: 'admission' });
+
+    const conflict = await agent
+      .patch(`/api/v1/routes/${noticias.id}`)
+      .send({ status: 'confirmed', functionKey: 'admission' });
+    expect(conflict.status).toBe(409);
+    expect(conflict.body.error).toMatchObject({
+      code: 'FUNCTION_ALREADY_CONFIRMED',
+      details: { routeId: ingresso.id },
+    });
+
+    const swap = await agent
+      .patch(`/api/v1/routes/${noticias.id}`)
+      .send({ status: 'confirmed', functionKey: 'admission', replaceConfirmed: true });
+    expect(swap.status).toBe(200);
+    const after = Object.fromEntries((await listRoutes(agent)).map((r) => [r.normalizedUrl, r]));
+    expect(after[`${ORIGIN}/ingresso`]).toMatchObject({ status: 'suggested', confirmedAt: null });
+    expect(after[`${ORIGIN}/noticias`]).toMatchObject({
+      status: 'confirmed',
+      functionKey: 'admission',
+    });
+  });
+
+  it('aceita URL manual do domínio, já confirmada, e recusa outro domínio', async () => {
+    const { agent } = await discovered();
+    const created = await agent
+      .post('/api/v1/institutions/1/routes')
+      .send({ url: 'https://www.iftm.edu.br/biblioteca-central/#topo', functionKey: 'library' });
+    expect(created.status).toBe(201);
+    expect(created.body.route).toMatchObject({
+      normalizedUrl: 'https://www.iftm.edu.br/biblioteca-central',
+      source: 'manual',
+      status: 'confirmed',
+      functionKey: 'library',
+    });
+
+    const outside = await agent
+      .post('/api/v1/institutions/1/routes')
+      .send({ url: 'https://gov.br/biblioteca', functionKey: 'library', replaceConfirmed: true });
+    expect(outside.status).toBe(422);
+    expect(outside.body.error.code).toBe('OUTSIDE_DOMAIN');
+  });
+});
+
+describe('substituição de rota (3.1.7)', () => {
+  it('detecta rota confirmada removida, sugere outra da mesma função e só troca com confirmação', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const ingresso = (await listRoutes(agent)).find(
+      (r) => r.normalizedUrl === `${ORIGIN}/ingresso`,
+    )!;
+    await agent
+      .patch(`/api/v1/routes/${ingresso.id}`)
+      .send({ status: 'confirmed', functionKey: 'admission' });
+
+    // O portal mudou: /ingresso some (404) e surge /processo-seletivo.
+    discover = crawl(
+      fakeSite({
+        'https://iftm.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+        [`${ORIGIN}/robots.txt`]: { status: 404, body: '' },
+        [`${ORIGIN}/`]: { body: html('IFTM', links(['/processo-seletivo', 'Processo seletivo'])) },
+        [`${ORIGIN}/processo-seletivo`]: { body: html('Processo seletivo 2027') },
+        [`${ORIGIN}/ingresso`]: { status: 404, body: 'não encontrada' },
+      }),
+    );
+    await agent.post('/api/v1/institutions/1/discover');
+    const discovery = await waitForDiscovery(agent);
+    expect(discovery.replacements).toHaveLength(1);
+    const [replacement] = discovery.replacements;
+    expect(replacement).toMatchObject({
+      routeId: ingresso.id,
+      functionKey: 'admission',
+      reason: 'not_found',
+      httpStatus: 404,
+      candidateUrl: `${ORIGIN}/processo-seletivo`,
+    });
+
+    // Nada foi aplicado sozinho.
+    const before = await listRoutes(agent);
+    expect(before.find((r) => r.id === ingresso.id)?.status).toBe('confirmed');
+
+    const res = await agent
+      .post(`/api/v1/routes/${ingresso.id}/replace`)
+      .send({ newRouteId: replacement!.candidateRouteId });
+    expect(res.status).toBe(200);
+    expect(res.body.replaced).toMatchObject({
+      status: 'excluded',
+      replacedByRouteId: replacement!.candidateRouteId,
+      exclusionReason: `Substituída por ${ORIGIN}/processo-seletivo`,
+    });
+    expect(res.body.route).toMatchObject({ status: 'confirmed', functionKey: 'admission' });
+
+    const after = await agent.get('/api/v1/institutions/1/discovery');
+    expect(after.body.discovery.replacements).toEqual([]);
+  });
+
+  it('redirecionamento permanente sugere o destino', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const biblioteca = (await listRoutes(agent)).find(
+      (r) => r.normalizedUrl === `${ORIGIN}/biblioteca`,
+    )!;
+    await agent
+      .patch(`/api/v1/routes/${biblioteca.id}`)
+      .send({ status: 'confirmed', functionKey: 'library' });
+
+    discover = crawl(
+      fakeSite({
+        'https://iftm.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+        [`${ORIGIN}/robots.txt`]: { status: 404, body: '' },
+        [`${ORIGIN}/`]: { body: html('IFTM') },
+        [`${ORIGIN}/biblioteca`]: { redirect: '/bibliotecas/', status: 308 },
+        [`${ORIGIN}/bibliotecas/`]: { body: html('Bibliotecas') },
+      }),
+    );
+    await agent.post('/api/v1/institutions/1/discover');
+    const discovery = await waitForDiscovery(agent);
+    expect(discovery.replacements[0]).toMatchObject({
+      reason: 'moved',
+      httpStatus: 308,
+      candidateUrl: `${ORIGIN}/bibliotecas`,
+    });
+  });
+
+  it('só substitui rota confirmada, por outra da mesma instituição', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const [a, b] = await listRoutes(agent);
+    const res = await agent.post(`/api/v1/routes/${a!.id}/replace`).send({ newRouteId: b!.id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ROUTE_NOT_CONFIRMED');
   });
 });

@@ -9,6 +9,8 @@ export function createRoutesDiscoveryRoutes(
   router.post('/institutions/:id/discover', requireAuditor, controller.startDiscovery);
   router.get('/institutions/:id/discovery', requireAuditor, controller.getDiscovery);
   router.get('/institutions/:id/routes', requireAuditor, controller.listRoutes);
+  router.post('/institutions/:id/routes', requireAuditor, controller.createRoute);
   router.patch('/routes/:id', requireAuditor, controller.updateRoute);
+  router.post('/routes/:id/replace', requireAuditor, controller.replaceRoute);
   return router;
 }

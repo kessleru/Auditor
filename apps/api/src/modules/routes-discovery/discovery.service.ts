@@ -1,11 +1,12 @@
-import type { DiscoveryState, DiscoverySummary } from '@auditoria-rf/contracts';
+import type { DiscoveryState, DiscoverySummary, RouteReplacement } from '@auditoria-rf/contracts';
 import type { DiscoveryResult } from '../../infra/crawler/index.js';
 import { AppError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import type { InstitutionsService } from '../institutions/institutions.service.js';
 import type { RoutesRepository } from './routes.repository.js';
 
-export type DiscoverFn = (domain: string) => Promise<DiscoveryResult>;
+/** Executa a descoberta; `checkUrls` são as rotas confirmadas a verificar (seção 3.1.7). */
+export type DiscoverFn = (domain: string, checkUrls: string[]) => Promise<DiscoveryResult>;
 
 interface DiscoveryRun {
   state: DiscoveryState;
@@ -32,6 +33,7 @@ export function createDiscoveryService(
     finishedAt: null,
     error: null,
     summary: null,
+    replacements: [],
   });
 
   /** Grava as rotas encontradas. Rotas já conhecidas só têm `last_seen_at` atualizado. */
@@ -83,7 +85,61 @@ export function createDiscoveryService(
     };
   };
 
+  /**
+   * Rotas confirmadas que não respondem mais (404/410) ou mudaram de endereço (301/308), com uma
+   * candidata: o destino do redirecionamento ou outra rota sugerida para a mesma função. Nada é
+   * aplicado: a substituição exige confirmação do auditor.
+   */
+  const findReplacements = (institutionId: number, result: DiscoveryResult): RouteReplacement[] => {
+    const seenAt = now();
+    const replacements: RouteReplacement[] = [];
+    for (const check of result.checks) {
+      if (check.result !== 'not_found' && check.result !== 'moved') continue;
+      const route = routesRepo.findByNormalizedUrl(institutionId, check.url);
+      if (!route || route.status !== 'confirmed') continue;
+
+      let candidate =
+        check.movedTo !== null
+          ? routesRepo.findByNormalizedUrl(institutionId, check.movedTo)
+          : undefined;
+      if (!candidate && check.movedTo !== null) {
+        candidate = routesRepo.insert({
+          institutionId,
+          url: check.movedTo,
+          normalizedUrl: check.movedTo,
+          source: result.source,
+          status: 'suggested',
+          discoveredAt: seenAt,
+          lastSeenAt: seenAt,
+        });
+      }
+      if (!candidate && route.functionId !== null) {
+        candidate = routesRepo
+          .listByInstitution(institutionId, 'suggested')
+          .find((r) => r.functionId === route.functionId && r.id !== route.id);
+      }
+
+      const withFunction = routesRepo.findById(route.id);
+      replacements.push({
+        routeId: route.id,
+        url: route.url,
+        functionKey: withFunction?.functionKey ?? null,
+        reason: check.result,
+        httpStatus: check.httpStatus,
+        candidateRouteId: candidate?.id ?? null,
+        candidateUrl: candidate?.url ?? null,
+      });
+    }
+    return replacements;
+  };
+
   return {
+    /** A substituição foi decidida pelo auditor: some da lista de pendências. */
+    resolveReplacement(institutionId: number, routeId: number) {
+      const state = runs.get(institutionId)?.state;
+      if (state) state.replacements = state.replacements.filter((r) => r.routeId !== routeId);
+    },
+
     get(institutionId: number): DiscoveryState {
       institutions.get(institutionId);
       return runs.get(institutionId)?.state ?? idle(institutionId);
@@ -117,8 +173,12 @@ export function createDiscoveryService(
       };
       const done = (async () => {
         try {
-          const result = await run(institution.domain);
+          const confirmed = routesRepo
+            .listByInstitution(institutionId, 'confirmed')
+            .map((r) => r.url);
+          const result = await run(institution.domain, confirmed);
           state.summary = persist(institutionId, result);
+          state.replacements = findReplacements(institutionId, result);
           state.status = 'completed';
         } catch (err) {
           state.status = 'failed';
