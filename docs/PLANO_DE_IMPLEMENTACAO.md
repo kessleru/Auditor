@@ -599,7 +599,13 @@ Cada fase termina com **lint + typecheck + testes passando** e um PR próprio.
 ### Fase 9 — Resultados e exportação
 - Telas 4.1, 4.2, 4.3; exportação CSV com dicionário de dados.
 
-### Fase 10 — Qualidade e entrega
+### Fase 10 — Movimento e fluidez
+- Animações suaves que dão sensação de sistema fluido, sem atrasar o trabalho: entrada de conteúdo ao trocar de rota, transição de estados (carregando → conteúdo, abas, filtros), progresso da coleta e barras de conformidade que se preenchem, gaveta do menu móvel e confirmações.
+- Tokens de movimento no `@theme` (durações de 150–300 ms e curvas `ease-out`), num único lugar; só `transform` e `opacity` (sem animar layout).
+- **Acessibilidade:** tudo sob `motion-safe`/`prefers-reduced-motion` (seção 5.4); nada pisca mais de 3 vezes por segundo (WCAG 2.3.1); nenhuma animação esconde conteúdo nem atrasa o foco movido para o `<h1>`; animações que duram mais de 5 s podem ser pausadas (2.2.2).
+- **Aceite:** com `prefers-reduced-motion: reduce`, nenhuma animação roda; axe sem violações nas telas; nenhuma animação acima de 300 ms em interações.
+
+### Fase 11 — Qualidade e entrega
 - Testes E2E dos fluxos principais (Playwright).
 - **Dogfooding:** rodar o próprio motor de auditoria contra o front em CI; o build falha se houver violação crítica.
 - `docker/Dockerfile` baseado na imagem oficial do Playwright (já traz Chromium e dependências do sistema, na **mesma versão** fixada no `package.json`); `docker-compose.yml` com volume persistente para `data/` (banco SQLite e snapshots).
@@ -622,7 +628,8 @@ Registro das melhorias levantadas no brainstorm e de onde cada uma entrou no pla
 | 7 | Rastreamento de mudança de rota entre coletas | 2, 3.1.7, Fase 7 |
 | 8 | Uma coleta por vez por domínio | 1.3, 3.1.8, Fase 4 |
 | 9 | Modo escuro fora do escopo | 9 |
-| 10 | Implantação em contêiner com disco persistente | 8.1, Fase 10 |
+| 10 | Implantação em contêiner com disco persistente | 8.1, Fase 11 |
+| 11 | Animações suaves, sempre respeitando `prefers-reduced-motion` | Fase 10 |
 
 ### 8.1 Implantação
 

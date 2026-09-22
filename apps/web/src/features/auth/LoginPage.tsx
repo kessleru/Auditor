@@ -6,12 +6,14 @@ import {
 } from '@auditoria-rf/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
+import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { Button, buttonClasses, Logo, PageTitle, SkipLink, TextField } from '../../components/ui';
 import { ApiError, apiRequest } from '../../lib/api';
-import { useMethodology } from '../results/api';
+import { formatDate } from '../../lib/format';
+import { useMethodology, usePublicSummary } from '../results/api';
 import { PasswordField } from './PasswordField';
 import { auditorQueryKey, useAuditor } from './useAuditor';
 
@@ -20,39 +22,77 @@ export function safeReturnPath(value: string | null): string {
   return value && value.startsWith('/') && !value.startsWith('//') ? value : '/painel';
 }
 
-/** Ilustração decorativa do painel de marca: um portal com um achado e a barra de conformidade. */
+/**
+ * Ilustração decorativa (aria-hidden): uma página auditada em que o anel de foco se desenha, o
+ * selo de achados aparece e a barra de conformidade se preenche. Animações únicas, sob motion-safe.
+ */
 function BrandIllustration() {
   return (
-    <div aria-hidden="true" className="relative hidden max-w-md lg:block">
-      <div className="rounded-lg bg-surface p-4 shadow-float">
+    <div aria-hidden="true" className="relative hidden w-full max-w-md pb-20 lg:block">
+      <div className="rounded-lg bg-surface p-4 shadow-float motion-safe:animate-rise">
         <div className="mb-4 flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-critical-soft" />
-          <span className="size-2.5 rounded-full bg-warn-soft" />
-          <span className="size-2.5 rounded-full bg-ok-soft" />
-          <span className="ml-2 h-5 flex-1 rounded-sm bg-muted" />
+          <span className="size-2.5 rounded-full bg-[#e8a39e]" />
+          <span className="size-2.5 rounded-full bg-[#e9c98f]" />
+          <span className="size-2.5 rounded-full bg-[#9fd1b7]" />
+          <span className="ml-2 flex h-6 flex-1 items-center rounded-sm bg-muted px-2 font-mono text-[0.8125rem] text-text-muted">
+            iftm.edu.br/ingresso
+          </span>
         </div>
         <div className="mb-2 h-3 w-2/3 rounded-full bg-text" />
         <div className="mb-2 h-2 w-full rounded-full bg-muted" />
         <div className="mb-4 h-2 w-4/5 rounded-full bg-muted" />
         <div className="flex gap-3">
-          <div className="h-16 w-2/5 rounded-md bg-accent-soft" />
+          <div className="flex h-20 w-2/5 items-start rounded-md bg-accent-soft p-2">
+            <span className="rounded-sm bg-ok-soft px-1.5 text-[0.8125rem] font-medium text-ok-text">
+              alt ✓
+            </span>
+          </div>
           <div className="flex flex-1 flex-col gap-2">
             <div className="h-2 w-full rounded-full bg-muted" />
             <div className="h-2 w-2/3 rounded-full bg-muted" />
-            <div className="mt-1 h-7 w-3/5 rounded-md bg-accent outline-2 outline-offset-2 outline-accent" />
+            <div className="relative mt-2 w-fit">
+              <span className="absolute -inset-1 rounded-lg border-2 border-accent motion-safe:animate-ring" />
+              <span className="relative block rounded-md bg-accent px-4 py-1.5 text-[0.8125rem] font-medium text-white">
+                Inscrever-se
+              </span>
+            </div>
           </div>
         </div>
       </div>
-      <div className="absolute -right-10 -bottom-10 w-60 rounded-lg bg-surface p-4 shadow-float">
-        <div className="mb-2 h-2 w-1/2 rounded-full bg-muted" />
-        <div className="flex items-center gap-2">
+      <div className="absolute -top-4 -right-6 flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[0.8125rem] font-medium text-text shadow-float motion-safe:animate-pop">
+        <span className="text-ok">✓</span> 15 achados confirmados
+      </div>
+      <div className="absolute right-[-2rem] bottom-0 w-64 rounded-lg bg-surface p-4 shadow-float motion-safe:animate-rise">
+        <p className="mb-2 text-[0.8125rem] text-text-muted">Conformidade do portal</p>
+        <div className="flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-4/5 rounded-full bg-ok" />
+            <div className="h-full w-[78%] origin-left rounded-full bg-ok motion-safe:animate-fill" />
           </div>
-          <div className="h-2 w-8 rounded-full bg-text" />
+          <span className="text-[0.8125rem] font-medium text-text">78%</span>
+          <span className="text-[0.8125rem] text-text-muted">Bom</span>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Números reais da última coleta, quando existem. */
+function BrandStats() {
+  const { data } = usePublicSummary();
+  if (!data || data.institutionsEvaluated === 0) return null;
+  return (
+    <dl className="grid max-w-md grid-cols-2 gap-4 motion-safe:animate-rise">
+      <div className="rounded-lg bg-white/10 px-4 py-3 ring-1 ring-white/15">
+        <dt className="text-label text-white/85">Portais avaliados</dt>
+        <dd className="text-metric text-white">{data.institutionsEvaluated}</dd>
+      </div>
+      <div className="rounded-lg bg-white/10 px-4 py-3 ring-1 ring-white/15">
+        <dt className="text-label text-white/85">Última coleta</dt>
+        <dd className="text-card text-white">
+          {data.lastCollectionAt ? formatDate(data.lastCollectionAt) : '—'}
+        </dd>
+      </div>
+    </dl>
   );
 }
 
@@ -105,12 +145,21 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <SkipLink />
-      <header className="flex flex-col gap-6 bg-gradient-to-br from-accent to-[#0f2c66] px-6 py-6 text-white lg:w-[47%] lg:justify-between lg:px-12 lg:py-10">
+      <header className="relative isolate flex flex-col gap-6 overflow-hidden bg-[#143a82] px-6 py-6 text-white lg:w-[47%] lg:justify-between lg:gap-10 lg:px-12 lg:py-10">
+        {/* Fundo decorativo: gradiente, brilho e grade de pontos. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,#2a62c9_0%,transparent_55%),radial-gradient(circle_at_90%_95%,#0f6b5a_0%,transparent_45%),linear-gradient(160deg,#1f4fa8_0%,#0f2c66_100%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 opacity-[0.12] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
+        />
         <Link to="/" aria-label="Auditoria RF — início" className="self-start rounded-md">
           <Logo tone="inverse" />
         </Link>
-        <div className="flex flex-col gap-4">
-          <p className="max-w-lg text-[1.375rem] leading-tight font-semibold lg:text-[2.25rem]">
+        <div className="flex flex-col gap-4 motion-safe:animate-rise">
+          <p className="max-w-lg text-[1.375rem] leading-tight font-semibold tracking-tight lg:text-[2.5rem]">
             Portais públicos acessíveis para todos os estudantes.
           </p>
           <p className="hidden max-w-lg text-body text-white/90 lg:block">
@@ -118,8 +167,11 @@ export function LoginPage() {
             Institutos Federais.
           </p>
         </div>
-        <BrandIllustration />
-        <p className="hidden text-label text-white/90 lg:block">
+        <div className="hidden flex-col gap-10 lg:flex">
+          <BrandStats />
+          <BrandIllustration />
+        </div>
+        <p className="hidden text-label text-white/85 lg:block">
           Projeto de TCC · Ciência da Computação · IFTM
         </p>
       </header>
@@ -129,7 +181,7 @@ export function LoginPage() {
         tabIndex={-1}
         className="flex flex-1 items-start justify-center bg-surface px-6 py-10 lg:items-center"
       >
-        <div className="flex w-full max-w-[400px] flex-col gap-6">
+        <div className="flex w-full max-w-[400px] flex-col gap-6 motion-safe:animate-rise">
           <div className="flex flex-col gap-2">
             <PageTitle>Entrar como auditor</PageTitle>
             <p className="text-body text-text-muted">
@@ -164,7 +216,19 @@ export function LoginPage() {
               {...register('password')}
             />
             <Button type="submit" disabled={isSubmitting} className="min-h-11 w-full">
-              {isSubmitting ? 'Entrando…' : 'Entrar'}
+              {isSubmitting ? (
+                <>
+                  <LoaderCircle
+                    aria-hidden="true"
+                    size={16}
+                    strokeWidth={1.75}
+                    className="motion-safe:animate-spin"
+                  />
+                  Entrando…
+                </>
+              ) : (
+                'Entrar'
+              )}
             </Button>
           </form>
 
