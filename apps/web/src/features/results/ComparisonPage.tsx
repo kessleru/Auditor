@@ -10,7 +10,8 @@ import {
   DataTable,
   EmptyState,
   Note,
-  PageTitle,
+  Page,
+  PageHeader,
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
 import { CSV_DICTIONARY_URL, CSV_URL, useResultsOverview } from './auditorApi';
@@ -75,107 +76,117 @@ export function ComparisonPage() {
               a.acronym.localeCompare(b.acronym),
           );
         return (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <PageTitle>Comparativo entre instituições</PageTitle>
-                <p className="text-label text-text-muted">
-                  {data.lastCollectionAt
-                    ? `Última coleta: ${formatDate(data.lastCollectionAt)} · `
-                    : ''}
-                  {data.institutionsEvaluated} de {data.institutionsTotal} portais avaliados
-                </p>
+          <Page>
+            <PageHeader
+              title="Comparativo entre instituições"
+              description="A métrica principal é o número de problemas distintos; ocorrências ficam no relatório de cada portal."
+              meta={[
+                {
+                  label: 'Última coleta',
+                  value: data.lastCollectionAt ? formatDate(data.lastCollectionAt) : '—',
+                },
+                {
+                  label: 'Portais avaliados',
+                  value: `${data.institutionsEvaluated} de ${data.institutionsTotal}`,
+                },
+              ]}
+              actions={
+                <a href={CSV_URL} download className={buttonClasses('secondary')}>
+                  <Download aria-hidden="true" size={16} strokeWidth={1.75} /> Exportar CSV
+                </a>
+              }
+            />
+
+            <div className="flex flex-col gap-4">
+              <div role="group" aria-label="Ordenar e filtrar" className="flex flex-wrap gap-2">
+                <Toggle pressed={sort === 'conformity'} onClick={() => setSort('conformity')}>
+                  Ordenar por conformidade
+                </Toggle>
+                <Toggle pressed={sort === 'problems'} onClick={() => setSort('problems')}>
+                  Ordenar por nº de problemas
+                </Toggle>
+                <Toggle pressed={onlyInspected} onClick={() => setOnlyInspected((v) => !v)}>
+                  Somente com inspeção manual
+                </Toggle>
+                <Toggle pressed={onlyCritical} onClick={() => setOnlyCritical((v) => !v)}>
+                  Somente críticos
+                </Toggle>
               </div>
-              <a href={CSV_URL} download className={buttonClasses('secondary')}>
-                <Download aria-hidden="true" size={16} strokeWidth={1.75} /> Exportar CSV
-              </a>
-            </div>
+              <p role="status" className="sr-only">
+                {rows.length === 1
+                  ? '1 instituição exibida'
+                  : `${rows.length} instituições exibidas`}
+              </p>
 
-            <div role="group" aria-label="Ordenar e filtrar" className="flex flex-wrap gap-2">
-              <Toggle pressed={sort === 'conformity'} onClick={() => setSort('conformity')}>
-                Ordenar por conformidade
-              </Toggle>
-              <Toggle pressed={sort === 'problems'} onClick={() => setSort('problems')}>
-                Ordenar por nº de problemas
-              </Toggle>
-              <Toggle pressed={onlyInspected} onClick={() => setOnlyInspected((v) => !v)}>
-                Somente com inspeção manual
-              </Toggle>
-              <Toggle pressed={onlyCritical} onClick={() => setOnlyCritical((v) => !v)}>
-                Somente críticos
-              </Toggle>
-            </div>
-            <p role="status" className="sr-only">
-              {rows.length === 1 ? '1 instituição exibida' : `${rows.length} instituições exibidas`}
-            </p>
-
-            {rows.length === 0 ? (
-              <EmptyState title="Nenhuma instituição com esses filtros" />
-            ) : (
-              <DataTable
-                caption="Comparativo entre instituições"
-                captionHidden
-                rows={rows}
-                rowKey={(r) => r.id}
-                columns={[
-                  {
-                    key: 'inst',
-                    header: 'Instituição',
-                    rowHeader: true,
-                    cell: (r) =>
-                      r.status === 'evaluated' ? (
-                        <Link
-                          to={`/painel/instituicoes/${r.id}`}
-                          className="text-accent-text underline underline-offset-2 hover:decoration-2"
-                        >
-                          {r.acronym}
-                        </Link>
-                      ) : (
-                        <span className="text-text-muted">{r.acronym}</span>
-                      ),
-                  },
-                  {
-                    key: 'conf',
-                    header: 'Conformidade',
-                    cell: (r) =>
-                      r.status === 'evaluated' ? (
-                        <ConformityBar
-                          value={r.conformity}
-                          label={`Conformidade do ${r.acronym}`}
-                        />
-                      ) : (
-                        <span className="text-label text-text-muted">
-                          {r.status === 'no_data'
-                            ? 'Portal não pôde ser avaliado na coleta'
-                            : 'Ainda não avaliado'}
-                        </span>
-                      ),
-                  },
-                  {
-                    key: 'prob',
-                    header: 'Problemas',
-                    align: 'end',
-                    cell: (r) => (r.problems === null ? '—' : formatNumber(r.problems)),
-                  },
-                  {
-                    key: 'crit',
-                    header: 'Críticos',
-                    align: 'end',
-                    cell: (r) =>
-                      r.criticalProblems === null ? '—' : formatNumber(r.criticalProblems),
-                  },
-                  {
-                    key: 'insp',
-                    header: 'Inspeção',
-                    align: 'end',
-                    cell: (r) => {
-                      const b = inspectionBadge(r);
-                      return <Badge variant={b.variant}>{b.label}</Badge>;
+              {rows.length === 0 ? (
+                <EmptyState title="Nenhuma instituição com esses filtros" />
+              ) : (
+                <DataTable
+                  caption="Comparativo entre instituições"
+                  captionHidden
+                  rows={rows}
+                  rowKey={(r) => r.id}
+                  columns={[
+                    {
+                      key: 'inst',
+                      header: 'Instituição',
+                      rowHeader: true,
+                      cell: (r) =>
+                        r.status === 'evaluated' ? (
+                          <Link
+                            to={`/painel/instituicoes/${r.id}`}
+                            aria-label={`Abrir relatório do ${r.acronym}`}
+                            className="font-medium text-accent-text underline-offset-2 hover:underline"
+                          >
+                            {r.acronym}
+                          </Link>
+                        ) : (
+                          <span className="text-text-muted">{r.acronym}</span>
+                        ),
                     },
-                  },
-                ]}
-              />
-            )}
+                    {
+                      key: 'conf',
+                      header: 'Conformidade',
+                      cell: (r) =>
+                        r.status === 'evaluated' ? (
+                          <ConformityBar
+                            value={r.conformity}
+                            label={`Conformidade do ${r.acronym}`}
+                          />
+                        ) : (
+                          <span className="text-label text-text-muted">
+                            {r.status === 'no_data'
+                              ? 'Portal não pôde ser avaliado na coleta'
+                              : 'Ainda não avaliado'}
+                          </span>
+                        ),
+                    },
+                    {
+                      key: 'prob',
+                      header: 'Problemas',
+                      align: 'end',
+                      cell: (r) => (r.problems === null ? '—' : formatNumber(r.problems)),
+                    },
+                    {
+                      key: 'crit',
+                      header: 'Críticos',
+                      align: 'end',
+                      cell: (r) =>
+                        r.criticalProblems === null ? '—' : formatNumber(r.criticalProblems),
+                    },
+                    {
+                      key: 'insp',
+                      header: 'Inspeção',
+                      align: 'end',
+                      cell: (r) => {
+                        const b = inspectionBadge(r);
+                        return <Badge variant={b.variant}>{b.label}</Badge>;
+                      },
+                    },
+                  ]}
+                />
+              )}
+            </div>
 
             <Note tone="surface" title="Como ler esta tabela">
               Problemas são distintos (o mesmo elemento com a mesma falha conta uma vez) e incluem
@@ -198,7 +209,7 @@ export function ComparisonPage() {
               </a>
               .
             </Note>
-          </div>
+          </Page>
         );
       }}
     </QueryState>

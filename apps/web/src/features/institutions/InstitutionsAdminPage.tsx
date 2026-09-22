@@ -1,9 +1,17 @@
 import { type CreateInstitutionInput, createInstitutionSchema } from '@auditoria-rf/contracts';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useId } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router';
-import { Badge, Button, DataTable, EmptyState, PageTitle, TextField } from '../../components/ui';
+import {
+  Badge,
+  Button,
+  DataTable,
+  EmptyState,
+  Page,
+  PageHeader,
+  Section,
+  TextField,
+} from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { useCreateInstitution, useInstitutions, useUpdateInstitution } from '../audits/api';
 import { QueryState } from '../results/QueryState';
@@ -13,7 +21,6 @@ export function InstitutionsAdminPage() {
   const institutions = useInstitutions();
   const create = useCreateInstitution();
   const update = useUpdateInstitution();
-  const formHeading = useId();
   const {
     register,
     handleSubmit,
@@ -24,8 +31,11 @@ export function InstitutionsAdminPage() {
   const onSubmit = handleSubmit((values) => create.mutate(values, { onSuccess: () => reset() }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageTitle>Instituições</PageTitle>
+    <Page>
+      <PageHeader
+        title="Instituições"
+        description="Portais cadastrados para auditoria. Só instituições ativas entram numa nova coleta."
+      />
 
       <QueryState
         query={institutions}
@@ -79,7 +89,7 @@ export function InstitutionsAdminPage() {
                       <Link
                         to={`/auditorias/nova/rotas/${row.id}?instituicoes=${row.id}`}
                         aria-label={`Revisar rotas do ${row.acronym}`}
-                        className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                        className="font-medium text-accent-text underline-offset-2 hover:underline"
                       >
                         Revisar rotas
                       </Link>
@@ -101,13 +111,7 @@ export function InstitutionsAdminPage() {
         }
       </QueryState>
 
-      <section
-        aria-labelledby={formHeading}
-        className="flex flex-col gap-4 rounded-lg bg-surface p-5 shadow-card"
-      >
-        <h2 id={formHeading} className="text-section text-text">
-          Cadastrar instituição
-        </h2>
+      <Section title="Cadastrar instituição" className="rounded-lg bg-surface p-5 shadow-card">
         {create.error ? (
           <p
             role="alert"
@@ -138,7 +142,7 @@ export function InstitutionsAdminPage() {
             </Button>
           </div>
         </form>
-      </section>
-    </div>
+      </Section>
+    </Page>
   );
 }
