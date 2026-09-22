@@ -11,7 +11,8 @@ import {
   Choice,
   EmptyState,
   Note,
-  PageTitle,
+  Page,
+  PageHeader,
   Stepper,
 } from '../../components/ui';
 import { QueryState } from '../results/QueryState';
@@ -40,15 +41,12 @@ export function NewAuditPage() {
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
   return (
-    <div className="flex flex-col gap-6">
-      <Stepper current={0} />
-      <div className="flex flex-col gap-1">
-        <PageTitle>Nova auditoria</PageTitle>
-        <p className="text-body text-text-muted">
-          Defina o escopo da coleta. Depois você confirma as rotas de cada instituição e pode
-          acompanhar o progresso sem ficar na tela.
-        </p>
-      </div>
+    <Page>
+      <PageHeader
+        title="Nova auditoria"
+        breadcrumb={<Stepper current={0} />}
+        description="Defina o escopo da coleta. Depois você confirma as rotas de cada instituição e pode acompanhar o progresso sem ficar na tela."
+      />
 
       <QueryState
         query={institutions}
@@ -183,6 +181,6 @@ export function NewAuditPage() {
           );
         }}
       </QueryState>
-    </div>
+    </Page>
   );
 }
