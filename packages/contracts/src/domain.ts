@@ -10,6 +10,15 @@ export const pageFunctionKeys = [
 ] as const;
 export type PageFunctionKey = (typeof pageFunctionKeys)[number];
 
+/** Rótulos das funções de página na interface (também gravados em `page_functions`). */
+export const pageFunctionLabels: Record<PageFunctionKey, string> = {
+  home: 'Página inicial',
+  admission: 'Ingresso',
+  student_aid_notices: 'Editais de auxílio estudantil',
+  library: 'Biblioteca',
+  student_support: 'Assistência estudantil',
+};
+
 export const routeSources = ['sitemap', 'crawler', 'manual'] as const;
 export type RouteSource = (typeof routeSources)[number];
 
