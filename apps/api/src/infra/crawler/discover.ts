@@ -41,6 +41,19 @@ export interface DiscoveryResult {
   blockedByRobots: number;
   /** URLs que falharam, deram erro HTTP ou não eram HTML. */
   failed: number;
+  /** Verificação das rotas já confirmadas (seção 3.1.7). */
+  checks: RouteCheck[];
+}
+
+/**
+ * Situação de uma rota confirmada: `ok`, `not_found` (404/410) ou `moved` (redirecionamento
+ * permanente 301/308 para `movedTo`). Falha de rede não é conclusiva e vira `unreachable`.
+ */
+export interface RouteCheck {
+  url: string;
+  result: 'ok' | 'not_found' | 'moved' | 'unreachable';
+  httpStatus: number | null;
+  movedTo: string | null;
 }
 
 export interface DiscoveryOptions {
@@ -50,6 +63,8 @@ export interface DiscoveryOptions {
   robotsAgent: string;
   maxUrls?: number;
   maxDepth?: number;
+  /** Rotas confirmadas a verificar (possível substituição, seção 3.1.7). */
+  checkUrls?: string[];
 }
 
 export class DiscoveryError extends Error {
@@ -70,6 +85,7 @@ export async function discoverRoutes({
   robotsAgent,
   maxUrls = DEFAULT_MAX_URLS,
   maxDepth = DEFAULT_MAX_DEPTH,
+  checkUrls = [],
 }: DiscoveryOptions): Promise<DiscoveryResult> {
   if (isDevHost(domain)) throw new DiscoveryError(DEV_HOST_REASON);
 
@@ -215,7 +231,11 @@ export async function discoverRoutes({
     }
   }
 
+  const checks: RouteCheck[] = [];
+  for (const url of checkUrls) checks.push(await checkRoute(client, url, intervalMs));
+
   return {
+    checks,
     origin,
     source,
     robotsTxtFound,
@@ -329,4 +349,26 @@ async function collectSitemapUrls(
   }
 
   return { urls, files };
+}
+
+async function checkRoute(
+  client: HttpClient,
+  url: string,
+  intervalMs: number | undefined,
+): Promise<RouteCheck> {
+  try {
+    const res = await client.get(url, { intervalMs });
+    const firstHop = res.redirects[0];
+    if (firstHop && (firstHop.status === 301 || firstHop.status === 308)) {
+      return { url, result: 'moved', httpStatus: firstHop.status, movedTo: normalizeUrl(res.url) };
+    }
+    if (res.status === 404 || res.status === 410) {
+      return { url, result: 'not_found', httpStatus: res.status, movedTo: null };
+    }
+    return { url, result: 'ok', httpStatus: res.status, movedTo: null };
+  } catch (err) {
+    if (err instanceof FetchFailedError)
+      return { url, result: 'unreachable', httpStatus: null, movedTo: null };
+    throw err;
+  }
 }
