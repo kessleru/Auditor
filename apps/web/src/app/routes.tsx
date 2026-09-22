@@ -78,6 +78,7 @@ export const routes: RouteObject[] = [
             element: (
               <CollectionsListPage
                 title="Coletas em andamento"
+                description="Coletas na fila ou executando agora."
                 statuses={['queued', 'running']}
                 emptyText="Nenhuma coleta em andamento"
               />
@@ -89,6 +90,7 @@ export const routes: RouteObject[] = [
             element: (
               <CollectionsListPage
                 title="Histórico de coletas"
+                description="Coletas terminadas, com o resultado de cada uma."
                 statuses={['completed', 'partial', 'cancelled']}
                 emptyText="Nenhuma coleta terminada"
               />
