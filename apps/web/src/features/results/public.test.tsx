@@ -31,7 +31,8 @@ describe('visão pública (0.2)', () => {
     expect(screen.getByRole('link', { name: 'Abrir relatório do IFTM' }).getAttribute('href')).toBe(
       '/instituicoes/1',
     );
-    expect(screen.getByText(/Última coleta: 12\/09\/2026 · 1 de 3 portais avaliados/)).toBeTruthy();
+    expect(screen.getByText('Última coleta').nextElementSibling?.textContent).toBe('12/09/2026');
+    expect(screen.getByText('Portais avaliados').nextElementSibling?.textContent).toBe('1 de 3');
     expect(screen.getByRole('link', { name: 'Entenda a metodologia' })).toBeTruthy();
     await expectNoAxeViolations(container);
   });

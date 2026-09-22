@@ -16,21 +16,26 @@ export function ConformitySummary({
   conformity,
   acronym,
   figures,
+  label,
+  gaugeLabel,
 }: {
   conformity: number | null;
   acronym: string;
   figures: SummaryFigure[];
+  /** Nome acessível da seção; o padrão é "Resumo do <sigla>". */
+  label?: string;
+  gaugeLabel?: string;
 }) {
   return (
     <section
-      aria-label={`Resumo do ${acronym}`}
+      aria-label={label ?? `Resumo do ${acronym}`}
       className="grid items-center gap-6 rounded-lg bg-surface p-6 shadow-card sm:grid-cols-[auto_1fr] sm:gap-10"
     >
       <div className="flex flex-col items-center gap-3 sm:border-r sm:border-border sm:pr-10">
         {conformity === null ? (
           <p className="text-body text-text-muted">Sem regra aplicável</p>
         ) : (
-          <ConformityGauge value={conformity} label={`Conformidade do ${acronym}`} />
+          <ConformityGauge value={conformity} label={gaugeLabel ?? `Conformidade do ${acronym}`} />
         )}
         <Link
           to="/metodologia"
