@@ -5,4 +5,5 @@ export * from './domain.js';
 export * from './errors.js';
 export * from './health.js';
 export * from './institutions.js';
+export * from './public.js';
 export * from './routes.js';
