@@ -80,7 +80,7 @@ describe('POST /api/v1/collections', () => {
     // IFTM (id 1, do seed) não tem rotas confirmadas.
     const empty = await create(agent, { institutionIds: [1] });
     expect(empty.status).toBe(422);
-    expect(empty.body.error.code).toBe('NO_CONFIRMED_ROUTES');
+    expect(empty.body.error.code).toBe('INSTITUTION_WITHOUT_ROUTES');
     expect((await create(agent, { institutionIds: [999] })).status).toBe(404);
 
     const unconfiguredApp = createApp({
@@ -476,5 +476,52 @@ describe('GET /api/v1/collections/:id/events (SSE)', () => {
     const { agent } = await setup(fakeAuditor(async () => okOutcome()));
     expect((await agent.get('/api/v1/collections/999/events')).status).toBe(404);
     expect((await agent.get('/api/v1/collections/999')).status).toBe(404);
+  });
+});
+
+describe('GET /api/v1/collections', () => {
+  it('lista com progresso e instituições, filtrando por situação', async () => {
+    const { agent, service } = await setup(fakeAuditor(async () => okOutcome()));
+    const { institution } = institutionA();
+    const { body } = await create(agent, { institutionIds: [institution.id] });
+    await service.waitForFinish(body.collection.id);
+
+    const all = await agent.get('/api/v1/collections');
+    expect(all.status).toBe(200);
+    expect(all.body.collections).toHaveLength(1);
+    expect(all.body.collections[0]).toMatchObject({
+      id: body.collection.id,
+      status: 'completed',
+      institutions: [{ id: institution.id, acronym: 'IFA', name: 'Instituto IFA' }],
+      progress: { total: 3, done: 3 },
+    });
+
+    const running = await agent.get('/api/v1/collections?status=queued,running');
+    expect(running.body.collections).toEqual([]);
+    expect((await agent.get('/api/v1/collections?status=qualquer')).status).toBe(400);
+
+    const detail = await agent.get(`/api/v1/collections/${body.collection.id}`);
+    expect(detail.body.institutions).toEqual([
+      { id: institution.id, acronym: 'IFA', name: 'Instituto IFA' },
+    ]);
+  });
+
+  it('recusa escopo com instituição sem rota confirmada para as funções', async () => {
+    const { agent } = await setup(fakeAuditor(async () => okOutcome()));
+    const a = institutionA();
+    const b = seedInstitutionWithRoutes(db, {
+      domain: 'if-b.edu.br',
+      acronym: 'IFB',
+      urls: [{ url: 'https://www.if-b.edu.br/biblioteca', functionKey: 'library' }],
+    });
+    const res = await create(agent, {
+      institutionIds: [a.institution.id, b.institution.id],
+      functions: ['home'],
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatchObject({
+      code: 'INSTITUTION_WITHOUT_ROUTES',
+      details: { institutionIds: [b.institution.id] },
+    });
   });
 });
