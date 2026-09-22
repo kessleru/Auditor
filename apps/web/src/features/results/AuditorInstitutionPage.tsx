@@ -203,7 +203,7 @@ export function AuditorInstitutionPage() {
                               <Badge variant={c.p.validation === 'confirmed' ? 'good' : 'moderate'}>
                                 {validationText[c.p.validation]}
                               </Badge>{' '}
-                              em {c.p.pages} {c.p.pages === 1 ? 'página' : 'páginas'} ·{' '}
+                              em {c.p.pages} {c.p.pages === 1 ? 'página' : 'páginas'},{' '}
                               {c.p.occurrences}{' '}
                               {c.p.occurrences === 1 ? 'ocorrência' : 'ocorrências'}
                             </>
@@ -226,7 +226,7 @@ export function AuditorInstitutionPage() {
                           origin="inspection"
                           reference={c.t.heuristic ? heuristicLabels[c.t.heuristic] : undefined}
                           description={c.t.note}
-                          meta={`Tarefa: ${c.t.taskDescription} · ${c.t.interactions} interações · ${Math.round(c.t.durationSeconds / 60)} min`}
+                          meta={`Tarefa: ${c.t.taskDescription} — ${c.t.interactions} interações em ${Math.round(c.t.durationSeconds / 60)} min`}
                           snippet={
                             c.t.path.length > 0 ? `Caminho: ${c.t.path.join(' › ')}` : undefined
                           }

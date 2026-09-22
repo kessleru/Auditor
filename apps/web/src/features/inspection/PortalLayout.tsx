@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { type FormEvent, useId, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router';
-import { Badge, Button, cn, ErrorState, PageTitle } from '../../components/ui';
+import { Badge, Button, cn, ErrorState, Page, PageHeader } from '../../components/ui';
 import { formatDate } from '../../lib/format';
 import { useInspectionSummary } from './api';
 
@@ -70,89 +70,90 @@ export function PortalLayout() {
     void navigate(`/inspecao/${collectionId}/${choice}/${tab}`);
   };
 
-  return (
-    <div className="flex flex-col gap-6">
-      <nav aria-label="Trilha de navegação">
-        <ol className="flex flex-wrap items-center gap-2 text-label">
-          <li>
-            <Link
-              to={`/inspecao/${collectionId}`}
-              className="text-accent-text underline underline-offset-2 hover:decoration-2"
-            >
-              Inspeção manual
-            </Link>
-          </li>
-          <li aria-hidden="true" className="text-text-muted">
-            ›
-          </li>
-          <li>{portal.acronym}</li>
-          <li aria-hidden="true" className="text-text-muted">
-            ›
-          </li>
-          <li aria-current="page">{tabLabel}</li>
-        </ol>
-      </nav>
+  const trilha = (
+    <nav aria-label="Trilha de navegação">
+      <ol className="flex flex-wrap items-center gap-2 text-label">
+        <li>
+          <Link
+            to={`/inspecao/${collectionId}`}
+            className="text-accent-text underline underline-offset-2 hover:decoration-2"
+          >
+            Inspeção manual
+          </Link>
+        </li>
+        <li aria-hidden="true" className="text-text-muted">
+          ›
+        </li>
+        <li>{portal.acronym}</li>
+        <li aria-hidden="true" className="text-text-muted">
+          ›
+        </li>
+        <li aria-current="page">{tabLabel}</li>
+      </ol>
+    </nav>
+  );
 
-      <section
-        aria-label="Portal em inspeção"
-        className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface p-5 shadow-card"
-      >
-        <div className="flex flex-col gap-1">
-          <p className="text-label font-medium tracking-wide text-text-muted uppercase">
-            Portal em inspeção
-          </p>
-          <PageTitle documentTitle={`${tabLabel} — ${portal.acronym}`} className="text-section">
-            {`${portal.name} (${portal.acronym})`}
-          </PageTitle>
-          <p className="text-label text-text-muted">
-            {portal.domain}
-            {collection.finishedAt
-              ? ` · coleta de ${formatDate(collection.finishedAt)}`
-              : ''} · {portal.pagesEvaluated}{' '}
-            {portal.pagesEvaluated === 1 ? 'página avaliada' : 'páginas avaliadas'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {prev ? (
-            <Link
-              to={`/inspecao/${collectionId}/${prev.institutionId}/${tab}`}
-              aria-label={`Portal anterior: ${prev.acronym}`}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-label font-medium hover:bg-muted"
-            >
-              <ArrowLeft aria-hidden="true" size={16} strokeWidth={1.75} /> Anterior
-            </Link>
-          ) : null}
-          <form onSubmit={go} className="flex items-center gap-2">
-            <label htmlFor={selectId} className="sr-only">
-              Trocar de portal
-            </label>
-            <select
-              id={selectId}
-              value={choice}
-              onChange={(e) => setChoice(Number(e.target.value))}
-              className="min-h-10 rounded-md border border-border-strong bg-surface px-2 text-label"
-            >
-              {sample.map((p, i) => (
-                <option key={p.institutionId} value={p.institutionId}>
-                  Portal {i + 1} de {sample.length} · {p.acronym}
-                </option>
-              ))}
-            </select>
-            <Button type="submit" variant="secondary" className="min-h-10 px-3">
-              Ir
-            </Button>
-          </form>
-          {next ? (
-            <Link
-              to={`/inspecao/${collectionId}/${next.institutionId}/${tab}`}
-              aria-label={`Próximo portal: ${next.acronym}`}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-label font-medium hover:bg-muted"
-            >
-              Próximo <ArrowRight aria-hidden="true" size={16} strokeWidth={1.75} />
-            </Link>
-          ) : null}
-        </div>
-      </section>
+  return (
+    <Page>
+      <PageHeader
+        title={`${portal.name} (${portal.acronym})`}
+        documentTitle={`${tabLabel} — ${portal.acronym}`}
+        breadcrumb={trilha}
+        caption={`Portal ${index + 1} de ${sample.length} em inspeção`}
+        meta={[
+          { label: 'Domínio', value: portal.domain },
+          {
+            label: 'Coleta',
+            value: collection.finishedAt ? formatDate(collection.finishedAt) : '—',
+          },
+          {
+            label: 'Páginas avaliadas',
+            value: portal.pagesEvaluated,
+          },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {prev ? (
+              <Link
+                to={`/inspecao/${collectionId}/${prev.institutionId}/${tab}`}
+                aria-label={`Portal anterior: ${prev.acronym}`}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-label font-medium hover:bg-muted"
+              >
+                <ArrowLeft aria-hidden="true" size={16} strokeWidth={1.75} /> Anterior
+              </Link>
+            ) : null}
+            <form onSubmit={go} className="flex items-center gap-2">
+              <label htmlFor={selectId} className="sr-only">
+                Trocar de portal
+              </label>
+              <select
+                id={selectId}
+                value={choice}
+                onChange={(e) => setChoice(Number(e.target.value))}
+                className="min-h-10 rounded-md border border-border-strong bg-surface px-2 text-label"
+              >
+                {sample.map((p, i) => (
+                  <option key={p.institutionId} value={p.institutionId}>
+                    Portal {i + 1} de {sample.length} · {p.acronym}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" variant="secondary" className="min-h-10 px-3">
+                Ir
+              </Button>
+            </form>
+            {next ? (
+              <Link
+                to={`/inspecao/${collectionId}/${next.institutionId}/${tab}`}
+                aria-label={`Próximo portal: ${next.acronym}`}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-label font-medium hover:bg-muted"
+              >
+                Próximo <ArrowRight aria-hidden="true" size={16} strokeWidth={1.75} />
+              </Link>
+            ) : null}
+          </div>
+        }
+      />
 
       <nav aria-label="Atividades do portal" className="border-b border-border">
         <ul className="flex flex-wrap gap-x-6">
@@ -185,6 +186,6 @@ export function PortalLayout() {
       </nav>
 
       <Outlet context={{ collectionId, institutionId, portal }} />
-    </div>
+    </Page>
   );
 }

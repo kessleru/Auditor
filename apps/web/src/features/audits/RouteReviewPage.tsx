@@ -397,11 +397,11 @@ export function RouteReviewPage() {
           {running
             ? `Descobrindo rotas em ${institution?.domain ?? ''}… respeitando 1,5 s entre requisições; pode levar alguns minutos.`
             : summary
-              ? `${summary.found} URLs descobertas em ${institution?.domain ?? ''} · ${
+              ? `${summary.found} URLs descobertas em ${institution?.domain ?? ''}, por ${
                   summary.source === 'sitemap'
                     ? `sitemap (${summary.sitemapFiles} arquivo(s))`
                     : 'rastreamento até 2 níveis'
-                } · robots.txt ${summary.robotsTxtFound ? 'encontrado' : 'ausente'}`
+                }. robots.txt ${summary.robotsTxtFound ? 'encontrado' : 'ausente'}.`
               : institution?.domain}
         </p>
       </div>

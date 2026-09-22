@@ -2,7 +2,14 @@ import { pageFunctionLabels, type InspectionProblem } from '@auditoria-rf/contra
 import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import { Badge, Button, FindingCard, Note, StatCard, StatGridSkeleton } from '../../components/ui';
+import {
+  Badge,
+  Button,
+  FindingCard,
+  Note,
+  StatGroup,
+  StatGroupSkeleton,
+} from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import { useInspectionFindings, useValidateFinding } from './api';
@@ -44,9 +51,11 @@ function ProblemCard({
         meta={
           <>
             <Badge variant={status.variant}>{status.label}</Badge> em {problem.pages}{' '}
-            {problem.pages === 1 ? 'página' : 'páginas'} · {problem.occurrences}{' '}
+            {problem.pages === 1 ? 'página' : 'páginas'}, {problem.occurrences}{' '}
             {problem.occurrences === 1 ? 'ocorrência' : 'ocorrências'}
-            {problem.validationNote ? ` · Justificativa: ${problem.validationNote}` : ''}
+            {problem.validationNote ? (
+              <span className="block">Justificativa: {problem.validationNote}</span>
+            ) : null}
           </>
         }
         recommendation={
@@ -137,18 +146,19 @@ export function ValidationTab() {
         query={findings}
         loadingText="Carregando achados…"
         errorTitle="Não foi possível carregar os achados"
-        skeleton={
-          <StatGridSkeleton label="Carregando achados…" hints={[false, false, false, false]} />
-        }
+        skeleton={<StatGroupSkeleton count={4} label="Carregando achados…" />}
       >
         {({ counts, groups }) => (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Problemas automatizados" value={counts.problems} />
-              <StatCard label="Confirmados" value={counts.confirmed} />
-              <StatCard label="Falsos positivos" value={counts.falsePositive} />
-              <StatCard label="Pendentes" value={counts.pending} />
-            </div>
+            <StatGroup
+              label="Situação da validação"
+              stats={[
+                { label: 'Problemas automatizados', value: counts.problems },
+                { label: 'Confirmados', value: counts.confirmed },
+                { label: 'Falsos positivos', value: counts.falsePositive },
+                { label: 'Pendentes', value: counts.pending },
+              ]}
+            />
             {groups.map((group) => {
               const title =
                 group.kind === 'template'
@@ -156,18 +166,20 @@ export function ValidationTab() {
                   : `${group.page?.functionKey ? pageFunctionLabels[group.page.functionKey] : 'Página'}`;
               return (
                 <section key={group.page?.id ?? 'template'} className="flex flex-col gap-3">
-                  <h2 className="flex flex-wrap items-center gap-2 text-section text-text">
-                    {title}
+                  <div className="flex flex-col gap-1">
+                    <h2 className="flex flex-wrap items-center gap-2 text-section text-text">
+                      {title}
+                      <Badge variant="neutral">
+                        {group.problems.length}{' '}
+                        {group.problems.length === 1 ? 'problema' : 'problemas'}
+                      </Badge>
+                    </h2>
                     {group.page ? (
-                      <span className="font-mono text-code font-normal break-all text-text-muted">
+                      <p className="font-mono text-code break-all text-text-muted">
                         {group.page.url}
-                      </span>
+                      </p>
                     ) : null}
-                    <Badge variant="neutral">
-                      {group.problems.length}{' '}
-                      {group.problems.length === 1 ? 'problema' : 'problemas'}
-                    </Badge>
-                  </h2>
+                  </div>
                   {group.kind === 'template' ? (
                     <p className="text-body text-text-muted">
                       Problemas do cabeçalho e do rodapé, repetidos em quase todas as páginas.

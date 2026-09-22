@@ -100,7 +100,7 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     const cards = await screen.findAllByRole('article');
     expect(cards).toHaveLength(2);
     expect(within(cards[0]!).getByText('Template')).toBeTruthy();
-    expect(within(cards[0]!).getByText('em 4 páginas · 4 ocorrências')).toBeTruthy();
+    expect(within(cards[0]!).getByText('em 4 páginas, 4 ocorrências')).toBeTruthy();
     await expectNoAxeViolations(container);
   });
 
