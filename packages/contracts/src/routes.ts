@@ -26,6 +26,11 @@ export const updateRouteSchema = z
     status: z.enum(['suggested', 'confirmed', 'excluded']).optional(),
     functionKey: z.enum(pageFunctionKeys).nullable().optional(),
     exclusionReason: z.string().trim().min(3, 'Explique o motivo da exclusão.').max(500).optional(),
+    /**
+     * Ao confirmar com uma função que já tem rota confirmada na instituição, a anterior volta a ser
+     * sugestão (troca atômica). Sem isto, a API recusa: uma rota confirmada por função.
+     */
+    replaceConfirmed: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, 'Informe ao menos um campo para alterar.')
   .refine((v) => v.status !== 'excluded' || v.exclusionReason !== undefined, {
@@ -37,6 +42,17 @@ export const updateRouteSchema = z
     path: ['exclusionReason'],
   });
 export type UpdateRouteInput = z.input<typeof updateRouteSchema>;
+
+/** Rota informada pelo auditor (origem `manual`); já entra confirmada. */
+export const createRouteSchema = z.object({
+  url: z.url('Informe uma URL completa, com https://.'),
+  functionKey: z.enum(pageFunctionKeys),
+  replaceConfirmed: z.boolean().optional(),
+});
+export type CreateRouteInput = z.input<typeof createRouteSchema>;
+
+/** Confirma a substituição de uma rota que mudou de endereço (seção 3.1.7). */
+export const replaceRouteSchema = z.object({ newRouteId: z.number().int().positive() });
 
 export const routeResponseSchema = z.object({ route: routeSchema });
 export const routeListResponseSchema = z.object({ routes: z.array(routeSchema) });
@@ -59,6 +75,18 @@ export const discoverySummarySchema = z.object({
 });
 export type DiscoverySummary = z.infer<typeof discoverySummarySchema>;
 
+/** Rota confirmada que não responde mais ou mudou de endereço, com a candidata a substituí-la. */
+export const routeReplacementSchema = z.object({
+  routeId: z.number().int(),
+  url: z.string(),
+  functionKey: z.enum(pageFunctionKeys).nullable(),
+  reason: z.enum(['not_found', 'moved']),
+  httpStatus: z.number().int().nullable(),
+  candidateRouteId: z.number().int().nullable(),
+  candidateUrl: z.string().nullable(),
+});
+export type RouteReplacement = z.infer<typeof routeReplacementSchema>;
+
 export const discoveryStateSchema = z.object({
   institutionId: z.number().int(),
   status: z.enum(discoveryStatuses),
@@ -66,6 +94,8 @@ export const discoveryStateSchema = z.object({
   finishedAt: z.string().nullable(),
   error: z.string().nullable(),
   summary: discoverySummarySchema.nullable(),
+  /** Possíveis substituições encontradas na última descoberta; nunca aplicadas sozinhas. */
+  replacements: z.array(routeReplacementSchema),
 });
 export type DiscoveryState = z.infer<typeof discoveryStateSchema>;
 
