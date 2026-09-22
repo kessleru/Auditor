@@ -54,7 +54,7 @@ function ProblemCard({
             href={problem.helpUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-accent underline underline-offset-2"
+            className="text-accent-text underline underline-offset-2 hover:decoration-2"
           >
             como corrigir (documentação do axe, em inglês; abre em nova aba)
           </a>

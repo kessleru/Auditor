@@ -7,7 +7,7 @@ export function NotFoundPage() {
       <PageTitle>Página não encontrada</PageTitle>
       <p className="text-body text-text-muted">O endereço digitado não existe ou foi alterado.</p>
       <p>
-        <Link to="/" className="text-accent underline underline-offset-2">
+        <Link to="/" className="text-accent-text underline underline-offset-2 hover:decoration-2">
           Voltar para os resultados
         </Link>
       </p>

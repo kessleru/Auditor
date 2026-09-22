@@ -79,7 +79,7 @@ export function InstitutionsAdminPage() {
                       <Link
                         to={`/auditorias/nova/rotas/${row.id}?instituicoes=${row.id}`}
                         aria-label={`Revisar rotas do ${row.acronym}`}
-                        className="text-accent underline underline-offset-2"
+                        className="text-accent-text underline underline-offset-2 hover:decoration-2"
                       >
                         Revisar rotas
                       </Link>

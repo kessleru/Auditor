@@ -20,6 +20,16 @@ export function ConformityHistoryChart({
   headingId: string;
 }) {
   const last = entries.at(-1);
+  // Uma coleta só não é evolução: diz o valor em texto e espera a próxima coleta para o gráfico.
+  if (entries.length < 2 && last) {
+    return (
+      <p className="text-body text-text-muted">
+        Primeira coleta em {formatDate(last.collectedAt)}:{' '}
+        {last.conformity === null ? 'sem dado' : formatPercent(last.conformity)}. A evolução aparece
+        a partir da segunda coleta.
+      </p>
+    );
+  }
   const described = entries
     .map(
       (e) =>
@@ -74,7 +84,7 @@ export function ConformityHistoryChart({
         </div>
       </div>
       <details className="text-label">
-        <summary className="inline-flex min-h-6 cursor-pointer items-center text-accent underline underline-offset-2">
+        <summary className="inline-flex min-h-6 cursor-pointer items-center text-accent-text underline underline-offset-2 hover:decoration-2">
           Ver dados em tabela
         </summary>
         <table className="mt-3 w-full max-w-md border-collapse text-left text-body">

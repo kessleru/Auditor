@@ -41,7 +41,7 @@ export function PublicHomePage() {
           <a
             href={CSV_DICTIONARY_URL}
             download
-            className="inline-flex min-h-6 items-center text-label text-accent underline underline-offset-2"
+            className="inline-flex min-h-6 items-center text-label text-accent-text underline underline-offset-2 hover:decoration-2"
           >
             Dicionário de dados
           </a>
@@ -72,7 +72,10 @@ export function PublicHomePage() {
         Os resultados são publicados para apoiar a correção dos portais. A conformidade considera
         apenas os critérios verificáveis de forma automatizada e não atesta conformidade integral
         com a WCAG 2.2. Problemas contam só depois de confirmados na validação manual.{' '}
-        <Link to="/metodologia" className="text-accent underline underline-offset-2">
+        <Link
+          to="/metodologia"
+          className="text-accent-text underline underline-offset-2 hover:decoration-2"
+        >
           Entenda a metodologia
         </Link>
         .

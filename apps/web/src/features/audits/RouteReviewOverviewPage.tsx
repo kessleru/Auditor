@@ -128,7 +128,7 @@ export function RouteReviewOverviewPage() {
                       <Link
                         to={`/auditorias/nova/rotas/${row.id}${search}`}
                         aria-label={`Revisar rotas do ${row.institution?.acronym ?? row.id}`}
-                        className="text-accent underline underline-offset-2"
+                        className="text-accent-text underline underline-offset-2 hover:decoration-2"
                       >
                         Revisar rotas
                       </Link>

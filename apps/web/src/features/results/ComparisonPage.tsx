@@ -126,7 +126,7 @@ export function ComparisonPage() {
                       r.status === 'evaluated' ? (
                         <Link
                           to={`/painel/instituicoes/${r.id}`}
-                          className="text-accent underline underline-offset-2"
+                          className="text-accent-text underline underline-offset-2 hover:decoration-2"
                         >
                           {r.acronym}
                         </Link>
@@ -182,14 +182,17 @@ export function ComparisonPage() {
               os ainda não validados; falsos positivos ficam fora. Portais que não puderam ser
               auditados aparecem como ausência de dado e não entram na média. A conformidade indica
               apenas os critérios verificáveis automaticamente —{' '}
-              <Link to="/metodologia" className="text-accent underline underline-offset-2">
+              <Link
+                to="/metodologia"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
                 veja a metodologia
               </Link>
               . O CSV exportado traz os dados públicos (só achados confirmados);{' '}
               <a
                 href={CSV_DICTIONARY_URL}
                 download
-                className="text-accent underline underline-offset-2"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
               >
                 baixe o dicionário de dados
               </a>

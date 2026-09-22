@@ -42,7 +42,7 @@ export function PublicLayout() {
           </nav>
           <Link
             to="/entrar"
-            className="ml-auto inline-flex min-h-11 items-center text-label font-medium text-accent underline underline-offset-4 hover:text-accent-text"
+            className="ml-auto inline-flex min-h-11 items-center text-label font-medium text-accent-text underline underline-offset-4 hover:decoration-2"
           >
             Entrar como auditor
           </Link>
@@ -65,7 +65,10 @@ export function PublicLayout() {
             Auditoria RF — pesquisa acadêmica sobre acessibilidade e usabilidade dos portais da Rede
             Federal (TCC, Ciência da Computação, IFTM). Os indicadores cobrem apenas critérios
             verificáveis automaticamente;{' '}
-            <Link to="/metodologia" className="text-accent underline underline-offset-2">
+            <Link
+              to="/metodologia"
+              className="text-accent-text underline underline-offset-2 hover:decoration-2"
+            >
               veja a metodologia
             </Link>
             .

@@ -84,8 +84,10 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     expect(screen.getByRole('navigation', { name: 'Trilha de navegação' }).textContent).toContain(
       'IFTM',
     );
-    expect(screen.getByText('78% — Bom')).toBeTruthy();
-    expect(screen.getByText(/3 achados aguardam validação manual/)).toBeTruthy();
+    expect(
+      screen.getByRole('meter', { name: 'Conformidade do IFTM' }).getAttribute('aria-valuetext'),
+    ).toBe('78%, Bom');
+    expect(screen.getByText('Ainda fora da lista de problemas')).toBeTruthy();
 
     const chart = screen.getByRole('img', { name: /Conformidade por coleta/ });
     expect(chart.getAttribute('aria-label')).toBe(

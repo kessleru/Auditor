@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useId, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
-import { Logo, NavItem, SkipLink } from '../../components/ui';
+import { Logo, NavItem, SkipLink, SlidingNavIndicator } from '../../components/ui';
 import { RequireAuditor } from '../../features/auth/RequireAuditor';
 import { useAuditor, useLogout } from '../../features/auth/useAuditor';
 import { useFocusTrap } from '../useFocusTrap';
@@ -54,6 +54,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { data: auditor } = useAuditor();
   const logout = useLogout();
   const navigate = useNavigate();
+  const navRef = useRef<HTMLElement>(null);
 
   return (
     <div className="flex h-full flex-col gap-6 px-4 py-5">
@@ -66,19 +67,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Logo />
       </Link>
 
-      <nav aria-label="Principal" className="flex flex-1 flex-col gap-5">
+      <nav ref={navRef} aria-label="Principal" className="relative flex flex-1 flex-col gap-5">
+        <SlidingNavIndicator container={navRef} />
         {groups.map((group, index) => (
           <div key={group.label} className="flex flex-col gap-1">
-            <p
-              id={`${navId}-${index}`}
-              className="px-3 text-label font-medium tracking-wide text-text-muted uppercase"
-            >
+            <p id={`${navId}-${index}`} className="px-3 text-label font-medium text-text-muted">
               {group.label}
             </p>
             <ul aria-labelledby={`${navId}-${index}`} className="flex flex-col gap-0.5">
               {group.items.map((item) => (
                 <li key={item.to}>
-                  <NavItem {...item} onNavigate={onNavigate} />
+                  <NavItem {...item} onNavigate={onNavigate} slidingIndicator />
                 </li>
               ))}
             </ul>
@@ -107,7 +106,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           type="button"
           onClick={() => logout.mutate(undefined, { onSuccess: () => void navigate('/entrar') })}
           disabled={logout.isPending}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-label font-medium text-accent underline underline-offset-2 hover:bg-muted"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-label font-medium text-accent-text underline underline-offset-2 hover:decoration-2 hover:bg-muted"
         >
           <LogOut aria-hidden="true" size={16} strokeWidth={1.75} />
           Sair
