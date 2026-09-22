@@ -8,7 +8,10 @@ services:
     ports:
       - '3333:3333'
     env_file:
-      - ../.env
+      # O .env não vai para o repositório: quem clona sobe sem ele, e o launcher cria um a partir
+      # do .env.example na primeira execução.
+      - path: ../.env
+        required: false
     environment:
       NODE_ENV: production
       API_PORT: '3333'
