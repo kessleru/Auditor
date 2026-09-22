@@ -12,7 +12,7 @@ import { QueryState } from './QueryState';
 type Filter = 'all' | 'critical' | 'template';
 
 const principleText = (problem: PublicProblem) =>
-  `em ${problem.pages} ${problem.pages === 1 ? 'página' : 'páginas'} · ${problem.occurrences} ${
+  `em ${problem.pages} ${problem.pages === 1 ? 'página' : 'páginas'}, ${problem.occurrences} ${
     problem.occurrences === 1 ? 'ocorrência' : 'ocorrências'
   }`;
 

@@ -165,8 +165,7 @@ export function AssistiveTab() {
                 Ir
               </Button>
               <p className="text-label text-text-muted">
-                Página {index + 1} de {list.length} · {done} de 5 verificações registradas nesta
-                página
+                Página {index + 1} de {list.length}, com {done} de 5 verificações registradas
               </p>
             </form>
             <ul
