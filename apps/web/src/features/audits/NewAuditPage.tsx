@@ -106,68 +106,66 @@ export function NewAuditPage() {
                 </div>
               ) : null}
 
-              <fieldset
-                aria-labelledby={scopeId}
-                className="flex flex-col gap-2 rounded-lg bg-surface p-5 shadow-card"
-              >
-                <legend id={scopeId} className="mb-2 text-card text-text">
-                  Escopo da coleta
-                </legend>
-                <Choice
-                  type="radio"
-                  name="escopo"
-                  checked={mode === 'all'}
-                  onChange={() => setMode('all')}
-                  label={`Todas as instituições ativas — ${active.length} ${active.length === 1 ? 'portal' : 'portais'}`}
-                />
-                <Choice
-                  type="radio"
-                  name="escopo"
-                  checked={mode === 'some'}
-                  onChange={() => setMode('some')}
-                  label="Escolher instituições"
-                />
-                {mode === 'some' ? (
-                  <div
-                    role="group"
-                    aria-label="Instituições"
-                    className="mt-1 ml-8 flex flex-col gap-1"
-                  >
-                    {active.map((institution) => (
-                      <Choice
-                        key={institution.id}
-                        type="checkbox"
-                        checked={selected.includes(institution.id)}
-                        onChange={() => setSelected((s) => toggle(s, institution.id))}
-                        label={
-                          <>
-                            <span className="font-medium">{institution.acronym}</span>{' '}
-                            <span className="text-text-muted">— {institution.name}</span>
-                          </>
-                        }
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </fieldset>
-
-              <fieldset
-                aria-labelledby={functionsId}
-                className="flex flex-col gap-2 rounded-lg bg-surface p-5 shadow-card"
-              >
-                <legend id={functionsId} className="mb-2 text-card text-text">
-                  Páginas avaliadas por instituição
-                </legend>
-                {pageFunctionKeys.map((key) => (
+              <div className="rounded-lg bg-surface p-5 shadow-card">
+                <fieldset aria-labelledby={scopeId} className="flex flex-col gap-2">
+                  <legend id={scopeId} className="mb-2 text-card text-text">
+                    Escopo da coleta
+                  </legend>
                   <Choice
-                    key={key}
-                    type="checkbox"
-                    checked={functions.includes(key)}
-                    onChange={() => setFunctions((f) => toggle(f, key))}
-                    label={pageFunctionLabels[key]}
+                    type="radio"
+                    name="escopo"
+                    checked={mode === 'all'}
+                    onChange={() => setMode('all')}
+                    label={`Todas as instituições ativas — ${active.length} ${active.length === 1 ? 'portal' : 'portais'}`}
                   />
-                ))}
-              </fieldset>
+                  <Choice
+                    type="radio"
+                    name="escopo"
+                    checked={mode === 'some'}
+                    onChange={() => setMode('some')}
+                    label="Escolher instituições"
+                  />
+                  {mode === 'some' ? (
+                    <div
+                      role="group"
+                      aria-label="Instituições"
+                      className="mt-1 ml-8 flex flex-col gap-1"
+                    >
+                      {active.map((institution) => (
+                        <Choice
+                          key={institution.id}
+                          type="checkbox"
+                          checked={selected.includes(institution.id)}
+                          onChange={() => setSelected((s) => toggle(s, institution.id))}
+                          label={
+                            <>
+                              <span className="font-medium">{institution.acronym}</span>{' '}
+                              <span className="text-text-muted">— {institution.name}</span>
+                            </>
+                          }
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </fieldset>
+              </div>
+
+              <div className="rounded-lg bg-surface p-5 shadow-card">
+                <fieldset aria-labelledby={functionsId} className="flex flex-col gap-2">
+                  <legend id={functionsId} className="mb-2 text-card text-text">
+                    Páginas avaliadas por instituição
+                  </legend>
+                  {pageFunctionKeys.map((key) => (
+                    <Choice
+                      key={key}
+                      type="checkbox"
+                      checked={functions.includes(key)}
+                      onChange={() => setFunctions((f) => toggle(f, key))}
+                      label={pageFunctionLabels[key]}
+                    />
+                  ))}
+                </fieldset>
+              </div>
 
               <Note title="O que esta etapa não cobre">
                 A auditoria automatizada verifica apenas parte dos critérios da WCAG. Critérios

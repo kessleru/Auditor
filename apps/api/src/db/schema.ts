@@ -173,30 +173,53 @@ export const targetTasks = sqliteTable('target_tasks', {
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
 });
 
-export const taskInspections = sqliteTable('task_inspections', {
-  id: id(),
-  collectionId: integer('collection_id')
-    .notNull()
-    .references(() => collections.id),
-  institutionId: integer('institution_id')
-    .notNull()
-    .references(() => institutions.id),
-  taskId: integer('task_id')
-    .notNull()
-    .references(() => targetTasks.id),
-  result: text('result', { enum: taskResults }).notNull(),
-  interactions: integer('interactions').notNull(),
-  durationSeconds: integer('duration_seconds').notNull(),
-  depth: integer('depth').notNull(),
-  pathJson: text('path_json', { mode: 'json' }).notNull(),
-  heuristic: text('heuristic', { enum: heuristics }),
-  severity: text('severity', { enum: severities }),
-  note: text('note').notNull(),
-  inspectorId: integer('inspector_id')
-    .notNull()
-    .references(() => users.id),
-  createdAt: createdAt(),
-});
+// Subamostra da camada manual: portais escolhidos pelo auditor numa coleta (ADR 0008).
+export const inspectionSample = sqliteTable(
+  'inspection_sample',
+  {
+    id: id(),
+    collectionId: integer('collection_id')
+      .notNull()
+      .references(() => collections.id),
+    institutionId: integer('institution_id')
+      .notNull()
+      .references(() => institutions.id),
+    selectedBy: integer('selected_by')
+      .notNull()
+      .references(() => users.id),
+    selectedAt: createdAt(),
+  },
+  (t) => [unique().on(t.collectionId, t.institutionId)],
+);
+
+export const taskInspections = sqliteTable(
+  'task_inspections',
+  {
+    id: id(),
+    collectionId: integer('collection_id')
+      .notNull()
+      .references(() => collections.id),
+    institutionId: integer('institution_id')
+      .notNull()
+      .references(() => institutions.id),
+    taskId: integer('task_id')
+      .notNull()
+      .references(() => targetTasks.id),
+    result: text('result', { enum: taskResults }).notNull(),
+    interactions: integer('interactions').notNull(),
+    durationSeconds: integer('duration_seconds').notNull(),
+    depth: integer('depth').notNull(),
+    pathJson: text('path_json', { mode: 'json' }).notNull(),
+    heuristic: text('heuristic', { enum: heuristics }),
+    severity: text('severity', { enum: severities }),
+    note: text('note').notNull(),
+    inspectorId: integer('inspector_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [unique().on(t.collectionId, t.institutionId, t.taskId)],
+);
 
 export const assistiveChecks = sqliteTable(
   'assistive_checks',

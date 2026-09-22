@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Projeto de TCC (Ciência da Computação, IFTM): plataforma que audita a acessibilidade e a usabilidade dos portais dos Institutos Federais em duas camadas — **automatizada** (descoberta de rotas + axe-core via Playwright) e **manual** (tarefas-alvo, verificação assistiva, validação de achados).
 
-Fase 0 (fundação) concluída; demais fases ainda não implementadas. A fonte da verdade é `docs/PLANO_DE_IMPLEMENTACAO.md`: executar o plano, não reescrevê-lo. Se uma skill ou sugestão contradisser o plano (estrutura, stack, regras metodológicas), o plano prevalece. Ler a seção relevante do plano antes de cada tarefa.
+Fases 0–8 implementadas; ver `git log` e `docs/decisoes/`. A fonte da verdade é `docs/PLANO_DE_IMPLEMENTACAO.md`: executar o plano, não reescrevê-lo. Se uma skill ou sugestão contradisser o plano (estrutura, stack, regras metodológicas), o plano prevalece. Ler a seção relevante do plano antes de cada tarefa.
 
 - Trabalhar **uma fase por vez**, na ordem da seção 7 do plano. Não avançar sem cumprir os critérios de aceite da fase; ao fim, rodar lint, typecheck e testes.
 - Em ambiguidade, **perguntar** em vez de supor — principalmente nas regras metodológicas (seção 3), que afetam a validade da pesquisa.
@@ -78,6 +78,8 @@ Regras do design system na seção 4 do plano; revisar todo PR que toque em `app
 - Catálogo `/dev/ui` (só em desenvolvimento) deve continuar sem violações no axe.
 - Visão pública: coleta terminada mais recente por instituição, só achados confirmados (ADR 0006). `/entrar` tem layout próprio; rotas do auditor passam por `RequireAuditor`.
 - Fluxo de auditoria (ADR 0007): escopo na URL (`features/audits/scope.ts`), uma rota confirmada por função, progresso por `useCollectionEvents` (SSE → polling de 5 s após 3 falhas), anúncios com `useThrottledAnnouncement`. Testes de SSE usam `stubEventSource()` (`src/test/eventSource.ts`).
+- Camada manual (ADR 0008): `modules/inspections` (subamostra, validação por fingerprint, tarefas, verificação assistiva); telas em `features/inspection` com `PortalLayout` (h1 = portal, abas por rota `:tab`). Falso positivo é definitivo.
+- Fieldset com cara de card: estilo no `div` de fora (a `legend` escapa do fundo do fieldset).
 - Texto só para leitor de tela: prefira `aria-label` começando pelo texto visível a `<span class="sr-only">` colado ao texto (o espaço se perde).
 
 ## Convenções
