@@ -1,4 +1,4 @@
-import type { CollectionPage as Page } from '@auditoria-rf/contracts';
+import type { CollectionPage as CollectedPage } from '@auditoria-rf/contracts';
 import { RefreshCw } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -9,7 +9,8 @@ import {
   ButtonLink,
   ErrorState,
   Note,
-  PageTitle,
+  Page,
+  PageHeader,
   Stepper,
 } from '../../components/ui';
 import { ApiError } from '../../lib/api';
@@ -30,7 +31,10 @@ const timeFormat = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
-function institutionStatus(pages: Page[]): { label: string; variant: BadgeVariant } {
+function institutionStatus(pages: CollectedPage[]): {
+  label: string;
+  variant: BadgeVariant;
+} {
   const done = pages.filter((p) => p.status === 'done');
   const failed = pages.filter((p) => p.status === 'failed');
   if (pages.some((p) => p.status === 'running'))
@@ -84,7 +88,7 @@ export function CollectionPage() {
   const announcement = useThrottledAnnouncement(liveMessage);
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       {!finished ? <Stepper current={2} /> : null}
       <p aria-live="polite" className="sr-only">
         {announcement}
@@ -112,22 +116,26 @@ export function CollectionPage() {
               : finished
                 ? `Coleta #${collection.id} concluída`
                 : 'Auditoria em execução';
+          const restante = finished
+            ? null
+            : remainingText(collection.startedAt, doneCount, collection.progress.total);
           const meta = [
-            collection.startedAt
-              ? `Iniciada às ${timeFormat.format(new Date(collection.startedAt))}`
-              : 'Aguardando a vez na fila',
-            `${collection.progress.done + collection.progress.failed} de ${collection.progress.total} páginas concluídas`,
-            finished
-              ? null
-              : remainingText(collection.startedAt, doneCount, collection.progress.total),
-          ].filter(Boolean);
+            {
+              label: 'Início',
+              value: collection.startedAt
+                ? timeFormat.format(new Date(collection.startedAt))
+                : 'aguardando a vez na fila',
+            },
+            {
+              label: 'Páginas concluídas',
+              value: `${collection.progress.done + collection.progress.failed} de ${collection.progress.total}`,
+            },
+            ...(restante ? [{ label: 'Restante', value: restante }] : []),
+          ];
 
           return (
             <>
-              <div className="flex flex-col gap-1">
-                <PageTitle documentTitle={`Coleta #${collection.id}`}>{title}</PageTitle>
-                <p className="text-label text-text-muted">{meta.join(' · ')}</p>
-              </div>
+              <PageHeader title={title} documentTitle={`Coleta #${collection.id}`} meta={meta} />
 
               {collection.status === 'queued' ? (
                 <Note>
@@ -301,6 +309,6 @@ export function CollectionPage() {
           );
         }}
       </QueryState>
-    </div>
+    </Page>
   );
 }
