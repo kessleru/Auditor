@@ -237,6 +237,7 @@ namespace AuditoriaRf
         private readonly Label mensagem = new Label();
         private readonly Botao abrir = new Botao("Abrir o sistema", true);
         private readonly Botao parar = new Botao("Parar", false);
+        private readonly Botao auditor = new Botao("Criar auditor", false);
         private readonly LinkLabel detalhes = new LinkLabel();
 
         private readonly string pastaDocker;
@@ -249,7 +250,7 @@ namespace AuditoriaRf
 
             Text = "Auditoria RF";
             BackColor = Tokens.Canvas;
-            ClientSize = new Size(560, 500);
+            ClientSize = new Size(620, 500);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -304,10 +305,14 @@ namespace AuditoriaRf
             abrir.Width = 180;
             abrir.Enabled = false;
             abrir.Click += delegate { Process.Start(Endereco); };
-            parar.Width = 120;
+            parar.Width = 110;
             parar.Enabled = false;
             parar.Click += delegate { Parar(); };
+            auditor.Width = 150;
+            auditor.Enabled = false;
+            auditor.Click += delegate { CriarAuditor(); };
             acoes.Controls.Add(abrir);
+            acoes.Controls.Add(auditor);
             acoes.Controls.Add(parar);
             corpo.Controls.Add(acoes);
 
@@ -335,6 +340,123 @@ namespace AuditoriaRf
                 mensagem.Text = resumo;
                 detalhes.Visible = ultimoErro.Length > 0;
             });
+        }
+
+        /// <summary>
+        /// Cria a conta do auditor pela CLI de dentro do contêiner. Não há cadastro público (seção 7
+        /// do plano), e sem conta ninguém registra auditoria — daí o botão aqui.
+        /// </summary>
+        private void CriarAuditor()
+        {
+            Form dialogo = new Form
+            {
+                Text = "Criar auditor",
+                ClientSize = new Size(440, 330),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Tokens.Canvas,
+                Font = Tokens.Body,
+                Padding = new Padding(24, 20, 24, 16),
+            };
+
+            Label explicacao = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 46,
+                Font = Tokens.Label,
+                ForeColor = Tokens.TextMuted,
+                Text = "O sistema não tem cadastro público: a conta do auditor é criada aqui. "
+                     + "A senha precisa de pelo menos 12 caracteres.",
+            };
+
+            Label aviso = new Label
+            {
+                Dock = DockStyle.Bottom,
+                Height = 44,
+                Font = Tokens.Label,
+                ForeColor = Tokens.Critical,
+                Text = "",
+            };
+
+            TextBox nome = new TextBox { Dock = DockStyle.Top, AccessibleName = "Nome" };
+            TextBox email = new TextBox { Dock = DockStyle.Top, AccessibleName = "E-mail" };
+            TextBox senha = new TextBox { Dock = DockStyle.Top, UseSystemPasswordChar = true, AccessibleName = "Senha" };
+
+            Func<string, Label> rotulo = delegate (string texto)
+            {
+                return new Label { Dock = DockStyle.Top, Height = 22, Text = texto, Font = Tokens.Label, ForeColor = Tokens.Text };
+            };
+
+            Botao criar = new Botao("Criar conta", true) { Width = 150, Margin = new Padding(0, 6, 0, 0) };
+            FlowLayoutPanel acoes = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 54,
+                FlowDirection = FlowDirection.RightToLeft,
+                BackColor = Tokens.Canvas,
+            };
+            acoes.Controls.Add(criar);
+
+            criar.Click += delegate
+            {
+                aviso.ForeColor = Tokens.Critical;
+                if (nome.Text.Trim().Length == 0 || email.Text.Trim().Length == 0)
+                {
+                    aviso.Text = "Preencha o nome e o e-mail.";
+                    return;
+                }
+                if (senha.Text.Length < 12)
+                {
+                    aviso.Text = "A senha precisa de pelo menos 12 caracteres.";
+                    return;
+                }
+
+                criar.Enabled = false;
+                aviso.ForeColor = Tokens.TextMuted;
+                aviso.Text = "Criando a conta…";
+                string argumentos = "compose exec -T api node apps/api/dist/cli/create-auditor.js"
+                    + " --email \"" + email.Text.Trim() + "\" --name \"" + nome.Text.Trim() + "\"";
+                string segredo = senha.Text;
+
+                Task.Factory.StartNew(delegate
+                {
+                    Saida saida = Rodar("docker", argumentos, 120, segredo);
+                    NaTela(delegate
+                    {
+                        criar.Enabled = true;
+                        if (saida.Codigo == 0)
+                        {
+                            aviso.ForeColor = Tokens.Ok;
+                            aviso.Text = "Conta criada. Já dá para entrar no sistema.";
+                            senha.Clear();
+                        }
+                        else
+                        {
+                            aviso.ForeColor = Tokens.Critical;
+                            string texto = (saida.Texto ?? "").Trim();
+                            int corte = texto.LastIndexOf("Erro:", StringComparison.Ordinal);
+                            aviso.Text = corte >= 0 ? texto.Substring(corte) : "Não foi possível criar a conta.";
+                            ultimoErro = texto;
+                            detalhes.Visible = true;
+                        }
+                    });
+                });
+            };
+
+            // Os controles com Dock = Top entram de baixo para cima.
+            dialogo.Controls.Add(aviso);
+            dialogo.Controls.Add(acoes);
+            dialogo.Controls.Add(senha);
+            dialogo.Controls.Add(rotulo("Senha"));
+            dialogo.Controls.Add(email);
+            dialogo.Controls.Add(rotulo("E-mail"));
+            dialogo.Controls.Add(nome);
+            dialogo.Controls.Add(rotulo("Nome"));
+            dialogo.Controls.Add(explicacao);
+            dialogo.AcceptButton = criar;
+            dialogo.ShowDialog(this);
         }
 
         private void MostrarErro()
@@ -367,6 +489,12 @@ namespace AuditoriaRf
 
         private Saida Rodar(string arquivo, string argumentos, int segundos)
         {
+            return Rodar(arquivo, argumentos, segundos, null);
+        }
+
+        /// <summary>Roda um comando; <paramref name="entrada"/> vai pela entrada padrão (senhas).</summary>
+        private Saida Rodar(string arquivo, string argumentos, int segundos, string entrada)
+        {
             ProcessStartInfo info = new ProcessStartInfo(arquivo, argumentos)
             {
                 WorkingDirectory = pastaDocker,
@@ -374,9 +502,15 @@ namespace AuditoriaRf
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                RedirectStandardInput = entrada != null,
             };
             using (Process processo = Process.Start(info))
             {
+                if (entrada != null)
+                {
+                    processo.StandardInput.WriteLine(entrada);
+                    processo.StandardInput.Close();
+                }
                 string saida = processo.StandardOutput.ReadToEnd() + processo.StandardError.ReadToEnd();
                 if (!processo.WaitForExit(segundos * 1000))
                 {
@@ -481,6 +615,7 @@ namespace AuditoriaRf
                 mensagem.Text = "Tudo pronto. Os resultados são públicos; para registrar auditorias é preciso entrar como auditor.";
                 abrir.Enabled = true;
                 parar.Enabled = true;
+                auditor.Enabled = true;
                 abrir.Focus();
             });
             try { Process.Start(Endereco); } catch { }
@@ -490,6 +625,7 @@ namespace AuditoriaRf
         {
             parar.Enabled = false;
             abrir.Enabled = false;
+            auditor.Enabled = false;
             Dizer("Parando o sistema…");
             Task.Factory.StartNew(delegate
             {
