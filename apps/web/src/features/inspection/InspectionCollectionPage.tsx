@@ -216,7 +216,10 @@ export function InspectionCollectionPage() {
               candidates={candidates}
             />
             <p className="text-label">
-              <Link to="/inspecao" className="text-accent underline underline-offset-2">
+              <Link
+                to="/inspecao"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
                 Escolher outra coleta
               </Link>
             </p>

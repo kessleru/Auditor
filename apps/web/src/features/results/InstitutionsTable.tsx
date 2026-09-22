@@ -62,7 +62,7 @@ export function InstitutionsTable({
             <Link
               to={`/instituicoes/${row.id}`}
               aria-label={`Abrir relatório do ${row.acronym}`}
-              className="inline-flex min-h-6 items-center text-accent underline underline-offset-2 hover:text-accent-text"
+              className="inline-flex min-h-6 items-center text-accent-text underline underline-offset-2 hover:decoration-2"
             >
               Abrir
             </Link>

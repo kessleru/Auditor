@@ -52,7 +52,10 @@ function Overview({ running }: { running: number }) {
               label="Conformidade média"
               value={data.averageConformity === null ? 'Sem dado' : percent(data.averageConformity)}
               hint={
-                <Link to="/metodologia" className="text-accent underline underline-offset-2">
+                <Link
+                  to="/metodologia"
+                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                >
                   Só critérios automatizáveis
                 </Link>
               }
@@ -62,7 +65,7 @@ function Overview({ running }: { running: number }) {
           {running > 0 ? (
             <Note>
               {running} {running === 1 ? 'coleta em andamento' : 'coletas em andamento'}.{' '}
-              <Link to="/coletas" className="underline underline-offset-2">
+              <Link to="/coletas" className="underline underline-offset-2 hover:decoration-2">
                 Acompanhar
               </Link>
             </Note>
@@ -80,7 +83,7 @@ function Overview({ running }: { running: number }) {
                   {i.status === 'evaluated' ? (
                     <Link
                       to={`/painel/instituicoes/${i.id}`}
-                      className="font-medium text-accent underline underline-offset-2"
+                      className="font-medium text-accent-text underline underline-offset-2 hover:decoration-2"
                     >
                       {i.acronym}
                     </Link>

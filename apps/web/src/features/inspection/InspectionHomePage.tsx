@@ -36,7 +36,7 @@ export function InspectionHomePage() {
                   cell: (r) => (
                     <Link
                       to={`/inspecao/${r.id}`}
-                      className="text-accent underline underline-offset-2"
+                      className="text-accent-text underline underline-offset-2 hover:decoration-2"
                     >
                       Coleta #{r.id}
                     </Link>

@@ -24,7 +24,10 @@ export function PublicInstitutionsPage() {
         <p className="text-body text-text-muted">
           Portais avaliados e a sua coleta mais recente. A conformidade cobre apenas critérios
           verificáveis automaticamente —{' '}
-          <Link to="/metodologia" className="text-accent underline underline-offset-2">
+          <Link
+            to="/metodologia"
+            className="text-accent-text underline underline-offset-2 hover:decoration-2"
+          >
             veja a metodologia
           </Link>
           .

@@ -151,7 +151,7 @@ export function MethodologyPage() {
               Contato:{' '}
               <a
                 href={`mailto:${data.contactEmail}`}
-                className="text-accent underline underline-offset-2"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
               >
                 {data.contactEmail}
               </a>

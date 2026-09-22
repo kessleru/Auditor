@@ -289,7 +289,10 @@ export function CollectionPage() {
 
               <p className="text-label text-text-muted">
                 A conformidade cobre apenas critérios verificáveis automaticamente —{' '}
-                <Link to="/metodologia" className="text-accent underline underline-offset-2">
+                <Link
+                  to="/metodologia"
+                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                >
                   veja a metodologia
                 </Link>
                 .

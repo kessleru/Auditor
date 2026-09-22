@@ -144,7 +144,7 @@ export function UiCatalogPage() {
               cell: (row) => (
                 <Link
                   to={`/instituicoes/${row.acronym.toLowerCase()}`}
-                  className="text-accent underline underline-offset-2"
+                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
                 >
                   {row.acronym}
                 </Link>

@@ -247,7 +247,7 @@ export function LoginPage() {
             {methodology?.contactEmail ? (
               <a
                 href={`mailto:${methodology.contactEmail}`}
-                className="text-accent underline underline-offset-2"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
               >
                 responsável pela pesquisa
               </a>
