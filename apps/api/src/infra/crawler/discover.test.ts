@@ -293,3 +293,39 @@ describe('falhas da página inicial', () => {
     expect(site.requested).toEqual([]);
   });
 });
+
+describe('verificação das rotas confirmadas (3.1.7)', () => {
+  it('detecta rota removida, movida permanentemente e intacta', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início') },
+      [`${ORIGIN}/antiga`]: { status: 404, body: 'não encontrada' },
+      [`${ORIGIN}/extinta`]: { status: 410, body: 'removida' },
+      [`${ORIGIN}/ingresso-2025`]: { redirect: '/ingresso/', status: 301 },
+      [`${ORIGIN}/ingresso/`]: { body: html('Ingresso') },
+      [`${ORIGIN}/temporaria`]: { redirect: '/ok', status: 302 },
+      [`${ORIGIN}/ok`]: { body: html('OK') },
+      [`${ORIGIN}/caiu`]: { networkError: true },
+    });
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      checkUrls: [
+        `${ORIGIN}/antiga`,
+        `${ORIGIN}/extinta`,
+        `${ORIGIN}/ingresso-2025`,
+        `${ORIGIN}/temporaria`,
+        `${ORIGIN}/ok`,
+        `${ORIGIN}/caiu`,
+      ],
+    });
+    expect(result.checks.map((c) => [c.result, c.httpStatus, c.movedTo])).toEqual([
+      ['not_found', 404, null],
+      ['not_found', 410, null],
+      ['moved', 301, `${ORIGIN}/ingresso`],
+      ['ok', 200, null],
+      ['ok', 200, null],
+      ['unreachable', null, null],
+    ]);
+  });
+});
