@@ -239,10 +239,27 @@ namespace AuditoriaRf
         private readonly Botao parar = new Botao("Parar", false);
         private readonly Botao auditor = new Botao("Criar auditor", false);
         private readonly LinkLabel detalhes = new LinkLabel();
+        private readonly LinkLabel log = new LinkLabel();
 
         private readonly string pastaDocker;
         private const string Endereco = "http://localhost:8080";
         private string ultimoErro = "";
+
+        /// <summary>Log de tudo o que o launcher faz, para diagnóstico depois do fato.</summary>
+        private static readonly string ArquivoLog = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AuditoriaRF", "launcher.log");
+
+        private static void Registrar(string texto)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(ArquivoLog));
+                File.AppendAllText(ArquivoLog,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + texto + Environment.NewLine);
+            }
+            catch { /* log é conveniência: se não der para gravar, o programa segue. */ }
+        }
 
         public Janela(string pastaDocker)
         {
@@ -286,6 +303,22 @@ namespace AuditoriaRf
             corpo.Controls.Add(mensagem);
             mensagem.BringToFront();
 
+            log.Dock = DockStyle.Bottom;
+            log.Height = 22;
+            log.Font = Tokens.Label;
+            log.LinkColor = Tokens.Accent;
+            log.Text = "Abrir o log do launcher";
+            log.LinkClicked += delegate
+            {
+                try
+                {
+                    if (!File.Exists(ArquivoLog)) Registrar("log aberto pelo usuário");
+                    Process.Start("notepad.exe", ArquivoLog);
+                }
+                catch { }
+            };
+            corpo.Controls.Add(log);
+
             detalhes.Dock = DockStyle.Bottom;
             detalhes.Height = 24;
             detalhes.Font = Tokens.Label;
@@ -327,12 +360,14 @@ namespace AuditoriaRf
 
         private void Dizer(string texto)
         {
+            Registrar(texto);
             NaTela(delegate { mensagem.Text = texto; });
         }
 
         private void Falhar(Etapa etapa, string resumo, string erro)
         {
             ultimoErro = erro ?? "";
+            Registrar("FALHA: " + resumo);
             NaTela(delegate
             {
                 etapa.Definir(EstadoEtapa.Falhou, resumo);
@@ -504,20 +539,47 @@ namespace AuditoriaRf
                 RedirectStandardError = true,
                 RedirectStandardInput = entrada != null,
             };
-            using (Process processo = Process.Start(info))
+            using (Process processo = new Process())
             {
+                processo.StartInfo = info;
+
+                // As duas saídas são lidas em paralelo, por evento. Lendo uma de cada vez com
+                // ReadToEnd, o `docker compose`, que escreve o progresso na saída de erro, enche o
+                // buffer e trava: ele espera alguém ler, nós esperamos ele terminar.
+                System.Text.StringBuilder texto = new System.Text.StringBuilder();
+                DataReceivedEventHandler juntar = delegate (object s, DataReceivedEventArgs e)
+                {
+                    if (e.Data == null) return;
+                    lock (texto) texto.AppendLine(e.Data);
+                };
+                processo.OutputDataReceived += juntar;
+                processo.ErrorDataReceived += juntar;
+
+                Registrar("$ " + arquivo + " " + argumentos);
+                processo.Start();
+                processo.BeginOutputReadLine();
+                processo.BeginErrorReadLine();
+
                 if (entrada != null)
                 {
                     processo.StandardInput.WriteLine(entrada);
                     processo.StandardInput.Close();
                 }
-                string saida = processo.StandardOutput.ReadToEnd() + processo.StandardError.ReadToEnd();
+
                 if (!processo.WaitForExit(segundos * 1000))
                 {
                     try { processo.Kill(); } catch { }
-                    return new Saida { Codigo = -1, Texto = saida + "\r\n(tempo esgotado)" };
+                    lock (texto) return new Saida { Codigo = -1, Texto = texto + "\r\n(tempo esgotado)" };
                 }
-                return new Saida { Codigo = processo.ExitCode, Texto = saida };
+                // Sem argumento, WaitForExit também espera o fim da leitura das duas saídas.
+                processo.WaitForExit();
+                lock (texto)
+                {
+                    string resultado = texto.ToString();
+                    Registrar("saiu com código " + processo.ExitCode +
+                        (resultado.Trim().Length > 0 ? Environment.NewLine + resultado.TrimEnd() : ""));
+                    return new Saida { Codigo = processo.ExitCode, Texto = resultado };
+                }
             }
         }
 
@@ -535,6 +597,7 @@ namespace AuditoriaRf
 
         private void Iniciar()
         {
+            Registrar("=== launcher iniciado em " + pastaDocker + " ===");
             // 1. Docker instalado e ligado.
             NaTela(delegate { etapaDocker.Definir(EstadoEtapa.Andamento, "procurando o Docker"); });
             Saida versao = Rodar("docker", "--version", 20);
