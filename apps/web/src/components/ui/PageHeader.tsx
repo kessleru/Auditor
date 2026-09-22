@@ -36,7 +36,9 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <header className={cn('flex flex-col gap-4', className)}>
+    // Um <div>, não um <header>: dentro do <main> ele não seria um marco, mas leitores de tela e
+    // ferramentas que não aplicam o escopo anunciam um segundo "banner" junto com o do site.
+    <div className={cn('flex flex-col gap-4', className)}>
       {breadcrumb}
       <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
         <div className="flex max-w-3xl min-w-0 flex-col gap-2">
@@ -56,7 +58,7 @@ export function PageHeader({
           ))}
         </dl>
       ) : null}
-    </header>
+    </div>
   );
 }
 
