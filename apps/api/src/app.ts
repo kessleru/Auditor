@@ -14,6 +14,8 @@ import { createCollectionsRoutes } from './modules/collections/collections.route
 import { healthRoutes } from './modules/health/health.routes.js';
 import { createInstitutionsController } from './modules/institutions/institutions.controller.js';
 import { createInstitutionsRoutes } from './modules/institutions/institutions.routes.js';
+import { createPublicController } from './modules/reports/public.controller.js';
+import { createPublicRoutes } from './modules/reports/public.routes.js';
 import { createRoutesDiscoveryController } from './modules/routes-discovery/routes-discovery.controller.js';
 import { createRoutesDiscoveryRoutes } from './modules/routes-discovery/routes-discovery.routes.js';
 import { createServices, type ServiceOptions, type Services } from './services.js';
@@ -48,6 +50,7 @@ export function createApp({
 
   const api = express.Router();
   api.use(healthRoutes);
+  api.use(createPublicRoutes(createPublicController(s.publicReports)));
   api.use(createAuthRoutes(createAuthController(s.auth, { secureCookies }), requireAuditor));
   api.use(createInstitutionsRoutes(createInstitutionsController(s.institutions), requireAuditor));
   api.use(
