@@ -14,6 +14,8 @@ import { createAuthRepository } from './modules/auth/auth.repository.js';
 import { createAuthService } from './modules/auth/auth.service.js';
 import { createCollectionsRepository } from './modules/collections/collections.repository.js';
 import { createCollectionsService } from './modules/collections/collections.service.js';
+import { createInspectionsRepository } from './modules/inspections/inspections.repository.js';
+import { createInspectionsService } from './modules/inspections/inspections.service.js';
 import { createInstitutionsRepository } from './modules/institutions/institutions.repository.js';
 import { createInstitutionsService } from './modules/institutions/institutions.service.js';
 import { createReportsRepository } from './modules/reports/reports.repository.js';
@@ -87,7 +89,18 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     contactEmail: env.CRAWLER_CONTACT_EMAIL ?? null,
   });
 
-  return { auth, institutions, routes, discovery, collections, reports, publicReports };
+  const inspections = createInspectionsService(createInspectionsRepository(db), timing);
+
+  return {
+    auth,
+    institutions,
+    routes,
+    discovery,
+    collections,
+    reports,
+    publicReports,
+    inspections,
+  };
 }
 
 export type Services = ReturnType<typeof createServices>;
