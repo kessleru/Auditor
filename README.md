@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/kessleru/Auditor/actions/workflows/ci.yml"><img alt="Estado do CI" src="https://img.shields.io/github/actions/workflow/status/kessleru/Auditor/ci.yml?branch=main&label=CI&labelColor=21211F&color=1B7A55"></a>
+  <a href="https://playwright.dev/"><img alt="Testes: Vitest e Playwright" src="https://img.shields.io/badge/testes-Vitest%20%2B%20Playwright-1B7A55?labelColor=21211F"></a>
   <a href="https://nodejs.org/"><img alt="Node 22 LTS" src="https://img.shields.io/badge/Node-22%20LTS-1F4FA8?labelColor=21211F"></a>
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-1F4FA8?labelColor=21211F"></a>
   <a href="https://www.w3.org/TR/WCAG22/"><img alt="WCAG 2.2 nível AA" src="https://img.shields.io/badge/WCAG-2.2%20AA-1B7A55?labelColor=21211F"></a>
@@ -16,6 +16,12 @@
 </p>
 
 ---
+
+## Abrindo sem linha de comando
+
+Quem só quer usar o sistema abre `launcher/Auditoria RF.exe` (Windows). Ele verifica o Docker Desktop, inicia se estiver parado, monta a aplicação, sobe API e front, aplica os dados iniciais e abre o navegador em `http://localhost:8080` — com uma janela mostrando cada etapa e um botão para parar tudo depois.
+
+Único pré-requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/). Para recompilar o launcher, `powershell -ExecutionPolicy Bypass -File launcheruild.ps1`; ele usa o compilador C# que já vem no Windows, sem instalar nada.
 
 ## Rodando em 3 comandos
 
@@ -34,7 +40,7 @@ npm run dev                          # API em :3333, front em :5173
 Sem compilador C++ na máquina (Windows, em geral), o `better-sqlite3` não compila. Nesse caso, suba a API em contêiner:
 
 ```bash
-cd docker && docker compose up -d    # API em :3333, com data/ persistente
+cd docker && docker compose up -d    # front em :8080, API em :3333, data/ persistente
 ```
 
 ## O que o sistema faz
@@ -66,7 +72,7 @@ Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) 
 Uma ferramenta que mede acessibilidade não pode ser inacessível. O projeto se audita:
 
 - os testes de componente rodam **axe em cada tela** (Vitest + Testing Library);
-- o CI executa o **próprio motor de auditoria contra o front** (`npm run dogfood`) e falha se houver achado crítico;
+- `npm run dogfood` roda o **próprio motor de auditoria contra o front** e sai com erro se houver achado crítico;
 - o ESLint roda `jsx-a11y` em modo estrito;
 - nenhum texto abaixo de 13 px, cor nunca é a única informação, foco movido para o `<h1>` a cada rota, alvos de no mínimo 24×24 px e `prefers-reduced-motion` respeitado.
 
@@ -105,7 +111,8 @@ apps/
   web/     React + Vite, organizado por feature, com design system em components/ui
 packages/
   contracts/  schemas Zod e tipos compartilhados entre front e API
-docker/       imagem da API (Node 22 + Chromium) e compose com volume em data/
+docker/       imagens da API (Node 22 + Chromium) e do front (nginx), com volume em data/
+launcher/     launcher gráfico para Windows: sobe tudo com um duplo clique
 docs/         plano de implementação e ADRs
 ```
 

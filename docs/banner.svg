@@ -40,12 +40,20 @@
     </text>
   </g>
 
-  <!-- Medidor de conformidade: o número que o sistema publica. -->
-  <g transform="translate(1110 180)" font-family="Inter, 'Segoe UI', system-ui, sans-serif">
-    <circle r="78" fill="none" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="12"/>
-    <circle r="78" fill="none" stroke="#7FE0B6" stroke-width="12" stroke-linecap="round"
-      stroke-dasharray="382 490" transform="rotate(-90)"/>
-    <text y="0" text-anchor="middle" font-size="42" font-weight="600" fill="#FFFFFF">78%</text>
-    <text y="30" text-anchor="middle" font-size="17" fill="#AFC6EC">conformidade</text>
+  <!-- Página auditada: o anel do foco visível sobre um controle. Sem números — um percentual
+       aqui seria lido como a nota do próprio sistema. -->
+  <g transform="translate(1000 96)">
+    <rect x="0" y="0" width="184" height="168" rx="16" fill="#FFFFFF" fill-opacity="0.1"/>
+    <rect x="0.75" y="0.75" width="182.5" height="166.5" rx="15" fill="none" stroke="#FFFFFF" stroke-opacity="0.18"/>
+
+    <rect x="20" y="22" width="86" height="9" rx="4.5" fill="#FFFFFF" fill-opacity="0.85"/>
+    <rect x="20" y="44" width="144" height="7" rx="3.5" fill="#FFFFFF" fill-opacity="0.32"/>
+    <rect x="20" y="60" width="120" height="7" rx="3.5" fill="#FFFFFF" fill-opacity="0.32"/>
+
+    <rect x="20" y="86" width="60" height="58" rx="10" fill="#FFFFFF" fill-opacity="0.16"/>
+    <path d="M36 118 L46 128 L66 102" fill="none" stroke="#7FE0B6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="94" y="96" width="70" height="30" rx="8" fill="#9FC2FF" fill-opacity="0.95"/>
+    <rect x="88" y="90" width="82" height="42" rx="12" fill="none" stroke="#7FE0B6" stroke-width="3"/>
   </g>
 </svg>
