@@ -4,6 +4,11 @@ import { PublicLayout } from './layouts/PublicLayout';
 import { NotFoundPage } from './NotFoundPage';
 import { PlaceholderPage } from './PlaceholderPage';
 import { Root } from './Root';
+import { LoginPage } from '../features/auth/LoginPage';
+import { InstitutionDetailPage } from '../features/results/InstitutionDetailPage';
+import { MethodologyPage } from '../features/results/MethodologyPage';
+import { PublicHomePage } from '../features/results/PublicHomePage';
+import { PublicInstitutionsPage } from '../features/results/PublicInstitutionsPage';
 
 const placeholder = (title: string, phase: number) => (
   <PlaceholderPage title={title} phase={phase} />
@@ -26,14 +31,15 @@ export const routes: RouteObject[] = [
   {
     Component: Root,
     children: [
+      // Tela 0.1 tem layout próprio (painel de marca + formulário).
+      { path: 'entrar', Component: LoginPage },
       {
         Component: PublicLayout,
         children: [
-          { index: true, element: placeholder('Resultados', 6) },
-          { path: 'instituicoes', element: placeholder('Instituições', 6) },
-          { path: 'instituicoes/:id', element: placeholder('Instituição', 6) },
-          { path: 'metodologia', element: placeholder('Sobre a metodologia', 6) },
-          { path: 'entrar', element: placeholder('Entrar como auditor', 6) },
+          { index: true, Component: PublicHomePage },
+          { path: 'instituicoes', Component: PublicInstitutionsPage },
+          { path: 'instituicoes/:id', Component: InstitutionDetailPage },
+          { path: 'metodologia', Component: MethodologyPage },
           ...devRoutes,
           { path: '*', Component: NotFoundPage },
         ],
