@@ -7,6 +7,7 @@ export { FindingCard } from './FindingCard';
 export { conformityLabel, conformityLabels, formatPercent } from './format';
 export { Logo } from './Logo';
 export { NavItem } from './NavItem';
+export { Note } from './Note';
 export { APP_NAME, PageTitle } from './PageTitle';
 export { SkipLink } from './SkipLink';
 export { EmptyState, ErrorState } from './States';
