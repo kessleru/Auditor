@@ -133,10 +133,11 @@ export function AssistiveTab() {
         const current = list.find((p) => p.id === Number(params.get('pagina'))) ?? list[0]!;
         const index = list.indexOf(current);
         const done = current.checks.filter((c) => c.state !== 'pending').length;
+        const total = current.checks.length;
         return (
           <div className="flex flex-col gap-5">
             <form
-              className="flex flex-wrap items-center gap-3"
+              className="flex flex-col gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 const value = (e.currentTarget.elements.namedItem('pagina') as HTMLSelectElement)
@@ -145,14 +146,14 @@ export function AssistiveTab() {
               }}
             >
               <label htmlFor={selectId} className="text-label font-medium">
-                Página
+                Página em verificação
               </label>
               <select
                 id={selectId}
                 name="pagina"
                 defaultValue={current.id}
                 key={current.id}
-                className="min-h-10 rounded-md border border-border-strong bg-surface px-2 text-label"
+                className="min-h-10 w-full max-w-xl min-w-0 rounded-md border border-border-strong bg-surface px-2 text-label"
               >
                 {list.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -165,8 +166,7 @@ export function AssistiveTab() {
                 Ir
               </Button>
               <p className="text-label text-text-muted">
-                Página {index + 1} de {list.length} · {done} de 5 verificações registradas nesta
-                página
+                Página {index + 1} de {list.length}, com {done} de {total} verificações registradas
               </p>
             </form>
             <ul

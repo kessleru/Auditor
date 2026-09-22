@@ -26,11 +26,6 @@ export function TextField({ label, hint, error, id, className, ref, ...props }: 
       <label htmlFor={inputId} className="text-label font-medium text-text">
         {label}
       </label>
-      {hint ? (
-        <p id={hintId} className="text-label text-text-muted">
-          {hint}
-        </p>
-      ) : null}
       <input
         ref={ref}
         id={inputId}
@@ -42,6 +37,13 @@ export function TextField({ label, hint, error, id, className, ref, ...props }: 
         )}
         {...props}
       />
+      {/* Dica abaixo do campo: acima dele, empurraria o campo para baixo e desalinharia os
+          campos vizinhos numa linha com vários deles. */}
+      {hint ? (
+        <p id={hintId} className="text-label text-text-muted">
+          {hint}
+        </p>
+      ) : null}
       {error ? (
         <p id={errorId} className="text-label text-critical-text">
           {error}

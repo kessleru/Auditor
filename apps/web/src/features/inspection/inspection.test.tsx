@@ -257,7 +257,7 @@ describe('verificação assistiva (3.2)', () => {
     });
     const { container } = renderRoute('/inspecao/5/1/verificacao');
     const keyboard = await screen.findByRole('form', { name: 'Navegação apenas por teclado' });
-    expect(screen.getByText(/Página 1 de 2 · 0 de 5 verificações/)).toBeTruthy();
+    expect(screen.getByText(/Página 1 de 2, com 0 de 5 verificações/)).toBeTruthy();
     await expectNoAxeViolations(container);
 
     await userEvent.click(within(keyboard).getByRole('radio', { name: 'Barreira' }));
