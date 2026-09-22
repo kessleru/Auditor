@@ -214,24 +214,23 @@ function TaskForm({
         </div>
       </section>
 
-      <fieldset
-        aria-labelledby={ids.result}
-        className="flex flex-col gap-1 rounded-lg bg-surface p-5 shadow-card"
-      >
-        <legend id={ids.result} className="mb-2 text-card text-text">
-          Resultado da tarefa
-        </legend>
-        {(Object.keys(resultLabels) as TaskResult[]).map((key) => (
-          <Choice
-            key={key}
-            type="radio"
-            name={`resultado-${item.task.id}`}
-            checked={result === key}
-            onChange={() => setResult(key)}
-            label={resultLabels[key]}
-          />
-        ))}
-      </fieldset>
+      <div className="rounded-lg bg-surface p-5 shadow-card">
+        <fieldset aria-labelledby={ids.result} className="flex flex-col gap-1">
+          <legend id={ids.result} className="mb-2 text-card text-text">
+            Resultado da tarefa
+          </legend>
+          {(Object.keys(resultLabels) as TaskResult[]).map((key) => (
+            <Choice
+              key={key}
+              type="radio"
+              name={`resultado-${item.task.id}`}
+              checked={result === key}
+              onChange={() => setResult(key)}
+              label={resultLabels[key]}
+            />
+          ))}
+        </fieldset>
+      </div>
 
       {needsHeuristic ? (
         <section className="flex flex-col gap-4 rounded-lg bg-surface p-5 shadow-card">

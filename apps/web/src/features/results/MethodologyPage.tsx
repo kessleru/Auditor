@@ -1,3 +1,4 @@
+import { TASK_LIMITS } from '@auditoria-rf/contracts';
 import type { ReactNode } from 'react';
 import { PageTitle } from '../../components/ui';
 import { formatDate } from '../../lib/format';
@@ -88,6 +89,20 @@ export function MethodologyPage() {
           Na visão pública, contam apenas problemas{' '}
           <strong className="font-medium">confirmados</strong> por um auditor. Falsos positivos
           nunca são apagados: ficam registrados com a justificativa.
+        </p>
+      </Section>
+
+      <Section title="Camada manual">
+        <p>
+          Numa subamostra de portais escolhida pelo pesquisador, os achados automatizados são
+          validados um a um (cada problema distinto é confirmado ou registrado como falso positivo,
+          com justificativa), as tarefas-alvo são executadas com o mesmo enunciado em todos os
+          portais e cada página passa por verificação com teclado, leitor de tela, ampliação a 200%,
+          legendas e contraste.
+        </p>
+        <p>
+          Uma tarefa-alvo é interrompida ao atingir {TASK_LIMITS.maxSeconds / 60} minutos ou{' '}
+          {TASK_LIMITS.maxInteractions} interações, o que vier primeiro.
         </p>
       </Section>
 
