@@ -7,14 +7,18 @@ export function QueryState<T>({
   query,
   loadingText,
   errorTitle,
+  skeleton,
   children,
 }: {
   query: UseQueryResult<T>;
   loadingText: string;
+  /** Skeleton no lugar do texto, só quando o tamanho do conteúdo é conhecido. */
+  skeleton?: ReactNode;
   errorTitle: string;
   children: (data: T) => ReactNode;
 }) {
   if (query.isPending) {
+    if (skeleton) return <>{skeleton}</>;
     return (
       <p role="status" className="text-body text-text-muted">
         {loadingText}

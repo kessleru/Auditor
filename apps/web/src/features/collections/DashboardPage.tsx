@@ -6,7 +6,9 @@ import {
   formatPercent as percent,
   Note,
   PageTitle,
+  Skeleton,
   StatCard,
+  StatGridSkeleton,
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
 import { useResultsOverview } from '../results/auditorApi';
@@ -23,6 +25,12 @@ function Overview({ running }: { running: number }) {
       query={overview}
       loadingText="Carregando indicadores…"
       errorTitle="Não foi possível carregar os indicadores"
+      skeleton={
+        <>
+          <Skeleton className="-mt-4 h-[18px] w-72 max-w-full" />
+          <StatGridSkeleton label="Carregando indicadores…" hints={[false, true, true, false]} />
+        </>
+      }
     >
       {(data) => (
         <>
@@ -30,14 +38,6 @@ function Overview({ running }: { running: number }) {
             {data.lastCollectionAt ? `Última coleta: ${formatDate(data.lastCollectionAt)} — ` : ''}
             {data.institutionsTotal} portais cadastrados
           </p>
-          {running > 0 ? (
-            <Note>
-              {running} {running === 1 ? 'coleta em andamento' : 'coletas em andamento'}.{' '}
-              <Link to="/coletas" className="underline underline-offset-2">
-                Acompanhar
-              </Link>
-            </Note>
-          ) : null}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Portais avaliados"
@@ -46,7 +46,7 @@ function Overview({ running }: { running: number }) {
             <StatCard
               label="Problemas distintos"
               value={formatNumber(data.distinctProblems)}
-              hint="Inclui achados ainda não validados."
+              hint="Inclui não validados."
             />
             <StatCard
               label="Conformidade média"
@@ -59,6 +59,14 @@ function Overview({ running }: { running: number }) {
             />
             <StatCard label="Tarefas concluídas" value={`${data.tasks.done}/${data.tasks.total}`} />
           </div>
+          {running > 0 ? (
+            <Note>
+              {running} {running === 1 ? 'coleta em andamento' : 'coletas em andamento'}.{' '}
+              <Link to="/coletas" className="underline underline-offset-2">
+                Acompanhar
+              </Link>
+            </Note>
+          ) : null}
           <section aria-labelledby="painel-instituicoes" className="flex flex-col gap-3">
             <h2 id="painel-instituicoes" className="text-section text-text">
               Instituições

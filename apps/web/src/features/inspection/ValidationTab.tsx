@@ -2,7 +2,7 @@ import { pageFunctionLabels, type InspectionProblem } from '@auditoria-rf/contra
 import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import { Badge, Button, FindingCard, Note, StatCard } from '../../components/ui';
+import { Badge, Button, FindingCard, Note, StatCard, StatGridSkeleton } from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import { useInspectionFindings, useValidateFinding } from './api';
@@ -137,6 +137,9 @@ export function ValidationTab() {
         query={findings}
         loadingText="Carregando achados…"
         errorTitle="Não foi possível carregar os achados"
+        skeleton={
+          <StatGridSkeleton label="Carregando achados…" hints={[false, false, false, false]} />
+        }
       >
         {({ counts, groups }) => (
           <>
