@@ -115,4 +115,5 @@ export const publicRoutes = {
   'GET /public/institutions/1/findings': { problems },
   'GET /public/institutions/2': { institution: ifx, history: [] },
   'GET /public/methodology': methodology,
+  'GET /collections': { collections: [] },
 };
