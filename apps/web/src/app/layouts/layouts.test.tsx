@@ -57,7 +57,7 @@ describe('PublicLayout', () => {
 describe('AuditorLayout', () => {
   it('mostra a navegação agrupada, o item atual e o auditor', async () => {
     const { container } = renderRoute('/painel');
-    await screen.findByRole('heading', { level: 1, name: 'Painel' });
+    await screen.findByRole('heading', { level: 1, name: 'Painel de auditoria' });
     const nav = screen.getAllByRole('navigation', { name: 'Principal' })[0]!;
     expect(nav.textContent).toContain('Auditorias');
     expect(screen.getAllByRole('list', { name: 'Resultados' })).toHaveLength(1);
@@ -69,7 +69,7 @@ describe('AuditorLayout', () => {
 
   it('menu do celular: abre com aria-expanded, prende o foco e fecha com Esc devolvendo o foco', async () => {
     renderRoute('/painel');
-    await screen.findByRole('heading', { level: 1, name: 'Painel' });
+    await screen.findByRole('heading', { level: 1, name: 'Painel de auditoria' });
     const button = screen.getByRole('button', { name: 'Menu' });
     expect(button.getAttribute('aria-expanded')).toBe('false');
 
