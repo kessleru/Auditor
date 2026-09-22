@@ -595,9 +595,40 @@ namespace AuditoriaRf
             catch { return false; }
         }
 
+        /// <summary>
+        /// O .env fica fora do repositório; quem baixa o projeto não tem nenhum. Sem ele o
+        /// docker compose nem chega a rodar, então o launcher cria uma cópia do .env.example.
+        /// </summary>
+        private void GarantirEnv()
+        {
+            try
+            {
+                string raiz = Directory.GetParent(pastaDocker).FullName;
+                string env = Path.Combine(raiz, ".env");
+                if (File.Exists(env)) return;
+
+                string exemplo = Path.Combine(raiz, ".env.example");
+                if (File.Exists(exemplo))
+                {
+                    File.Copy(exemplo, env);
+                    Registrar("criado .env a partir do .env.example");
+                }
+                else
+                {
+                    File.WriteAllText(env, "NODE_ENV=production" + Environment.NewLine);
+                    Registrar("criado .env vazio (não achei o .env.example)");
+                }
+            }
+            catch (Exception erro)
+            {
+                Registrar("não consegui criar o .env: " + erro.Message);
+            }
+        }
+
         private void Iniciar()
         {
             Registrar("=== launcher iniciado em " + pastaDocker + " ===");
+            GarantirEnv();
             // 1. Docker instalado e ligado.
             NaTela(delegate { etapaDocker.Definir(EstadoEtapa.Andamento, "procurando o Docker"); });
             Saida versao = Rodar("docker", "--version", 20);
