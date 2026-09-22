@@ -1,12 +1,26 @@
 import { TASK_LIMITS } from '@auditoria-rf/contracts';
 import type { ReactNode } from 'react';
-import { PageTitle } from '../../components/ui';
+import { Page, PageHeader } from '../../components/ui';
 import { formatDate } from '../../lib/format';
 import { useMethodology } from './api';
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+const sections = [
+  { id: 'mede', title: 'O que a nota de conformidade mede' },
+  { id: 'nao-mede', title: 'O que a nota não mede' },
+  { id: 'problemas', title: 'Problemas distintos, ocorrências e template' },
+  { id: 'manual', title: 'Camada manual' },
+  { id: 'falhas', title: 'Portais que falharam' },
+  { id: 'ferramentas', title: 'Ferramentas e última coleta' },
+  { id: 'responsavel', title: 'Responsável pela pesquisa' },
+] as const;
+
+/**
+ * Seção do texto: título com âncora e uma divisória fina acima, como nas páginas longas do GOV.UK.
+ * Um cartão com sombra por seção transformaria um texto corrido em sete caixas.
+ */
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 rounded-lg bg-surface p-6 shadow-card">
+    <section id={id} className="flex flex-col gap-3 border-t border-border pt-6">
       <h2 className="text-section text-text">{title}</h2>
       <div className="flex flex-col gap-3 text-body text-text">{children}</div>
     </section>
@@ -22,15 +36,29 @@ export function MethodologyPage() {
   const partial = data ? pct(data.thresholds.partial) : '50%';
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <PageTitle>Sobre a metodologia</PageTitle>
-        <p className="text-body text-text-muted">
-          Como os portais dos Institutos Federais são avaliados e o que os números significam.
-        </p>
-      </div>
+    <Page className="max-w-3xl gap-8">
+      <PageHeader
+        title="Sobre a metodologia"
+        description="Como os portais dos Institutos Federais são avaliados e o que os números significam."
+      />
 
-      <Section title="O que a nota de conformidade mede">
+      <nav aria-label="Nesta página" className="flex flex-col gap-2">
+        <h2 className="text-label font-medium text-text">Nesta página</h2>
+        <ul className="flex flex-col gap-1">
+          {sections.map((section) => (
+            <li key={section.id}>
+              <a
+                href={`#${section.id}`}
+                className="text-body text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
+                {section.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <Section id="mede" title="O que a nota de conformidade mede">
         <p>
           Cada página é verificada pelo axe-core, uma ferramenta automática que testa regras da WCAG
           2.2 nível AA. Para cada página, contamos as regras que se aplicam a ela: as que passaram e
@@ -52,7 +80,7 @@ export function MethodologyPage() {
         </p>
       </Section>
 
-      <Section title="O que a nota não mede">
+      <Section id="nao-mede" title="O que a nota não mede">
         <ul className="list-disc space-y-2 pl-5">
           <li>
             Critérios que não podem ser verificados automaticamente — por exemplo, se um texto
@@ -71,7 +99,7 @@ export function MethodologyPage() {
         </ul>
       </Section>
 
-      <Section title="Problemas distintos, ocorrências e template">
+      <Section id="problemas" title="Problemas distintos, ocorrências e template">
         <p>
           <strong className="font-medium">Problemas distintos</strong> é a métrica principal do
           comparativo: o mesmo elemento com a mesma falha conta uma vez, mesmo que apareça em várias
@@ -92,7 +120,7 @@ export function MethodologyPage() {
         </p>
       </Section>
 
-      <Section title="Camada manual">
+      <Section id="manual" title="Camada manual">
         <p>
           Numa subamostra de portais escolhida pelo pesquisador, os achados automatizados são
           validados um a um (cada problema distinto é confirmado ou registrado como falso positivo,
@@ -106,7 +134,7 @@ export function MethodologyPage() {
         </p>
       </Section>
 
-      <Section title="Portais que falharam">
+      <Section id="falhas" title="Portais que falharam">
         <p>
           Quando nenhuma página de um portal pôde ser avaliada (fora do ar, tempo esgotado), o
           resultado é registrado como <strong className="font-medium">ausência de dado</strong>: o
@@ -114,7 +142,7 @@ export function MethodologyPage() {
         </p>
       </Section>
 
-      <Section title="Ferramentas e última coleta">
+      <Section id="ferramentas" title="Ferramentas e última coleta">
         {isPending ? (
           <p role="status" className="text-text-muted">
             Carregando versões…
@@ -141,7 +169,7 @@ export function MethodologyPage() {
         </p>
       </Section>
 
-      <Section title="Responsável pela pesquisa">
+      <Section id="responsavel" title="Responsável pela pesquisa">
         <p>
           Otávio Kessler Ustra — Trabalho de Conclusão de Curso, Ciência da Computação, Instituto
           Federal do Triângulo Mineiro (IFTM).
@@ -160,6 +188,6 @@ export function MethodologyPage() {
           ) : null}
         </p>
       </Section>
-    </div>
+    </Page>
   );
 }
