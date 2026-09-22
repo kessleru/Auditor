@@ -1,9 +1,11 @@
 import {
+  auditorInstitutionDetailSchema,
   methodologySchema,
   publicFindingsResponseSchema,
   publicInstitutionDetailSchema,
   publicInstitutionListResponseSchema,
   publicSummarySchema,
+  resultsOverviewSchema,
 } from '@auditoria-rf/contracts';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
@@ -11,6 +13,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
 import type { DB } from '../../db/client.js';
 import { collectionPages, collections, findings, institutions, users } from '../../db/schema.js';
+import { loggedInAgent } from '../../test/auth.js';
 import { seedInstitutionWithRoutes } from '../../test/collections.js';
 import { createTestDatabase } from '../../test/db.js';
 
@@ -230,5 +233,74 @@ describe('API pública', () => {
       templateMinPages: 2,
     });
     expect(methodology.axeTags).toContain('wcag22aa');
+  });
+});
+
+describe('exportação de dados abertos (CSV)', () => {
+  const parse = (text: string) =>
+    text
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .split('\r\n')
+      .map((line) => line.split(','));
+
+  it('instituições: uma linha por instituição, sem dado vazio (não 0)', async () => {
+    const res = await request(app).get('/api/v1/public/export.csv');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/csv/);
+    expect(res.headers['content-disposition']).toContain('auditoria-rf-instituicoes.csv');
+    expect(res.text.startsWith('\uFEFF')).toBe(true);
+    const [header, ...rows] = parse(res.text);
+    expect(header!.slice(0, 5)).toEqual(['instituicao_id', 'sigla', 'nome', 'dominio', 'situacao']);
+    const bySigla = Object.fromEntries(rows.map((r) => [r[1], r]));
+    const col = (name: string) => header!.indexOf(name);
+    expect(bySigla.IFA![col('situacao')]).toBe('avaliado');
+    expect(bySigla.IFA![col('conformidade')]).toBe('0.9000');
+    expect(bySigla.IFA![col('problemas_confirmados')]).toBe('1');
+    expect(bySigla.IFA![col('axe_versao')]).toBe('4.13.0');
+    expect(bySigla.IFB![col('situacao')]).toBe('sem_dado');
+    expect(bySigla.IFB![col('conformidade')]).toBe('');
+  });
+
+  it('problemas: só confirmados', async () => {
+    const res = await request(app).get('/api/v1/public/export.csv?conjunto=problemas');
+    const [header, ...rows] = parse(res.text);
+    expect(header![2]).toBe('regra');
+    expect(rows.map((r) => r[2])).toEqual(['image-alt']);
+    expect((await request(app).get('/api/v1/public/export.csv?conjunto=outro')).status).toBe(400);
+  });
+
+  it('dicionário de dados cobre todas as colunas', async () => {
+    const dictionary = parse((await request(app).get('/api/v1/public/export-dictionary.csv')).text);
+    const inst = parse((await request(app).get('/api/v1/public/export.csv')).text)[0]!;
+    const documented = dictionary.filter((r) => r[0] === 'instituicoes').map((r) => r[1]);
+    expect(documented).toEqual(inst);
+  });
+});
+
+describe('resultados do auditor (4.1, 4.2, 4.3)', () => {
+  it('exige sessão; conta tudo que não é falso positivo e mostra a camada manual', async () => {
+    expect((await request(app).get('/api/v1/reports/overview')).status).toBe(401);
+    const agent = await loggedInAgent(app, db);
+    const overview = resultsOverviewSchema.parse(
+      (await agent.get('/api/v1/reports/overview')).body,
+    );
+    const ifaRow = overview.institutions.find((i) => i.acronym === 'IFA')!;
+    // confirmado + pendente = 2 problemas (o falso positivo não conta)
+    expect(ifaRow).toMatchObject({ problems: 2, inspection: 'not_in_sample', tasks: null });
+    expect(overview.institutions.find((i) => i.acronym === 'IFB')).toMatchObject({
+      status: 'no_data',
+      inspection: null,
+    });
+    expect(overview.distinctProblems).toBe(2);
+
+    const detail = auditorInstitutionDetailSchema.parse(
+      (await agent.get(`/api/v1/reports/institutions/${ifa.institution.id}`)).body,
+    );
+    expect(detail.problems.map((p) => [p.ruleId, p.validation])).toEqual([
+      ['image-alt', 'confirmed'],
+      ['link-name', 'pending'],
+    ]);
+    expect(detail.manual).toEqual({ tasks: [], barriers: [] });
   });
 });
