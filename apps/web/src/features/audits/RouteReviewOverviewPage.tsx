@@ -8,7 +8,8 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
-  PageTitle,
+  Page,
+  PageHeader,
   Stepper,
 } from '../../components/ui';
 import { ApiError, apiRequest } from '../../lib/api';
@@ -38,27 +39,26 @@ export function RouteReviewOverviewPage() {
 
   if (!isScopeValid(scope)) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageTitle>Revisão de rotas</PageTitle>
+      <Page>
+        <PageHeader title="Revisão de rotas" />
         <EmptyState
           title="Escopo incompleto"
           description="Escolha as instituições e as páginas avaliadas antes de revisar as rotas."
           action={<ButtonLink to="/auditorias/nova">Definir o escopo</ButtonLink>}
         />
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Stepper current={1} />
-      <div className="flex flex-col gap-1">
-        <PageTitle>Revisão de rotas</PageTitle>
-        <p className="text-body text-text-muted">
-          Confirme, para cada instituição, a URL de cada página avaliada:{' '}
-          {scope.functions.map((f) => pageFunctionLabels[f]).join(', ')}.
-        </p>
-      </div>
+    <Page>
+      <PageHeader
+        title="Revisão de rotas"
+        breadcrumb={<Stepper current={1} />}
+        description={`Confirme, para cada instituição, a URL de cada página avaliada: ${scope.functions
+          .map((f) => pageFunctionLabels[f])
+          .join(', ')}.`}
+      />
 
       <QueryState
         query={institutions}
@@ -169,6 +169,6 @@ export function RouteReviewOverviewPage() {
           );
         }}
       </QueryState>
-    </div>
+    </Page>
   );
 }
