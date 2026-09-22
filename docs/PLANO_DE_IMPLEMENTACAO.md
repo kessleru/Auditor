@@ -605,7 +605,12 @@ Cada fase termina com **lint + typecheck + testes passando** e um PR próprio.
 - **Acessibilidade:** tudo sob `motion-safe`/`prefers-reduced-motion` (seção 5.4); nada pisca mais de 3 vezes por segundo (WCAG 2.3.1); nenhuma animação esconde conteúdo nem atrasa o foco movido para o `<h1>`; animações que duram mais de 5 s podem ser pausadas (2.2.2).
 - **Aceite:** com `prefers-reduced-motion: reduce`, nenhuma animação roda; axe sem violações nas telas; nenhuma animação acima de 300 ms em interações.
 
-### Fase 11 — Qualidade e entrega
+### Fase 11 — Revisão e aperfeiçoamento do front
+- Revisão visual de todas as telas com a skill `frontend-design`: hierarquia, ritmo, espaçamento, tipografia e consistência entre telas, sempre dentro dos tokens da seção 4 e das regras da seção 5.4.
+- Estados de carregamento com *skeletons* apenas onde o tamanho do elemento é conhecido (sem deslocar o layout); textos de interface revisados.
+- **Aceite:** axe sem violações em todas as telas (1280 e 390 px); nenhuma regra da seção 4 quebrada; capturas antes/depois registradas no PR.
+
+### Fase 12 — Qualidade e entrega
 - Testes E2E dos fluxos principais (Playwright).
 - **Dogfooding:** rodar o próprio motor de auditoria contra o front em CI; o build falha se houver violação crítica.
 - `docker/Dockerfile` baseado na imagem oficial do Playwright (já traz Chromium e dependências do sistema, na **mesma versão** fixada no `package.json`); `docker-compose.yml` com volume persistente para `data/` (banco SQLite e snapshots).
@@ -628,8 +633,9 @@ Registro das melhorias levantadas no brainstorm e de onde cada uma entrou no pla
 | 7 | Rastreamento de mudança de rota entre coletas | 2, 3.1.7, Fase 7 |
 | 8 | Uma coleta por vez por domínio | 1.3, 3.1.8, Fase 4 |
 | 9 | Modo escuro fora do escopo | 9 |
-| 10 | Implantação em contêiner com disco persistente | 8.1, Fase 11 |
+| 10 | Implantação em contêiner com disco persistente | 8.1, Fase 12 |
 | 11 | Animações suaves, sempre respeitando `prefers-reduced-motion` | Fase 10 |
+| 12 | Revisão visual do front com a skill `frontend-design` | Fase 11 |
 
 ### 8.1 Implantação
 
