@@ -10,8 +10,11 @@ import { seed } from './seeds/seed.js';
 import { createTestDatabase } from '../test/db.js';
 
 const tempDirs: string[] = [];
+const abertos: { $client: { close(): void } }[] = [];
 
 afterEach(() => {
+  // No Windows a pasta não some enquanto o arquivo do SQLite estiver aberto (EBUSY).
+  for (const db of abertos.splice(0)) db.$client.close();
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -22,6 +25,7 @@ describe('migrations', () => {
     const dir = mkdtempSync(join(tmpdir(), 'auditoria-db-'));
     tempDirs.push(dir);
     const db = createDatabase(join(dir, 'nova', 'auditoria.sqlite'));
+    abertos.push(db);
     runMigrations(db);
 
     const tables = db.$client
