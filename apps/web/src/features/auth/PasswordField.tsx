@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, type Ref, useId, useState } from 'react';
+import { type InputHTMLAttributes, type KeyboardEvent, type Ref, useId, useState } from 'react';
 import { cn } from '../../components/ui';
 
 export interface PasswordFieldProps extends Omit<
@@ -14,7 +14,13 @@ export interface PasswordFieldProps extends Omit<
 export function PasswordField({ label, error, ref, ...props }: PasswordFieldProps) {
   const id = useId();
   const errorId = `${id}-erro`;
+  const capsId = `${id}-caps`;
   const [visible, setVisible] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const checkCaps = (event: KeyboardEvent<HTMLInputElement>) =>
+    setCapsLock(event.getModifierState('CapsLock'));
+  const describedBy =
+    [error ? errorId : null, capsLock ? capsId : null].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -27,7 +33,9 @@ export function PasswordField({ label, error, ref, ...props }: PasswordFieldProp
           id={id}
           type={visible ? 'text' : 'password'}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={describedBy}
+          onKeyDown={checkCaps}
+          onKeyUp={checkCaps}
           className={cn(
             'min-h-11 w-full rounded-md border bg-surface pr-24 pl-3 text-body text-text',
             error ? 'border-critical' : 'border-border-strong',
@@ -44,6 +52,9 @@ export function PasswordField({ label, error, ref, ...props }: PasswordFieldProp
           {visible ? 'Ocultar' : 'Mostrar'}
         </button>
       </div>
+      <p id={capsId} aria-live="polite" className="text-label text-warn-text">
+        {capsLock ? 'Caps Lock está ativado.' : ''}
+      </p>
       {error ? (
         <p id={errorId} className="text-label text-critical-text">
           {error}
