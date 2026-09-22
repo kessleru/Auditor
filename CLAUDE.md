@@ -76,6 +76,8 @@ Regras do design system na seção 4 do plano; revisar todo PR que toque em `app
 - Dados via TanStack Query + `apiRequest` (`lib/api.ts`), validando a resposta com o schema de `contracts`; erros viram `ApiError` (`code`, `message`).
 - Testes: `renderRoute(path)` e `stubApi()` em `src/test/render.tsx`; `expectNoAxeViolations(container)` em `src/test/axe.ts`. Estado oculto usa o atributo `hidden`, não só a classe CSS.
 - Catálogo `/dev/ui` (só em desenvolvimento) deve continuar sem violações no axe.
+- Visão pública: coleta terminada mais recente por instituição, só achados confirmados (ADR 0006). `/entrar` tem layout próprio; rotas do auditor passam por `RequireAuditor`.
+- Texto só para leitor de tela: prefira `aria-label` começando pelo texto visível a `<span class="sr-only">` colado ao texto (o espaço se perde).
 
 ## Convenções
 

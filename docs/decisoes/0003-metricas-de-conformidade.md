@@ -27,3 +27,7 @@ A seção 3.3 do plano exige documentar a métrica em ADR **antes** de implement
 - Os números cobrem **apenas critérios verificáveis automaticamente**, e toda tela que os exibir precisa dizer isso.
 - As mudanças nos limiares são feitas em constantes únicas de `packages/contracts/src/conformity.ts`.
 - Mudar a normalização do seletor muda os fingerprints e, portanto, a comparação com coletas anteriores. Se isso acontecer, deve ser um novo ciclo de coletas, como uma atualização do axe (seção 3.2.4).
+
+## Adendo (Fase 6)
+
+Falso positivo ajusta a conformidade: se todos os elementos reprovados de uma regra numa página forem marcados como falso positivo, a regra conta como passe naquela página. Detalhes na ADR 0006.
