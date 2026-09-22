@@ -58,12 +58,42 @@
   --text-code: 0.8125rem;
   --text-code--line-height: 1.25rem;
 
-  /* Movimento (Fase 10): curtas, só transform/opacity, sempre sob motion-safe. */
+  /* Movimento (Fase 10): só transform/opacity, sempre sob motion-safe (prefers-reduced-motion). */
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --animate-rise: rise 480ms var(--ease-out-soft) both;
-  --animate-fill: fill 1100ms var(--ease-out-soft) 500ms both;
-  --animate-pop: pop 420ms var(--ease-out-soft) 900ms both;
-  --animate-ring: ring 700ms var(--ease-out-soft) 700ms both;
+  --duration-quick: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 300ms;
+
+  /* Interface: no máximo 300 ms (critério de aceite da Fase 10). */
+  --animate-enter: rise 220ms var(--ease-out-soft) both;
+  --animate-fade: fade 180ms var(--ease-out-soft) both;
+  --animate-grow: fill 300ms var(--ease-out-soft) both;
+  --animate-drawer: drawer 240ms var(--ease-out-soft) both;
+
+  /* Marca: decorativas, só no painel do login, rodam uma vez (nada em loop). */
+  --animate-brand-rise: rise 480ms var(--ease-out-soft) both;
+  --animate-brand-fill: fill 1100ms var(--ease-out-soft) 500ms both;
+  --animate-brand-pop: pop 420ms var(--ease-out-soft) 900ms both;
+  --animate-brand-ring: ring 700ms var(--ease-out-soft) 700ms both;
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes drawer {
+    from {
+      opacity: 0.6;
+      transform: translateX(-100%);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 
   @keyframes rise {
     from {

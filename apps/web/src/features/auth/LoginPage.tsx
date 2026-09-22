@@ -29,7 +29,7 @@ export function safeReturnPath(value: string | null): string {
 function BrandIllustration() {
   return (
     <div aria-hidden="true" className="relative hidden w-full max-w-md pb-20 lg:block">
-      <div className="rounded-lg bg-surface p-4 shadow-float motion-safe:animate-rise">
+      <div className="rounded-lg bg-surface p-4 shadow-float motion-safe:animate-brand-rise">
         <div className="mb-4 flex items-center gap-1.5">
           <span className="size-2.5 rounded-full bg-[#e8a39e]" />
           <span className="size-2.5 rounded-full bg-[#e9c98f]" />
@@ -51,7 +51,7 @@ function BrandIllustration() {
             <div className="h-2 w-full rounded-full bg-muted" />
             <div className="h-2 w-2/3 rounded-full bg-muted" />
             <div className="relative mt-2 w-fit">
-              <span className="absolute -inset-1 rounded-lg border-2 border-accent motion-safe:animate-ring" />
+              <span className="absolute -inset-1 rounded-lg border-2 border-accent motion-safe:animate-brand-ring" />
               <span className="relative block rounded-md bg-accent px-4 py-1.5 text-[0.8125rem] font-medium text-white">
                 Inscrever-se
               </span>
@@ -59,14 +59,14 @@ function BrandIllustration() {
           </div>
         </div>
       </div>
-      <div className="absolute -top-4 -right-6 flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[0.8125rem] font-medium text-text shadow-float motion-safe:animate-pop">
+      <div className="absolute -top-4 -right-6 flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[0.8125rem] font-medium text-text shadow-float motion-safe:animate-brand-pop">
         <span className="text-ok">✓</span> 15 achados confirmados
       </div>
-      <div className="absolute right-[-2rem] bottom-0 w-64 rounded-lg bg-surface p-4 shadow-float motion-safe:animate-rise">
+      <div className="absolute right-[-2rem] bottom-0 w-64 rounded-lg bg-surface p-4 shadow-float motion-safe:animate-brand-rise">
         <p className="mb-2 text-[0.8125rem] text-text-muted">Conformidade do portal</p>
         <div className="flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-[78%] origin-left rounded-full bg-ok motion-safe:animate-fill" />
+            <div className="h-full w-[78%] origin-left rounded-full bg-ok motion-safe:animate-brand-fill" />
           </div>
           <span className="text-[0.8125rem] font-medium text-text">78%</span>
           <span className="text-[0.8125rem] text-text-muted">Bom</span>
@@ -81,7 +81,7 @@ function BrandStats() {
   const { data } = usePublicSummary();
   if (!data || data.institutionsEvaluated === 0) return null;
   return (
-    <dl className="grid max-w-md grid-cols-2 gap-4 motion-safe:animate-rise">
+    <dl className="grid max-w-md grid-cols-2 gap-4 motion-safe:animate-brand-rise">
       <div className="rounded-lg bg-white/10 px-4 py-3 ring-1 ring-white/15">
         <dt className="text-label text-white/85">Portais avaliados</dt>
         <dd className="text-metric text-white">{data.institutionsEvaluated}</dd>
@@ -158,7 +158,7 @@ export function LoginPage() {
         <Link to="/" aria-label="Auditoria RF — início" className="self-start rounded-md">
           <Logo tone="inverse" />
         </Link>
-        <div className="flex flex-col gap-4 motion-safe:animate-rise">
+        <div className="flex flex-col gap-4 motion-safe:animate-brand-rise">
           <p className="max-w-lg text-[1.375rem] leading-tight font-semibold tracking-tight lg:text-[2.5rem]">
             Portais públicos acessíveis para todos os estudantes.
           </p>
@@ -181,7 +181,7 @@ export function LoginPage() {
         tabIndex={-1}
         className="flex flex-1 items-start justify-center bg-surface px-6 py-10 lg:items-center"
       >
-        <div className="flex w-full max-w-[400px] flex-col gap-6 motion-safe:animate-rise">
+        <div className="flex w-full max-w-[400px] flex-col gap-6 motion-safe:animate-brand-rise">
           <div className="flex flex-col gap-2">
             <PageTitle>Entrar como auditor</PageTitle>
             <p className="text-body text-text-muted">

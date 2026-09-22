@@ -8,7 +8,7 @@ export type ButtonVariant = 'primary' | 'secondary';
 export function buttonClasses(variant: ButtonVariant = 'primary', className?: string) {
   return cn(
     'inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-4 text-label font-medium',
-    'transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+    'transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60',
     variant === 'primary' && 'bg-accent text-white hover:bg-accent-text',
     variant === 'secondary' && 'border border-border-strong bg-surface text-text hover:bg-muted',
     className,

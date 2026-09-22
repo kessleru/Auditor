@@ -22,7 +22,7 @@ export function NavItem({ to, label, icon: Icon, end, onNavigate }: NavItemProps
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'relative flex min-h-9 items-center gap-3 rounded-md px-3 text-body',
+          'relative flex min-h-9 items-center gap-3 rounded-md px-3 text-body transition-colors duration-150',
           isActive
             ? 'bg-accent-soft font-medium text-accent-text before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-accent'
             : 'text-text hover:bg-muted',
