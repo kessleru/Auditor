@@ -2,13 +2,15 @@ import { Link } from 'react-router';
 import {
   ButtonLink,
   ConformityBar,
+  DataTable,
   EmptyState,
   formatPercent as percent,
   Note,
-  PageTitle,
-  Skeleton,
-  StatCard,
-  StatGridSkeleton,
+  Page,
+  PageHeader,
+  Section,
+  StatGroup,
+  StatGroupSkeleton,
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
 import { useResultsOverview } from '../results/auditorApi';
@@ -26,42 +28,46 @@ function Overview({ running }: { running: number }) {
       loadingText="Carregando indicadores…"
       errorTitle="Não foi possível carregar os indicadores"
       skeleton={
-        <>
-          <Skeleton className="-mt-4 h-[18px] w-72 max-w-full" />
-          <StatGridSkeleton label="Carregando indicadores…" hints={[false, true, true, false]} />
-        </>
+        <StatGroupSkeleton
+          count={4}
+          label="Carregando indicadores…"
+          hints={[false, true, true, false]}
+        />
       }
     >
       {(data) => (
         <>
-          <p className="-mt-4 text-label text-text-muted">
-            {data.lastCollectionAt ? `Última coleta: ${formatDate(data.lastCollectionAt)} — ` : ''}
-            {data.institutionsTotal} portais cadastrados
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Portais avaliados"
-              value={`${data.institutionsEvaluated} de ${data.institutionsTotal}`}
-            />
-            <StatCard
-              label="Problemas distintos"
-              value={formatNumber(data.distinctProblems)}
-              hint="Inclui não validados."
-            />
-            <StatCard
-              label="Conformidade média"
-              value={data.averageConformity === null ? 'Sem dado' : percent(data.averageConformity)}
-              hint={
-                <Link
-                  to="/metodologia"
-                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
-                >
-                  Só critérios automatizáveis
-                </Link>
-              }
-            />
-            <StatCard label="Tarefas concluídas" value={`${data.tasks.done}/${data.tasks.total}`} />
-          </div>
+          <StatGroup
+            label="Indicadores da última coleta"
+            stats={[
+              {
+                label: 'Portais avaliados',
+                value: `${data.institutionsEvaluated} de ${data.institutionsTotal}`,
+                hint: data.lastCollectionAt
+                  ? `Última coleta em ${formatDate(data.lastCollectionAt)}`
+                  : 'Nenhuma coleta concluída',
+              },
+              {
+                label: 'Problemas distintos',
+                value: formatNumber(data.distinctProblems),
+                hint: 'Inclui não validados.',
+              },
+              {
+                label: 'Conformidade média',
+                value:
+                  data.averageConformity === null ? 'Sem dado' : percent(data.averageConformity),
+                hint: (
+                  <Link
+                    to="/metodologia"
+                    className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                  >
+                    Só critérios automatizáveis
+                  </Link>
+                ),
+              },
+              { label: 'Tarefas concluídas', value: `${data.tasks.done}/${data.tasks.total}` },
+            ]}
+          />
           {running > 0 ? (
             <Note>
               {running} {running === 1 ? 'coleta em andamento' : 'coletas em andamento'}.{' '}
@@ -70,42 +76,55 @@ function Overview({ running }: { running: number }) {
               </Link>
             </Note>
           ) : null}
-          <section aria-labelledby="painel-instituicoes" className="flex flex-col gap-3">
-            <h2 id="painel-instituicoes" className="text-section text-text">
-              Instituições
-            </h2>
-            <ul className="flex flex-col divide-y divide-border rounded-lg bg-surface shadow-card">
-              {data.institutions.map((i) => (
-                <li
-                  key={i.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
-                >
-                  {i.status === 'evaluated' ? (
-                    <Link
-                      to={`/painel/instituicoes/${i.id}`}
-                      className="font-medium text-accent-text underline underline-offset-2 hover:decoration-2"
-                    >
-                      {i.acronym}
-                    </Link>
-                  ) : (
-                    <span className="font-medium text-text-muted">{i.acronym}</span>
-                  )}
-                  <span className="flex flex-wrap items-center gap-4">
-                    {i.status === 'evaluated' ? (
-                      <ConformityBar value={i.conformity} label={`Conformidade do ${i.acronym}`} />
+          <Section title="Instituições">
+            {/* Mesma tabela da visão pública: nome como link, números à direita. */}
+            <DataTable
+              caption="Conformidade e problemas por instituição na última coleta"
+              captionHidden
+              rows={data.institutions}
+              rowKey={(row) => row.id}
+              columns={[
+                {
+                  key: 'institution',
+                  header: 'Instituição',
+                  rowHeader: true,
+                  cell: (row) =>
+                    row.status === 'evaluated' ? (
+                      <Link
+                        to={`/painel/instituicoes/${row.id}`}
+                        aria-label={`Abrir relatório do ${row.acronym}`}
+                        className="font-medium text-accent-text underline-offset-2 hover:underline"
+                      >
+                        {row.acronym}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-text-muted">{row.acronym}</span>
+                    ),
+                },
+                {
+                  key: 'conformity',
+                  header: 'Conformidade',
+                  cell: (row) =>
+                    row.status === 'evaluated' ? (
+                      <ConformityBar
+                        value={row.conformity}
+                        label={`Conformidade do ${row.acronym}`}
+                      />
                     ) : (
                       <span className="text-label text-text-muted">
-                        {i.status === 'no_data' ? 'Sem dado' : 'Ainda não avaliado'}
+                        {row.status === 'no_data' ? 'Sem dado' : 'Ainda não avaliado'}
                       </span>
-                    )}
-                    <span className="min-w-28 text-right text-label text-text-muted">
-                      {i.problems === null ? '—' : `${formatNumber(i.problems)} problemas`}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+                    ),
+                },
+                {
+                  key: 'problems',
+                  header: 'Problemas',
+                  align: 'end',
+                  cell: (row) => (row.problems === null ? '—' : formatNumber(row.problems)),
+                },
+              ]}
+            />
+          </Section>
         </>
       )}
     </QueryState>
@@ -116,13 +135,16 @@ function Overview({ running }: { running: number }) {
 export function DashboardPage() {
   const collections = useCollections(ALL);
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageTitle>Painel de auditoria</PageTitle>
-        <ButtonLink to="/auditorias/nova" variant="secondary">
-          Nova auditoria
-        </ButtonLink>
-      </div>
+    <Page>
+      <PageHeader
+        title="Painel de auditoria"
+        description="Como está cada portal na coleta mais recente."
+        actions={
+          <ButtonLink to="/auditorias/nova" variant="secondary">
+            Nova auditoria
+          </ButtonLink>
+        }
+      />
       <QueryState
         query={collections}
         loadingText="Carregando…"
@@ -161,6 +183,6 @@ export function DashboardPage() {
           return <Overview running={running.length} />;
         }}
       </QueryState>
-    </div>
+    </Page>
   );
 }
