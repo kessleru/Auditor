@@ -30,10 +30,13 @@ function TaskForm({
   item,
   onSaved,
   nextLabel,
+  position,
 }: {
   item: Task;
   onSaved: () => void;
   nextLabel: string | null;
+  /** "Tarefa 2 de 5": diz onde o auditor está sem depender só da lista acima. */
+  position: string;
 }) {
   const { collectionId, institutionId } = useOutletContext<PortalContext>();
   const save = useSaveTaskInspection(collectionId, institutionId);
@@ -89,10 +92,12 @@ function TaskForm({
       aria-labelledby={`tarefa-${item.task.id}`}
     >
       <section className="flex flex-col gap-4 rounded-lg bg-surface p-5 shadow-card">
-        <p className="text-label text-text-muted">Tarefa</p>
-        <h2 id={`tarefa-${item.task.id}`} className="text-section text-text">
-          {item.task.description}
-        </h2>
+        <div className="flex flex-col gap-1">
+          <p className="text-label text-text-muted">{position}</p>
+          <h2 id={`tarefa-${item.task.id}`} className="text-section text-text">
+            {item.task.description}
+          </h2>
+        </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-2 rounded-lg bg-muted p-4">
             <p className="text-label text-text-muted">Tempo decorrido</p>
@@ -172,116 +177,120 @@ function TaskForm({
         </p>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-lg bg-surface p-5 shadow-card">
-        <h3 className="text-card text-text">Caminho percorrido</h3>
-        {path.length > 0 ? (
-          <ol className="list-decimal space-y-1 pl-6 font-mono text-code">
-            {path.map((p, i) => (
-              <li key={`${i}-${p}`} className="flex items-center gap-3">
-                <span className="flex-1">{p}</span>
-                <button
-                  type="button"
-                  className="min-h-6 text-label text-accent-text underline"
-                  aria-label={`Remover passo ${i + 1}: ${p}`}
-                  onClick={() => setPath((list) => list.filter((_, j) => j !== i))}
-                >
-                  remover
-                </button>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-body text-text-muted">Nenhum passo registrado.</p>
-        )}
-        <div className="flex flex-wrap items-end gap-2">
-          <TextField
-            label="Próximo passo"
-            placeholder="Ex.: Institucional"
-            value={step}
-            onChange={(e) => setStep(e.target.value)}
-            className="min-w-64 flex-1"
-          />
-          <Button
-            variant="secondary"
-            disabled={step.trim() === ''}
-            onClick={() => {
-              setPath((list) => [...list, step.trim()]);
-              setStep('');
-            }}
-          >
-            <Plus aria-hidden="true" size={16} strokeWidth={1.75} /> Registrar passo
-          </Button>
-        </div>
-      </section>
-
-      <div className="rounded-lg bg-surface p-5 shadow-card">
-        <fieldset aria-labelledby={ids.result} className="flex flex-col gap-1">
-          <legend id={ids.result} className="mb-2 text-card text-text">
-            Resultado da tarefa
-          </legend>
-          {(Object.keys(resultLabels) as TaskResult[]).map((key) => (
-            <Choice
-              key={key}
-              type="radio"
-              name={`resultado-${item.task.id}`}
-              checked={result === key}
-              onChange={() => setResult(key)}
-              label={resultLabels[key]}
+      <div className="flex flex-col divide-y divide-border rounded-lg bg-surface shadow-card">
+        <section className="flex flex-col gap-3 p-5">
+          <h3 className="text-card text-text">Caminho percorrido</h3>
+          {path.length > 0 ? (
+            <ol className="list-decimal space-y-1 pl-6 font-mono text-code">
+              {path.map((p, i) => (
+                <li key={`${i}-${p}`}>
+                  <span className="flex items-center gap-3">
+                    <span className="flex-1">{p}</span>
+                    <button
+                      type="button"
+                      className="min-h-6 text-label text-accent-text underline"
+                      aria-label={`Remover passo ${i + 1}: ${p}`}
+                      onClick={() => setPath((list) => list.filter((_, j) => j !== i))}
+                    >
+                      remover
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-body text-text-muted">Nenhum passo registrado.</p>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <TextField
+              label="Próximo passo"
+              placeholder="Ex.: Institucional"
+              value={step}
+              onChange={(e) => setStep(e.target.value)}
+              className="min-w-64 flex-1"
             />
-          ))}
-        </fieldset>
-      </div>
+            <Button
+              variant="secondary"
+              disabled={step.trim() === ''}
+              onClick={() => {
+                setPath((list) => [...list, step.trim()]);
+                setStep('');
+              }}
+            >
+              <Plus aria-hidden="true" size={16} strokeWidth={1.75} /> Registrar passo
+            </Button>
+          </div>
+        </section>
 
-      {needsHeuristic ? (
-        <section className="flex flex-col gap-4 rounded-lg bg-surface p-5 shadow-card">
-          <fieldset aria-labelledby={ids.heuristic} className="flex flex-col gap-1">
-            <legend id={ids.heuristic} className="mb-2 text-card text-text">
-              Heurística violada
+        <div className="p-5">
+          <fieldset aria-labelledby={ids.result} className="flex flex-col gap-1">
+            <legend id={ids.result} className="mb-2 text-card text-text">
+              Resultado da tarefa
             </legend>
-            {heuristics.map((h) => (
+            {(Object.keys(resultLabels) as TaskResult[]).map((key) => (
               <Choice
-                key={h}
+                key={key}
                 type="radio"
-                name={`heuristica-${item.task.id}`}
-                checked={heuristic === h}
-                onChange={() => setHeuristic(h)}
-                label={heuristicLabels[h]}
+                name={`resultado-${item.task.id}`}
+                checked={result === key}
+                onChange={() => setResult(key)}
+                label={resultLabels[key]}
               />
             ))}
           </fieldset>
-          <fieldset aria-labelledby={ids.severity} className="flex flex-col gap-1">
-            <legend id={ids.severity} className="mb-2 text-card text-text">
-              Severidade atribuída
-            </legend>
-            <Choice
-              type="radio"
-              name={`severidade-${item.task.id}`}
-              checked={severity === 'critical'}
-              onChange={() => setSeverity('critical')}
-              label="Crítico"
-            />
-            <Choice
-              type="radio"
-              name={`severidade-${item.task.id}`}
-              checked={severity === 'moderate'}
-              onChange={() => setSeverity('moderate')}
-              label="Moderado"
-            />
-          </fieldset>
-        </section>
-      ) : null}
+        </div>
 
-      <section className="rounded-lg bg-surface p-5 shadow-card">
-        <label className="flex flex-col gap-1.5 text-card text-text">
-          Observação do avaliador{needsHeuristic ? ' (obrigatória)' : ''}
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            className="rounded-md border border-border-strong bg-surface px-3 py-2 text-body font-normal"
-          />
-        </label>
-      </section>
+        {needsHeuristic ? (
+          <section className="flex flex-col gap-4 p-5">
+            <fieldset aria-labelledby={ids.heuristic} className="flex flex-col gap-1">
+              <legend id={ids.heuristic} className="mb-2 text-card text-text">
+                Heurística violada
+              </legend>
+              {heuristics.map((h) => (
+                <Choice
+                  key={h}
+                  type="radio"
+                  name={`heuristica-${item.task.id}`}
+                  checked={heuristic === h}
+                  onChange={() => setHeuristic(h)}
+                  label={heuristicLabels[h]}
+                />
+              ))}
+            </fieldset>
+            <fieldset aria-labelledby={ids.severity} className="flex flex-col gap-1">
+              <legend id={ids.severity} className="mb-2 text-card text-text">
+                Severidade atribuída
+              </legend>
+              <Choice
+                type="radio"
+                name={`severidade-${item.task.id}`}
+                checked={severity === 'critical'}
+                onChange={() => setSeverity('critical')}
+                label="Crítico"
+              />
+              <Choice
+                type="radio"
+                name={`severidade-${item.task.id}`}
+                checked={severity === 'moderate'}
+                onChange={() => setSeverity('moderate')}
+                label="Moderado"
+              />
+            </fieldset>
+          </section>
+        ) : null}
+
+        <section className="p-5">
+          <label className="flex flex-col gap-1.5 text-card text-text">
+            Observação do avaliador{needsHeuristic ? ' (obrigatória)' : ''}
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              className="rounded-md border border-border-strong bg-surface px-3 py-2 text-body font-normal"
+            />
+          </label>
+        </section>
+      </div>
 
       {save.error ? (
         <p role="alert" className="text-body text-critical-text">
@@ -355,6 +364,7 @@ export function TasksTab() {
             <TaskForm
               key={current.task.id}
               item={current}
+              position={`Tarefa ${index + 1} de ${list.length}`}
               nextLabel={next ? next.task.title : null}
               onSaved={() => next && setParams({ tarefa: String(next.task.id) })}
             />
