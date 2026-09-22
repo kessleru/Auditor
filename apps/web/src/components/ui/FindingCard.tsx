@@ -1,4 +1,5 @@
 import type { Severity, WcagPrinciple } from '@auditoria-rf/contracts';
+import type { ReactNode } from 'react';
 import { Badge } from './Badge';
 
 const principleLabels: Record<WcagPrinciple, string> = {
@@ -17,7 +18,11 @@ export interface FindingCardProps {
   description: string;
   pageUrl: string;
   snippet?: string;
-  recommendation: string;
+  recommendation: ReactNode;
+  /** Problema de template: presente em todas (ou quase todas) as páginas avaliadas. */
+  template?: boolean;
+  /** Linha extra de contexto, ex.: "em 4 de 4 páginas · 6 ocorrências". */
+  meta?: ReactNode;
   headingLevel?: 2 | 3 | 4;
 }
 
@@ -32,6 +37,8 @@ export function FindingCard({
   pageUrl,
   snippet,
   recommendation,
+  template = false,
+  meta,
   headingLevel = 3,
 }: FindingCardProps) {
   const Heading = `h${headingLevel}` as const;
@@ -42,6 +49,7 @@ export function FindingCard({
           {severity === 'critical' ? 'Crítico' : 'Moderado'}
         </Badge>
         <Badge variant={origin}>{origin === 'automated' ? 'Automatizada' : 'Inspeção'}</Badge>
+        {template ? <Badge variant="neutral">Template</Badge> : null}
         <span className="text-label text-text-muted">
           WCAG {wcagCriteria} — {principleLabels[principle]}
         </span>
@@ -51,8 +59,9 @@ export function FindingCard({
       <p className="mt-2 text-label text-text-muted">
         Página: <span className="break-all">{pageUrl}</span>
       </p>
+      {meta ? <p className="mt-1 text-label text-text-muted">{meta}</p> : null}
       {snippet ? (
-        <pre className="mt-3 overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-code text-text">
+        <pre className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-code break-all whitespace-pre-wrap text-text">
           <code>{snippet}</code>
         </pre>
       ) : null}

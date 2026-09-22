@@ -137,3 +137,42 @@ describe('averageConformity', () => {
     expect(averageConformity([semDado])).toBeNull();
   });
 });
+
+describe('validação dos achados (ADR 0003, adendo)', () => {
+  it('regra com todos os elementos falsos positivos vira passe na conformidade', () => {
+    // Página: 8 passes, 2 regras violadas (a, b). Todos os elementos de "a" são falso positivo.
+    const findings = [
+      finding(1, 'a1', { ruleId: 'a', validation: 'false_positive' }),
+      finding(1, 'a2', { ruleId: 'a', validation: 'false_positive' }),
+      finding(1, 'b1', { ruleId: 'b', validation: 'confirmed' }),
+    ];
+    const summary = summarizeInstitution([page(1, 8, 2)], findings);
+    if (summary.status !== 'evaluated') throw new Error();
+    expect(summary.conformity).toBeCloseTo(9 / 10);
+  });
+
+  it('regra com algum elemento não descartado continua violação', () => {
+    const findings = [
+      finding(1, 'a1', { ruleId: 'a', validation: 'false_positive' }),
+      finding(1, 'a2', { ruleId: 'a', validation: 'pending' }),
+    ];
+    const summary = summarizeInstitution([page(1, 8, 2)], findings);
+    if (summary.status !== 'evaluated') throw new Error();
+    expect(summary.conformity).toBeCloseTo(8 / 10);
+  });
+
+  it('na visão pública, só achados confirmados contam como problema', () => {
+    const findings = [
+      finding(1, 'a', { validation: 'confirmed', severity: 'critical' }),
+      finding(1, 'b', { validation: 'pending' }),
+      finding(1, 'c', { validation: 'false_positive' }),
+    ];
+    const pub = summarizeInstitution([page(1, 5, 3)], findings, { problems: 'confirmed' });
+    const all = summarizeInstitution([page(1, 5, 3)], findings);
+    if (pub.status !== 'evaluated' || all.status !== 'evaluated') throw new Error();
+    expect(pub.problems.map((p) => p.fingerprint)).toEqual(['a']);
+    expect(pub.criticalProblems).toBe(1);
+    expect(pub.pendingValidation).toBe(1);
+    expect(all.problems.map((p) => p.fingerprint).sort()).toEqual(['a', 'b']);
+  });
+});
