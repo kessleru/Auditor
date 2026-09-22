@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router';
+import { Navigate, type RouteObject, useParams } from 'react-router';
 import { AuditorLayout } from './layouts/AuditorLayout';
 import { PublicLayout } from './layouts/PublicLayout';
 import { NotFoundPage } from './NotFoundPage';
@@ -12,10 +12,25 @@ import { CollectionPage } from '../features/collections/CollectionPage';
 import { CollectionsListPage } from '../features/collections/CollectionsListPage';
 import { DashboardPage } from '../features/collections/DashboardPage';
 import { InstitutionsAdminPage } from '../features/institutions/InstitutionsAdminPage';
+import { AssistiveTab } from '../features/inspection/AssistiveTab';
+import { InspectionCollectionPage } from '../features/inspection/InspectionCollectionPage';
+import { InspectionHomePage } from '../features/inspection/InspectionHomePage';
+import { PortalLayout } from '../features/inspection/PortalLayout';
+import { TasksTab } from '../features/inspection/TasksTab';
+import { ValidationTab } from '../features/inspection/ValidationTab';
 import { InstitutionDetailPage } from '../features/results/InstitutionDetailPage';
 import { MethodologyPage } from '../features/results/MethodologyPage';
 import { PublicHomePage } from '../features/results/PublicHomePage';
 import { PublicInstitutionsPage } from '../features/results/PublicInstitutionsPage';
+
+/** Aba da inspeção pelo segmento da URL (validacao | tarefas | verificacao). */
+function TabSwitch() {
+  const { tab } = useParams();
+  if (tab === 'tarefas') return <TasksTab />;
+  if (tab === 'verificacao') return <AssistiveTab />;
+  if (tab === 'validacao') return <ValidationTab />;
+  return <Navigate to="../validacao" replace />;
+}
 
 const placeholder = (title: string, phase: number) => (
   <PlaceholderPage title={title} phase={phase} />
@@ -81,11 +96,15 @@ export const routes: RouteObject[] = [
               />
             ),
           },
-          { path: 'inspecao', element: placeholder('Portais em inspeção', 8) },
-          { path: 'inspecao/:collectionId', element: placeholder('Portais em inspeção', 8) },
+          { path: 'inspecao', Component: InspectionHomePage },
+          { path: 'inspecao/:collectionId', Component: InspectionCollectionPage },
           {
-            path: 'inspecao/:collectionId/:institutionId/:tab',
-            element: placeholder('Inspeção do portal', 8),
+            path: 'inspecao/:collectionId/:institutionId',
+            Component: PortalLayout,
+            children: [
+              { index: true, element: <Navigate to="validacao" replace /> },
+              { path: ':tab', Component: TabSwitch },
+            ],
           },
         ],
       },
