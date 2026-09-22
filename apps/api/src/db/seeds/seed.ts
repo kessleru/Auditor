@@ -1,15 +1,7 @@
-import type { PageFunctionKey } from '@auditoria-rf/contracts';
+import { type PageFunctionKey, pageFunctionLabels } from '@auditoria-rf/contracts';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '../client.js';
 import { institutions, pageFunctions, targetTasks } from '../schema.js';
-
-const pageFunctionLabels: Record<PageFunctionKey, string> = {
-  home: 'Página inicial',
-  admission: 'Ingresso',
-  student_aid_notices: 'Editais de auxílio estudantil',
-  library: 'Biblioteca',
-  student_support: 'Assistência estudantil',
-};
 
 // Enunciados fixos: o mesmo texto em todas as instituições garante a comparabilidade (seção 3.4).
 const targetTaskSeeds: { functionKey: PageFunctionKey; title: string; description: string }[] = [

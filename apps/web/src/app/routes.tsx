@@ -5,6 +5,13 @@ import { NotFoundPage } from './NotFoundPage';
 import { PlaceholderPage } from './PlaceholderPage';
 import { Root } from './Root';
 import { LoginPage } from '../features/auth/LoginPage';
+import { NewAuditPage } from '../features/audits/NewAuditPage';
+import { RouteReviewOverviewPage } from '../features/audits/RouteReviewOverviewPage';
+import { RouteReviewPage } from '../features/audits/RouteReviewPage';
+import { CollectionPage } from '../features/collections/CollectionPage';
+import { CollectionsListPage } from '../features/collections/CollectionsListPage';
+import { DashboardPage } from '../features/collections/DashboardPage';
+import { InstitutionsAdminPage } from '../features/institutions/InstitutionsAdminPage';
 import { InstitutionDetailPage } from '../features/results/InstitutionDetailPage';
 import { MethodologyPage } from '../features/results/MethodologyPage';
 import { PublicHomePage } from '../features/results/PublicHomePage';
@@ -47,17 +54,33 @@ export const routes: RouteObject[] = [
       {
         Component: AuditorLayout,
         children: [
-          { path: 'painel', element: placeholder('Painel', 9) },
+          { path: 'painel', Component: DashboardPage },
           { path: 'comparativo', element: placeholder('Comparativo', 9) },
-          { path: 'gestao/instituicoes', element: placeholder('Instituições', 7) },
-          { path: 'auditorias/nova', element: placeholder('Nova auditoria', 7) },
+          { path: 'gestao/instituicoes', Component: InstitutionsAdminPage },
+          { path: 'auditorias/nova', Component: NewAuditPage },
+          { path: 'auditorias/nova/rotas', Component: RouteReviewOverviewPage },
+          { path: 'auditorias/:id/rotas/:institutionId', Component: RouteReviewPage },
           {
-            path: 'auditorias/:id/rotas/:institutionId',
-            element: placeholder('Revisão de rotas', 7),
+            path: 'coletas',
+            element: (
+              <CollectionsListPage
+                title="Coletas em andamento"
+                statuses={['queued', 'running']}
+                emptyText="Nenhuma coleta em andamento"
+              />
+            ),
           },
-          { path: 'coletas', element: placeholder('Coletas em andamento', 7) },
-          { path: 'coletas/:id', element: placeholder('Coleta', 7) },
-          { path: 'historico', element: placeholder('Histórico', 7) },
+          { path: 'coletas/:id', Component: CollectionPage },
+          {
+            path: 'historico',
+            element: (
+              <CollectionsListPage
+                title="Histórico de coletas"
+                statuses={['completed', 'partial', 'cancelled']}
+                emptyText="Nenhuma coleta terminada"
+              />
+            ),
+          },
           { path: 'inspecao', element: placeholder('Portais em inspeção', 8) },
           { path: 'inspecao/:collectionId', element: placeholder('Portais em inspeção', 8) },
           {

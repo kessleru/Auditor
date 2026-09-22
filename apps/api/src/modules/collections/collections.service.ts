@@ -72,6 +72,12 @@ export function createCollectionsService({
     return collection;
   };
 
+  const institutionsOf = (collection: CollectionRow) =>
+    repo
+      .institutionsByIds(collection.scope.institutionIds)
+      .map((i) => ({ id: i.id, acronym: i.acronym, name: i.name }))
+      .sort((a, b) => a.acronym.localeCompare(b.acronym));
+
   const domainsOf = (scope: CollectionScope) =>
     repo.institutionsByIds(scope.institutionIds).map((i) => i.domain);
 
@@ -232,6 +238,21 @@ export function createCollectionsService({
         );
       }
 
+      const withoutRoutes = repo.institutionsWithoutRoutes(
+        input.institutionIds,
+        input.functions ?? null,
+      );
+      if (withoutRoutes.length > 0) {
+        const acronyms = found.filter((i) => withoutRoutes.includes(i.id)).map((i) => i.acronym);
+        // Sem isso, a instituição apareceria como "sem dado" sem nunca ter sido tentada.
+        throw new AppError(
+          422,
+          'INSTITUTION_WITHOUT_ROUTES',
+          `Sem rota confirmada para as funções escolhidas: ${acronyms.join(', ')}. Revise as rotas antes de coletar.`,
+          { institutionIds: withoutRoutes },
+        );
+      }
+
       const scope: CollectionScope = {
         institutionIds: input.institutionIds,
         functions: input.functions ?? null,
@@ -259,7 +280,21 @@ export function createCollectionsService({
 
     get(id: number) {
       const collection = getCollection(id);
-      return { collection, progress: repo.progress(id), pages: repo.listPages(id) };
+      return {
+        collection,
+        progress: repo.progress(id),
+        pages: repo.listPages(id),
+        institutions: institutionsOf(collection),
+      };
+    },
+
+    /** Coletas, das mais recentes para as mais antigas, com progresso e instituições. */
+    list(statuses?: readonly CollectionStatus[]) {
+      return repo.listCollections(statuses).map((collection) => ({
+        collection,
+        progress: repo.progress(collection.id),
+        institutions: institutionsOf(collection),
+      }));
     },
 
     getWithProgress(id: number) {

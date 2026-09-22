@@ -43,8 +43,14 @@ function defaultDiscover(): DiscoverFn | null {
   const ua = userAgent();
   if (!ua) return null;
   const client = createHttpClient({ userAgent: ua });
-  return (domain) =>
-    discoverRoutes({ domain, client, robotsAgent: ROBOTS_AGENT, maxUrls: env.CRAWLER_MAX_URLS });
+  return (domain, checkUrls) =>
+    discoverRoutes({
+      domain,
+      client,
+      robotsAgent: ROBOTS_AGENT,
+      maxUrls: env.CRAWLER_MAX_URLS,
+      checkUrls,
+    });
 }
 
 function defaultAuditor(): PageAuditor | null {

@@ -1,4 +1,8 @@
-import { collectionEventTypes, createCollectionSchema } from '@auditoria-rf/contracts';
+import {
+  collectionEventTypes,
+  collectionListQuerySchema,
+  createCollectionSchema,
+} from '@auditoria-rf/contracts';
 import type { RequestHandler } from 'express';
 import { parseId } from '../../shared/params.js';
 import { toCollection, toCollectionPage } from './collections.presenter.js';
@@ -18,13 +22,23 @@ export function createCollectionsController(
   };
 
   const get: RequestHandler = (req, res) => {
-    const { collection, progress, pages } = service.get(parseId(req.params.id));
+    const { collection, progress, pages, institutions } = service.get(parseId(req.params.id));
     res.json({
       collection: toCollection(collection, progress),
+      institutions,
       pages: pages.map(toCollectionPage),
     });
   };
 
+  const list: RequestHandler = (req, res) => {
+    const { status } = collectionListQuerySchema.parse(req.query);
+    res.json({
+      collections: service.list(status).map(({ collection, progress, institutions }) => ({
+        ...toCollection(collection, progress),
+        institutions,
+      })),
+    });
+  };
   const cancel: RequestHandler = (req, res) => {
     const { collection, progress } = service.cancel(parseId(req.params.id));
     res.json({ collection: toCollection(collection, progress) });
@@ -56,5 +70,5 @@ export function createCollectionsController(
     });
   };
 
-  return { create, get, cancel, retryPage, events };
+  return { create, get, list, cancel, retryPage, events };
 }

@@ -4,7 +4,7 @@ import type {
   CollectionStatus,
   PageFunctionKey,
 } from '@auditoria-rf/contracts';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import {
   collectionPages,
@@ -70,6 +70,36 @@ export function createCollectionsRepository(db: DB) {
         .all();
     },
 
+    /** Instituições do escopo sem nenhuma rota confirmada para as funções escolhidas. */
+    institutionsWithoutRoutes(
+      institutionIds: readonly number[],
+      functionKeys: readonly PageFunctionKey[] | null,
+    ): number[] {
+      const withRoutes = new Set(
+        this.confirmedRoutesWithInstitution(institutionIds, functionKeys).map(
+          (r) => r.institutionId,
+        ),
+      );
+      return institutionIds.filter((id) => !withRoutes.has(id));
+    },
+
+    confirmedRoutesWithInstitution(
+      institutionIds: readonly number[],
+      functionKeys: readonly PageFunctionKey[] | null,
+    ) {
+      const conditions = [
+        inArray(routes.institutionId, [...institutionIds]),
+        eq(routes.status, 'confirmed'),
+      ];
+      if (functionKeys) conditions.push(inArray(pageFunctions.key, [...functionKeys]));
+      return db
+        .select({ id: routes.id, institutionId: routes.institutionId })
+        .from(routes)
+        .leftJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
+        .where(and(...conditions))
+        .all();
+    },
+
     confirmedRoutes(
       institutionIds: readonly number[],
       functionKeys: readonly PageFunctionKey[] | null,
@@ -110,6 +140,15 @@ export function createCollectionsRepository(db: DB) {
     findCollection(id: number): CollectionRow | undefined {
       const row = db.select().from(collections).where(eq(collections.id, id)).get();
       return row && toCollection(row);
+    },
+
+    listCollections(statuses?: readonly CollectionStatus[]): CollectionRow[] {
+      const query = db.select().from(collections);
+      const filtered = statuses ? query.where(inArray(collections.status, [...statuses])) : query;
+      return filtered
+        .orderBy(desc(collections.createdAt), desc(collections.id))
+        .all()
+        .map(toCollection);
     },
 
     listCollectionsByStatus(statuses: readonly CollectionStatus[]): CollectionRow[] {
