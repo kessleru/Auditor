@@ -16,6 +16,7 @@ import {
   PageTitle,
   SearchField,
   StatCard,
+  StatGridSkeleton,
   Stepper,
   TextField,
 } from './index';
@@ -200,6 +201,17 @@ describe('FindingCard, estados, logo e título', () => {
     expect(screen.getByText('Inspeção')).toBeTruthy();
     expect(screen.getByText('WCAG 2.4.4, 4.1.2 — operável')).toBeTruthy();
     expect(document.title).toBe('Relatório · Auditoria RF');
+    await expectNoAxeViolations(container);
+  });
+});
+
+describe('StatGridSkeleton', () => {
+  it('é oculto para leitor de tela e anuncia o carregamento', async () => {
+    const { container } = render(
+      <StatGridSkeleton label="Carregando indicadores…" hints={[false, true]} />,
+    );
+    expect(screen.getByRole('status').textContent).toBe('Carregando indicadores…');
+    expect(container.querySelectorAll('[aria-hidden="true"].rounded-lg')).toHaveLength(2);
     await expectNoAxeViolations(container);
   });
 });

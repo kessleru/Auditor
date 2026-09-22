@@ -12,6 +12,7 @@ export { Note } from './Note';
 export { APP_NAME, PageTitle } from './PageTitle';
 export { SkipLink } from './SkipLink';
 export { EmptyState, ErrorState } from './States';
+export { Skeleton, StatCardSkeleton, StatGridSkeleton } from './Skeleton';
 export { StatCard } from './StatCard';
 export { auditSteps, Stepper } from './Stepper';
 export { SearchField, TextField } from './TextField';
