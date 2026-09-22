@@ -89,7 +89,7 @@ function ProblemCard({
           <form
             id={noteId}
             hidden={!justifying}
-            className="flex flex-col gap-2"
+            className="motion-safe:animate-enter flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               validate.mutate({ findingId: problem.findingId, validation: 'false_positive', note });

@@ -155,8 +155,8 @@ export function CollectionPage() {
                   className="h-2 overflow-hidden rounded-full bg-muted forced-colors:border forced-colors:border-[CanvasText]"
                 >
                   <div
-                    className="h-full rounded-full bg-accent forced-colors:bg-[CanvasText]"
-                    style={{ width: `${percent}%` }}
+                    className="h-full w-full origin-left rounded-full bg-accent forced-colors:bg-[CanvasText] motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
+                    style={{ transform: `scaleX(${percent / 100})` }}
                   />
                 </div>
                 {!finished ? (
@@ -251,7 +251,7 @@ export function CollectionPage() {
                   <div
                     role="group"
                     aria-label="Confirmar cancelamento"
-                    className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4"
+                    className="motion-safe:animate-enter flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4"
                   >
                     <p className="text-body">
                       Cancelar a coleta? As páginas já avaliadas ficam registradas; as da fila não

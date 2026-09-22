@@ -163,7 +163,7 @@ export function PortalLayout() {
                 aria-label={`${t.label}: ${counts[t.path]}`}
                 className={({ isActive }) =>
                   cn(
-                    'inline-flex min-h-11 items-center gap-2 border-b-2 text-label',
+                    'inline-flex min-h-11 items-center gap-2 border-b-2 text-label transition-colors duration-150',
                     isActive
                       ? 'border-accent font-medium text-text'
                       : 'border-transparent text-text-muted hover:text-text',

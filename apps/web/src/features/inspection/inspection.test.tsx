@@ -123,14 +123,15 @@ describe('portal: contexto, abas e validação (3.3)', () => {
       name: 'Instituto Federal do Triângulo Mineiro (IFTM)',
     });
     expect(document.title).toBe('Validação de achados — IFTM · Auditoria RF');
-    const tabs = screen.getByRole('navigation', { name: 'Atividades do portal' });
+    // O índice redireciona para a aba de validação (o layout remonta com a nova rota).
     await waitFor(() =>
       expect(
-        within(tabs)
+        within(screen.getByRole('navigation', { name: 'Atividades do portal' }))
           .getByRole('link', { name: 'Validação de achados: 1 pendente' })
           .getAttribute('aria-current'),
       ).toBe('page'),
     );
+    const tabs = screen.getByRole('navigation', { name: 'Atividades do portal' });
     expect(within(tabs).getByRole('link', { name: 'Tarefas-alvo: 1 de 2' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Próximo portal: IFSULDEMINAS' })).toBeTruthy();
 

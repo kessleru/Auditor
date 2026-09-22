@@ -113,7 +113,7 @@ function FunctionRow({
           <form
             id={formId}
             hidden={!choosing}
-            className="flex w-full max-w-md flex-col items-end gap-2"
+            className="motion-safe:animate-enter flex w-full max-w-md flex-col items-end gap-2"
             onSubmit={(event: FormEvent) => {
               event.preventDefault();
               if (choice !== '') confirm(choice);
