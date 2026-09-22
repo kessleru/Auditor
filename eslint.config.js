@@ -1,3 +1,6 @@
+// ESLint fixado na linha 9.x: eslint-plugin-jsx-a11y (peer até ^9) e eslint-plugin-react
+// (peer até ^9.7) ainda não suportam o ESLint 10, e a regra de acessibilidade do front
+// depende dos dois. Revisar quando os plugins publicarem suporte ao 10.
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
