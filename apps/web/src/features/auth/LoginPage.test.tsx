@@ -108,3 +108,15 @@ describe('safeReturnPath', () => {
     expect(safeReturnPath(input)).toBe(expected);
   });
 });
+
+describe('aviso de Caps Lock', () => {
+  it('anuncia quando o Caps Lock está ativado na senha', async () => {
+    stubApi(null, { routes: publicRoutes });
+    renderRoute('/entrar');
+    const password = await screen.findByLabelText('Senha');
+    await userEvent.click(password);
+    await userEvent.keyboard('{CapsLock}a');
+    expect(await screen.findByText('Caps Lock está ativado.')).toBeTruthy();
+    expect(password.getAttribute('aria-describedby')).toContain('caps');
+  });
+});
