@@ -2,16 +2,23 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
+import { publicRoutes } from '../../test/fixtures';
 import { renderRoute, stubApi } from '../../test/render';
 
 beforeEach(() => {
-  stubApi({ id: 1, email: 'auditora@iftm.edu.br', name: 'Otávio Kessler Ustra' });
+  stubApi(
+    { id: 1, email: 'auditora@iftm.edu.br', name: 'Otávio Kessler Ustra' },
+    { routes: publicRoutes },
+  );
 });
 
 describe('PublicLayout', () => {
   it('o primeiro elemento focável é o link para pular ao conteúdo', async () => {
     renderRoute('/');
-    await screen.findByRole('heading', { level: 1, name: 'Resultados' });
+    await screen.findByRole('heading', {
+      level: 1,
+      name: 'Acessibilidade dos portais da Rede Federal',
+    });
     await userEvent.tab();
     const skip = screen.getByRole('link', { name: 'Pular para o conteúdo' });
     expect(document.activeElement).toBe(skip);
@@ -34,7 +41,10 @@ describe('PublicLayout', () => {
 
   it('ao navegar, move o foco para o h1 e atualiza o título do documento', async () => {
     renderRoute('/');
-    await screen.findByRole('heading', { level: 1, name: 'Resultados' });
+    await screen.findByRole('heading', {
+      level: 1,
+      name: 'Acessibilidade dos portais da Rede Federal',
+    });
     expect(document.title).toBe('Resultados · Auditoria RF');
 
     await userEvent.click(screen.getByRole('link', { name: 'Sobre a metodologia' }));
@@ -93,6 +103,18 @@ describe('AuditorLayout', () => {
         ([url, init]) => String(url).endsWith('/auth/logout') && init?.method === 'POST',
       ),
     ).toBe(true);
+  });
+});
+
+describe('rotas do auditor sem sessão', () => {
+  it('levam para /entrar guardando o destino', async () => {
+    stubApi(null, { routes: publicRoutes });
+    const { router } = renderRoute('/coletas/7?aba=paginas');
+    await screen.findByRole('heading', { level: 1, name: 'Entrar como auditor' });
+    expect(router.state.location.pathname).toBe('/entrar');
+    expect(router.state.location.search).toBe(
+      `?voltar=${encodeURIComponent('/coletas/7?aba=paginas')}`,
+    );
   });
 });
 

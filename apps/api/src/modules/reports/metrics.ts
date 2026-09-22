@@ -62,6 +62,9 @@ export type InstitutionSummary =
       distinctProblems: number;
       occurrences: number;
       templateProblems: number;
+      criticalProblems: number;
+      /** Achados ainda não revisados pelo auditor. */
+      pendingValidation: number;
       /** Regras que exigem revisão humana (fora do cálculo, mas exibidas). */
       incompleteRules: number;
       problems: Problem[];
@@ -74,10 +77,35 @@ export type InstitutionSummary =
       pagesFailed: number;
     };
 
-/** Resumo de uma instituição numa coleta. Falsos positivos ficam fora da contagem. */
+/**
+ * Regras cujos elementos reprovados na página foram TODOS marcados como falso positivo deixam de
+ * ser violação e passam a contar como passe (decisão com o autor; ADR 0003, adendo).
+ */
+export function adjustedCounts(page: PageInput, findings: readonly FindingInput[]) {
+  const byRule = new Map<string, FindingValidation[]>();
+  for (const f of findings) {
+    if (f.collectionPageId !== page.id) continue;
+    byRule.set(f.ruleId, [...(byRule.get(f.ruleId) ?? []), f.validation]);
+  }
+  const dismissed = [...byRule.values()].filter((validations) =>
+    validations.every((v) => v === 'false_positive'),
+  ).length;
+  return { passes: page.passesCount + dismissed, violations: page.violationsCount - dismissed };
+}
+
+export interface SummaryOptions {
+  /**
+   * Quais achados contam como problema: `valid` = tudo que não é falso positivo (visão do
+   * auditor); `confirmed` = só o que o auditor confirmou (visão pública).
+   */
+  problems?: 'valid' | 'confirmed';
+}
+
+/** Resumo de uma instituição numa coleta. Falsos positivos nunca contam como problema. */
 export function summarizeInstitution(
   pages: readonly PageInput[],
   findings: readonly FindingInput[],
+  { problems: countedProblems = 'valid' }: SummaryOptions = {},
 ): InstitutionSummary {
   const evaluated = pages.filter((p) => p.status === 'done');
   const failed = pages.filter((p) => p.status === 'failed').length;
@@ -86,7 +114,7 @@ export function summarizeInstitution(
   }
 
   const conformities = evaluated
-    .map((p) => pageConformity({ passes: p.passesCount, violations: p.violationsCount }))
+    .map((p) => pageConformity(adjustedCounts(p, findings)))
     .filter((c): c is number => c !== null);
   const conformity =
     conformities.length === 0
@@ -99,8 +127,11 @@ export function summarizeInstitution(
     { first: FindingInput; occurrences: number; pages: Set<number> }
   >();
   for (const finding of findings) {
-    if (finding.validation === 'false_positive' || !evaluatedIds.has(finding.collectionPageId))
-      continue;
+    const counts =
+      countedProblems === 'confirmed'
+        ? finding.validation === 'confirmed'
+        : finding.validation !== 'false_positive';
+    if (!counts || !evaluatedIds.has(finding.collectionPageId)) continue;
     const group = groups.get(finding.fingerprint) ?? {
       first: finding,
       occurrences: 0,
@@ -142,6 +173,10 @@ export function summarizeInstitution(
     distinctProblems: problems.length,
     occurrences: problems.reduce((sum, p) => sum + p.occurrences, 0),
     templateProblems: problems.filter((p) => p.template).length,
+    criticalProblems: problems.filter((p) => p.severity === 'critical').length,
+    pendingValidation: findings.filter(
+      (f) => f.validation === 'pending' && evaluatedIds.has(f.collectionPageId),
+    ).length,
     incompleteRules: evaluated.reduce((sum, p) => sum + p.incompleteCount, 0),
     problems,
   };
