@@ -337,7 +337,7 @@ export function TasksTab() {
                       aria-current={t === current ? 'step' : undefined}
                       onClick={() => setParams({ tarefa: String(t.task.id) })}
                       className={cn(
-                        'inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-label',
+                        'inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-label transition-colors duration-150',
                         t === current
                           ? 'border-accent bg-accent-soft font-medium text-accent-text'
                           : 'border-border-strong bg-surface',

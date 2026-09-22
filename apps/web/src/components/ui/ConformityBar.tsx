@@ -33,7 +33,10 @@ export function ConformityBar({ value, label, className }: ConformityBarProps) {
       >
         {/* No modo de alto contraste as cores de fundo somem; a barra usa a cor do sistema. */}
         <div
-          className={cn('h-full rounded-full forced-colors:bg-[CanvasText]', barColor[level])}
+          className={cn(
+            'h-full origin-left rounded-full forced-colors:bg-[CanvasText] motion-safe:animate-grow',
+            barColor[level],
+          )}
           style={{ width: `${percent}%` }}
         />
       </div>

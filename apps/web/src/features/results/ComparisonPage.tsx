@@ -34,7 +34,7 @@ function Toggle({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        'min-h-10 rounded-md border px-4 text-label font-medium',
+        'min-h-10 rounded-md border px-4 text-label font-medium transition-colors duration-150',
         pressed
           ? 'border-accent bg-accent text-white'
           : 'border-border-strong bg-surface text-text hover:bg-muted',

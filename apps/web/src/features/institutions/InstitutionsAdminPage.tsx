@@ -119,7 +119,7 @@ export function InstitutionsAdminPage() {
           </p>
         ) : null}
         {create.isSuccess ? (
-          <p role="status" className="text-body text-ok-text">
+          <p role="status" className="text-body text-ok-text motion-safe:animate-enter">
             Instituição cadastrada.
           </p>
         ) : null}

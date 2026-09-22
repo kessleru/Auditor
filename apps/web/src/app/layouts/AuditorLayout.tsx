@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useId, useRef, useState } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import { Logo, NavItem, SkipLink } from '../../components/ui';
 import { RequireAuditor } from '../../features/auth/RequireAuditor';
 import { useAuditor, useLogout } from '../../features/auth/useAuditor';
@@ -127,6 +127,7 @@ export function AuditorLayout() {
 }
 
 function AuditorShell() {
+  const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLDivElement>(null);
@@ -168,7 +169,7 @@ function AuditorShell() {
 
       <div
         hidden={!menuOpen}
-        className="fixed inset-0 z-30 bg-text/40 lg:hidden"
+        className="fixed inset-0 z-30 bg-text/40 motion-safe:animate-fade lg:hidden"
         aria-hidden="true"
         onClick={closeMenu}
       />
@@ -179,7 +180,7 @@ function AuditorShell() {
         aria-modal="true"
         aria-label="Menu de navegação"
         hidden={!menuOpen}
-        className="fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] bg-surface shadow-float lg:hidden"
+        className="fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] bg-surface shadow-float motion-safe:animate-drawer lg:hidden"
       >
         <button
           type="button"
@@ -199,7 +200,9 @@ function AuditorShell() {
         inert={menuOpen}
         className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8"
       >
-        <Outlet />
+        <div key={pathname} className="motion-safe:animate-enter">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
