@@ -32,6 +32,8 @@ npm run db:generate -w @auditoria-rf/api   # gera migration após mudar src/db/s
 
 O motor precisa do Chromium do Playwright: `npx playwright install chromium` (e `sudo npx playwright install-deps chromium` se faltarem bibliotecas do sistema). Os testes de aceite da Fase 4 abrem o navegador de verdade contra HTML servido em `127.0.0.1`.
 
+Node 22 LTS (`.nvmrc`, `engines.node: 22.x`) — o Chromium do Playwright e o `better-sqlite3` são compilados contra essa linha. ESLint fixado na 9.x enquanto `eslint-plugin-jsx-a11y` e `eslint-plugin-react` não suportarem o 10 (motivo no topo de `eslint.config.js`).
+
 Testes: Vitest (unidade), Supertest (integração da API), Testing Library + `vitest-axe` (componentes), Playwright (E2E). Testes do crawler usam fixtures locais — **sem rede nos testes**; o motor de auditoria é testado contra HTML servido localmente.
 
 ## Arquitetura
