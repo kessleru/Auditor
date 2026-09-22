@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { cn, Logo, SkipLink } from '../../components/ui';
 
 const links = [
@@ -9,6 +9,7 @@ const links = [
 
 /** Layout do visitante: barra superior com marca, navegação e acesso do auditor (seção 5.2). */
 export function PublicLayout() {
+  const { pathname } = useLocation();
   return (
     <div className="flex min-h-screen flex-col">
       <SkipLink />
@@ -26,7 +27,7 @@ export function PublicLayout() {
                     end={link.end}
                     className={({ isActive }) =>
                       cn(
-                        'inline-flex min-h-11 items-center border-b-2 text-label',
+                        'inline-flex min-h-11 items-center border-b-2 text-label transition-colors duration-150',
                         isActive
                           ? 'border-accent font-medium text-text'
                           : 'border-transparent text-text-muted hover:text-text',
@@ -53,7 +54,9 @@ export function PublicLayout() {
         tabIndex={-1}
         className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6"
       >
-        <Outlet />
+        <div key={pathname} className="motion-safe:animate-enter">
+          <Outlet />
+        </div>
       </main>
 
       <footer className="border-t border-border bg-surface">

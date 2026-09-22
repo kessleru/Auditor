@@ -193,7 +193,7 @@ export function AuditorInstitutionPage() {
                       aria-pressed={filter === key}
                       onClick={() => setFilter(key)}
                       className={cn(
-                        'min-h-9 rounded-md border px-3 text-label font-medium',
+                        'min-h-9 rounded-md border px-3 text-label font-medium transition-colors duration-150',
                         filter === key
                           ? 'border-accent bg-accent text-white'
                           : 'border-border-strong bg-surface text-text hover:bg-muted',
