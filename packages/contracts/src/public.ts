@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { conformityClasses } from './conformity.js';
-import { severities, wcagPrinciples } from './domain.js';
+import { findingValidations, severities, wcagPrinciples } from './domain.js';
 
 // Visão pública (somente leitura). Cada instituição aparece com a sua coleta mais recente
 // terminada; se falhou nela, é ausência de dado (ADR 0006).
@@ -63,6 +63,8 @@ export const publicProblemSchema = z.object({
   wcagCriteria: z.string(),
   principle: z.enum(wcagPrinciples),
   severity: z.enum(severities),
+  /** Na visão pública, sempre `confirmed`. */
+  validation: z.enum(findingValidations),
   template: z.boolean(),
   pages: z.number().int(),
   occurrences: z.number().int(),
