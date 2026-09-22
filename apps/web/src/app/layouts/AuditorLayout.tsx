@@ -13,6 +13,7 @@ import {
 import { useCallback, useId, useRef, useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router';
 import { Logo, NavItem, SkipLink } from '../../components/ui';
+import { RequireAuditor } from '../../features/auth/RequireAuditor';
 import { useAuditor, useLogout } from '../../features/auth/useAuditor';
 import { useFocusTrap } from '../useFocusTrap';
 
@@ -118,6 +119,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 /** Layout do auditor: sidebar fixa de 240 px; no celular, menu com foco preso (seção 5.2). */
 export function AuditorLayout() {
+  return (
+    <RequireAuditor>
+      <AuditorShell />
+    </RequireAuditor>
+  );
+}
+
+function AuditorShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLDivElement>(null);
