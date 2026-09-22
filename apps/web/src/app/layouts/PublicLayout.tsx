@@ -1,5 +1,6 @@
+import { useRef } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
-import { cn, Logo, SkipLink } from '../../components/ui';
+import { buttonClasses, cn, Logo, SkipLink, SlidingNavIndicator } from '../../components/ui';
 
 const links = [
   { to: '/', label: 'Resultados', end: true },
@@ -10,6 +11,7 @@ const links = [
 /** Layout do visitante: barra superior com marca, navegação e acesso do auditor (seção 5.2). */
 export function PublicLayout() {
   const { pathname } = useLocation();
+  const navList = useRef<HTMLElement>(null);
   return (
     <div className="flex min-h-screen flex-col">
       <SkipLink />
@@ -18,8 +20,13 @@ export function PublicLayout() {
           <Link to="/" aria-label="Auditoria RF — início" className="rounded-md">
             <Logo subtitle />
           </Link>
-          <nav aria-label="Principal" className="order-last w-full sm:order-none sm:w-auto">
-            <ul className="flex flex-wrap gap-x-6">
+          <nav
+            ref={navList}
+            aria-label="Principal"
+            className="relative order-last w-full sm:order-none sm:w-auto"
+          >
+            <SlidingNavIndicator container={navList} orientation="horizontal" />
+            <ul className="flex flex-wrap gap-x-1">
               {links.map((link) => (
                 <li key={link.to}>
                   <NavLink
@@ -27,10 +34,10 @@ export function PublicLayout() {
                     end={link.end}
                     className={({ isActive }) =>
                       cn(
-                        'inline-flex min-h-11 items-center border-b-2 text-label transition-colors duration-150',
+                        'relative inline-flex min-h-11 items-center rounded-md px-3 text-label transition-colors duration-150',
                         isActive
-                          ? 'border-accent font-medium text-text'
-                          : 'border-transparent text-text-muted hover:text-text',
+                          ? 'font-medium text-accent-text'
+                          : 'text-text-muted hover:bg-muted hover:text-text',
                       )
                     }
                   >
@@ -40,10 +47,7 @@ export function PublicLayout() {
               ))}
             </ul>
           </nav>
-          <Link
-            to="/entrar"
-            className="ml-auto inline-flex min-h-11 items-center text-label font-medium text-accent underline underline-offset-4 hover:text-accent-text"
-          >
+          <Link to="/entrar" className={cn(buttonClasses('primary'), 'ml-auto')}>
             Entrar como auditor
           </Link>
         </div>
@@ -65,7 +69,10 @@ export function PublicLayout() {
             Auditoria RF — pesquisa acadêmica sobre acessibilidade e usabilidade dos portais da Rede
             Federal (TCC, Ciência da Computação, IFTM). Os indicadores cobrem apenas critérios
             verificáveis automaticamente;{' '}
-            <Link to="/metodologia" className="text-accent underline underline-offset-2">
+            <Link
+              to="/metodologia"
+              className="text-accent-text underline underline-offset-2 hover:decoration-2"
+            >
               veja a metodologia
             </Link>
             .

@@ -51,7 +51,10 @@ export function DataTable<Row>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} className="border-t border-border">
+            <tr
+              key={rowKey(row)}
+              className="border-t border-border transition-colors duration-150 hover:bg-canvas"
+            >
               {columns.map((col) => {
                 const Cell = col.rowHeader ? 'th' : 'td';
                 return (
@@ -60,7 +63,7 @@ export function DataTable<Row>({
                     {...(col.rowHeader && { scope: 'row' })}
                     className={cn(
                       'px-5 py-3 align-middle font-normal',
-                      col.align === 'end' && 'text-right',
+                      col.align === 'end' && 'text-right tabular-nums',
                     )}
                   >
                     {col.cell(row)}

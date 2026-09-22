@@ -68,7 +68,7 @@ describe('painel (4.1)', () => {
     const { container } = renderRoute('/painel');
     expect(await screen.findByText('1 de 3')).toBeTruthy();
     expect(screen.getByText('1/2')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'IFTM' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Abrir relatório do IFTM' }).getAttribute('href')).toBe(
       '/painel/instituicoes/1',
     );
     await expectNoAxeViolations(container);

@@ -47,7 +47,7 @@ export function PortalLayout() {
       <ErrorState
         title="Portal fora da subamostra"
         description={
-          <Link to={`/inspecao/${collectionId}`} className="text-accent underline">
+          <Link to={`/inspecao/${collectionId}`} className="text-accent-text underline">
             Voltar à inspeção manual
           </Link>
         }
@@ -77,7 +77,7 @@ export function PortalLayout() {
           <li>
             <Link
               to={`/inspecao/${collectionId}`}
-              className="text-accent underline underline-offset-2"
+              className="text-accent-text underline underline-offset-2 hover:decoration-2"
             >
               Inspeção manual
             </Link>

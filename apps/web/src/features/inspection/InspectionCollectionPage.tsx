@@ -10,7 +10,8 @@ import {
   DataTable,
   EmptyState,
   Note,
-  PageTitle,
+  Page,
+  PageHeader,
 } from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { formatDate } from '../../lib/format';
@@ -100,7 +101,7 @@ export function InspectionCollectionPage() {
   const summary = useInspectionSummary(collectionId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <QueryState
         query={summary}
         loadingText="Carregando inspeção…"
@@ -108,16 +109,21 @@ export function InspectionCollectionPage() {
       >
         {({ collection, sample, candidates, withoutData }) => (
           <>
-            <div className="flex flex-col gap-1">
-              <PageTitle documentTitle={`Inspeção manual — coleta #${collection.id}`}>
-                Inspeção manual
-              </PageTitle>
-              <p className="text-label text-text-muted">
-                Coleta #{collection.id}
-                {collection.finishedAt ? ` de ${formatDate(collection.finishedAt)}` : ''} ·
-                subamostra de {sample.length} {sample.length === 1 ? 'portal' : 'portais'}
-              </p>
-            </div>
+            <PageHeader
+              title="Inspeção manual"
+              documentTitle={`Inspeção manual — coleta #${collection.id}`}
+              caption={`Coleta #${collection.id}`}
+              meta={[
+                {
+                  label: 'Coleta terminada em',
+                  value: collection.finishedAt ? formatDate(collection.finishedAt) : '—',
+                },
+                {
+                  label: 'Subamostra',
+                  value: `${sample.length} ${sample.length === 1 ? 'portal' : 'portais'}`,
+                },
+              ]}
+            />
             <Note>
               A inspeção é feita um portal por vez. Escolha o portal para validar os achados,
               executar as tarefas-alvo e a verificação assistiva — as três atividades ficam reunidas
@@ -216,13 +222,16 @@ export function InspectionCollectionPage() {
               candidates={candidates}
             />
             <p className="text-label">
-              <Link to="/inspecao" className="text-accent underline underline-offset-2">
+              <Link
+                to="/inspecao"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
                 Escolher outra coleta
               </Link>
             </p>
           </>
         )}
       </QueryState>
-    </div>
+    </Page>
   );
 }

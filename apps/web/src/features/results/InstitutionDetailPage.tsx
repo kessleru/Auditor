@@ -1,67 +1,15 @@
-import type { PublicInstitution, PublicProblem } from '@auditoria-rf/contracts';
+import type { PublicProblem } from '@auditoria-rf/contracts';
 import { useId, useState } from 'react';
-import { Link, useParams } from 'react-router';
-import {
-  cn,
-  conformityLabel,
-  EmptyState,
-  ErrorState,
-  FindingCard,
-  formatPercent,
-  Note,
-  PageTitle,
-  StatCard,
-} from '../../components/ui';
-import { formatDate, formatNumber } from '../../lib/format';
+import { useParams } from 'react-router';
+import { cn, EmptyState, ErrorState, FindingCard, Page, PageHeader } from '../../components/ui';
+import { formatDate } from '../../lib/format';
 import { usePublicFindings, usePublicInstitution } from './api';
+import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
+import { ConformitySummary } from './ConformitySummary';
 import { QueryState } from './QueryState';
 
 type Filter = 'all' | 'critical' | 'template';
-
-function Breadcrumb({ current }: { current: string }) {
-  return (
-    <nav aria-label="Trilha de navegação">
-      <ol className="flex flex-wrap items-center gap-2 text-label">
-        <li>
-          <Link to="/" className="text-accent underline underline-offset-2">
-            Resultados
-          </Link>
-        </li>
-        <li aria-hidden="true" className="text-text-muted">
-          ›
-        </li>
-        <li aria-current="page" className="text-text">
-          {current}
-        </li>
-      </ol>
-    </nav>
-  );
-}
-
-function Stats({ institution }: { institution: PublicInstitution }) {
-  const conformity = institution.conformity;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard
-        label="Conformidade"
-        value={
-          conformity === null
-            ? 'Sem dado'
-            : `${formatPercent(conformity)} — ${conformityLabel(conformity)}`
-        }
-        hint={
-          <Link to="/metodologia" className="text-accent underline underline-offset-2">
-            Só critérios automatizáveis
-          </Link>
-        }
-      />
-      <StatCard label="Problemas confirmados" value={formatNumber(institution.problems ?? 0)} />
-      <StatCard label="Críticos" value={formatNumber(institution.criticalProblems ?? 0)} />
-      <StatCard label="De template" value={formatNumber(institution.templateProblems ?? 0)} />
-    </div>
-  );
-}
 
 const principleText = (problem: PublicProblem) =>
   `em ${problem.pages} ${problem.pages === 1 ? 'página' : 'páginas'} · ${problem.occurrences} ${
@@ -149,7 +97,7 @@ function Problems({ institutionId }: { institutionId: number }) {
                       recommendation={
                         <a
                           href={problem.helpUrl}
-                          className="text-accent underline underline-offset-2"
+                          className="text-accent-text underline underline-offset-2 hover:decoration-2"
                           rel="noopener noreferrer"
                           target="_blank"
                         >
@@ -182,20 +130,25 @@ export function InstitutionDetailPage() {
       errorTitle="Não foi possível carregar a instituição"
     >
       {({ institution, history }) => (
-        <div className="flex flex-col gap-6">
-          <Breadcrumb current={institution.acronym} />
-          <div className="flex flex-col gap-1">
-            <PageTitle>{institution.name}</PageTitle>
-            <p className="text-label text-text-muted">
-              {institution.domain}
-              {institution.collectedAt
-                ? ` · última coleta em ${formatDate(institution.collectedAt)}`
-                : ''}
-              {institution.status === 'evaluated'
-                ? ` · ${institution.pagesEvaluated} ${institution.pagesEvaluated === 1 ? 'página avaliada' : 'páginas avaliadas'}`
-                : ''}
-            </p>
-          </div>
+        <Page>
+          <PageHeader
+            breadcrumb={
+              <Breadcrumb
+                items={[{ to: '/', label: 'Resultados' }]}
+                current={institution.acronym}
+              />
+            }
+            title={institution.name}
+            meta={[
+              { label: 'Portal', value: institution.domain },
+              ...(institution.collectedAt
+                ? [{ label: 'Última coleta', value: formatDate(institution.collectedAt) }]
+                : []),
+              ...(institution.status === 'evaluated'
+                ? [{ label: 'Páginas avaliadas', value: institution.pagesEvaluated }]
+                : []),
+            ]}
+          />
 
           {institution.status === 'not_collected' ? (
             <EmptyState
@@ -212,17 +165,22 @@ export function InstitutionDetailPage() {
           ) : null}
 
           {institution.status === 'evaluated' ? (
-            <>
-              <Stats institution={institution} />
-              {institution.pendingValidation > 0 ? (
-                <Note>
-                  {institution.pendingValidation}{' '}
-                  {institution.pendingValidation === 1 ? 'achado aguarda' : 'achados aguardam'}{' '}
-                  validação manual e ainda não{' '}
-                  {institution.pendingValidation === 1 ? 'aparece' : 'aparecem'} nesta página.
-                </Note>
-              ) : null}
-            </>
+            <div className="flex flex-col gap-4">
+              <ConformitySummary
+                conformity={institution.conformity}
+                acronym={institution.acronym}
+                figures={[
+                  { label: 'Problemas confirmados', value: institution.problems ?? 0 },
+                  { label: 'Críticos', value: institution.criticalProblems ?? 0 },
+                  { label: 'De template', value: institution.templateProblems ?? 0 },
+                  {
+                    label: 'Aguardando validação',
+                    value: institution.pendingValidation,
+                    hint: 'Ainda fora da lista de problemas',
+                  },
+                ]}
+              />
+            </div>
           ) : null}
 
           {history.length > 0 ? (
@@ -238,7 +196,7 @@ export function InstitutionDetailPage() {
           ) : null}
 
           {institution.status === 'evaluated' ? <Problems institutionId={institution.id} /> : null}
-        </div>
+        </Page>
       )}
     </QueryState>
   );

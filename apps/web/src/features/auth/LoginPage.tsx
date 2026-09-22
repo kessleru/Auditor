@@ -10,7 +10,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
-import { Button, buttonClasses, Logo, PageTitle, SkipLink, TextField } from '../../components/ui';
+import { Button, Logo, PageTitle, SkipLink, TextField } from '../../components/ui';
 import { ApiError, apiRequest } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 import { useMethodology, usePublicSummary } from '../results/api';
@@ -59,11 +59,8 @@ function BrandIllustration() {
           </div>
         </div>
       </div>
-      <div className="absolute -top-4 -right-6 flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[0.8125rem] font-medium text-text shadow-float motion-safe:animate-brand-pop">
-        <span className="text-ok">✓</span> 15 achados confirmados
-      </div>
       <div className="absolute right-[-2rem] bottom-0 w-64 rounded-lg bg-surface p-4 shadow-float motion-safe:animate-brand-rise">
-        <p className="mb-2 text-[0.8125rem] text-text-muted">Conformidade do portal</p>
+        <p className="mb-2 text-[0.8125rem] text-text-muted">Conformidade do portal (exemplo)</p>
         <div className="flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
             <div className="h-full w-[78%] origin-left rounded-full bg-ok motion-safe:animate-brand-fill" />
@@ -76,19 +73,22 @@ function BrandIllustration() {
   );
 }
 
-/** Números reais da última coleta, quando existem. */
+/**
+ * Números reais da última coleta, quando existem. Em texto sobre o fundo da marca, separados por
+ * uma divisória fina — cartões de vidro sobre o gradiente pesariam sem informar mais.
+ */
 function BrandStats() {
   const { data } = usePublicSummary();
   if (!data || data.institutionsEvaluated === 0) return null;
   return (
-    <dl className="grid max-w-md grid-cols-2 gap-4 motion-safe:animate-brand-rise">
-      <div className="rounded-lg bg-white/10 px-4 py-3 ring-1 ring-white/15">
-        <dt className="text-label text-white/85">Portais avaliados</dt>
-        <dd className="text-metric text-white">{data.institutionsEvaluated}</dd>
+    <dl className="flex flex-wrap gap-x-10 gap-y-4 border-t border-white/20 pt-5 motion-safe:animate-brand-rise">
+      <div className="flex flex-col gap-0.5">
+        <dt className="text-label text-white/80">Portais avaliados</dt>
+        <dd className="text-metric text-white tabular-nums">{data.institutionsEvaluated}</dd>
       </div>
-      <div className="rounded-lg bg-white/10 px-4 py-3 ring-1 ring-white/15">
-        <dt className="text-label text-white/85">Última coleta</dt>
-        <dd className="text-card text-white">
+      <div className="flex flex-col gap-0.5">
+        <dt className="text-label text-white/80">Última coleta</dt>
+        <dd className="text-metric text-white tabular-nums">
           {data.lastCollectionAt ? formatDate(data.lastCollectionAt) : '—'}
         </dd>
       </div>
@@ -146,14 +146,10 @@ export function LoginPage() {
     <div className="flex min-h-screen flex-col lg:flex-row">
       <SkipLink />
       <header className="relative isolate flex flex-col gap-6 overflow-hidden bg-[#143a82] px-6 py-6 text-white lg:w-[47%] lg:justify-between lg:gap-10 lg:px-12 lg:py-10">
-        {/* Fundo decorativo: gradiente, brilho e grade de pontos. */}
+        {/* Fundo decorativo: um gradiente só, com um brilho no canto de cima. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,#2a62c9_0%,transparent_55%),radial-gradient(circle_at_90%_95%,#0f6b5a_0%,transparent_45%),linear-gradient(160deg,#1f4fa8_0%,#0f2c66_100%)]"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 -z-10 opacity-[0.12] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
+          className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_8%,#2a62c9_0%,transparent_60%),linear-gradient(160deg,#1f4fa8_0%,#0f2c66_100%)]"
         />
         <Link to="/" aria-label="Auditoria RF — início" className="self-start rounded-md">
           <Logo tone="inverse" />
@@ -232,30 +228,32 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <div className="flex items-center gap-3 text-label text-text-muted" aria-hidden="true">
-            <span className="h-px flex-1 bg-border" />
-            ou
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <Link to="/" className={buttonClasses('secondary', 'min-h-11 w-full')}>
-            Ver resultados públicos sem entrar
-          </Link>
-
-          <p className="text-center text-label text-text-muted">
-            Problemas para acessar? Fale com o{' '}
-            {methodology?.contactEmail ? (
-              <a
-                href={`mailto:${methodology.contactEmail}`}
-                className="text-accent underline underline-offset-2"
+          <div className="flex flex-col gap-2 border-t border-border pt-5 text-label text-text-muted">
+            <p>
+              Os resultados são públicos.{' '}
+              <Link
+                to="/"
+                className="font-medium text-accent-text underline underline-offset-2 hover:decoration-2"
               >
-                responsável pela pesquisa
-              </a>
-            ) : (
-              'responsável pela pesquisa'
-            )}
-            .
-          </p>
+                Consultar sem entrar
+              </Link>
+              .
+            </p>
+            <p>
+              Problemas para acessar? Fale com o{' '}
+              {methodology?.contactEmail ? (
+                <a
+                  href={`mailto:${methodology.contactEmail}`}
+                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                >
+                  responsável pela pesquisa
+                </a>
+              ) : (
+                'responsável pela pesquisa'
+              )}
+              .
+            </p>
+          </div>
         </div>
       </main>
     </div>

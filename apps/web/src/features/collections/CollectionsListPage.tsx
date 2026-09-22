@@ -6,7 +6,8 @@ import {
   ButtonLink,
   DataTable,
   EmptyState,
-  PageTitle,
+  Page,
+  PageHeader,
 } from '../../components/ui';
 import { formatDate } from '../../lib/format';
 import { QueryState } from '../results/QueryState';
@@ -23,17 +24,27 @@ const statusBadge: Record<CollectionStatus, { label: string; variant: BadgeVaria
 /** "Em andamento" e "Histórico" do auditor: mesma lista, filtros diferentes. */
 export function CollectionsListPage({
   title,
+  description,
   statuses,
   emptyText,
 }: {
   title: string;
+  description?: string;
   statuses: readonly CollectionStatus[];
   emptyText: string;
 }) {
   const collections = useCollections(statuses);
   return (
-    <div className="flex flex-col gap-6">
-      <PageTitle>{title}</PageTitle>
+    <Page>
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          <ButtonLink to="/auditorias/nova" variant="secondary">
+            Nova auditoria
+          </ButtonLink>
+        }
+      />
       <QueryState
         query={collections}
         loadingText="Carregando coletas…"
@@ -59,7 +70,7 @@ export function CollectionsListPage({
                   cell: (row) => (
                     <Link
                       to={`/coletas/${row.id}`}
-                      className="text-accent underline underline-offset-2"
+                      className="font-medium text-accent-text underline-offset-2 hover:underline"
                     >
                       Coleta #{row.id}
                     </Link>
@@ -74,6 +85,7 @@ export function CollectionsListPage({
                 {
                   key: 'progress',
                   header: 'Páginas',
+                  align: 'end',
                   cell: (row) =>
                     `${row.progress.done + row.progress.failed} de ${row.progress.total}`,
                 },
@@ -91,6 +103,6 @@ export function CollectionsListPage({
           )
         }
       </QueryState>
-    </div>
+    </Page>
   );
 }

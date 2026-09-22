@@ -47,7 +47,7 @@ export function PasswordField({ label, error, ref, ...props }: PasswordFieldProp
           onClick={() => setVisible((v) => !v)}
           aria-controls={id}
           aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
-          className="absolute top-1/2 right-1.5 min-h-8 -translate-y-1/2 rounded-md px-2.5 text-label font-medium text-accent hover:bg-muted"
+          className="absolute top-1/2 right-1.5 min-h-8 -translate-y-1/2 rounded-md px-2.5 text-label font-medium text-accent-text hover:bg-muted"
         >
           {visible ? 'Ocultar' : 'Mostrar'}
         </button>
