@@ -21,6 +21,8 @@
 
 Quem só quer usar o sistema abre `launcher/Auditoria RF.exe` (Windows). Ele verifica o Docker Desktop, inicia se estiver parado, monta a aplicação, sobe API e front, aplica os dados iniciais e abre o navegador em `http://localhost:8080` — com uma janela mostrando cada etapa, um botão para criar a conta do auditor e outro para parar tudo depois.
 
+Tudo o que ele faz fica registrado em `%LOCALAPPDATA%AuditoriaRFlauncher.log`, e a janela tem um link para abrir esse arquivo.
+
 Único pré-requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/). Para recompilar o launcher, `powershell -ExecutionPolicy Bypass -File launcheruild.ps1`; ele usa o compilador C# que já vem no Windows, sem instalar nada.
 
 ## Rodando em 3 comandos
