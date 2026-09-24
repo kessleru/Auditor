@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { AxeBuilder } from '@axe-core/playwright';
 import type { AxeResults } from 'axe-core';
-import { type Browser, chromium, errors } from 'playwright';
+import { type Browser, type BrowserContext, chromium, errors } from 'playwright';
 import { MIN_REQUEST_INTERVAL_MS } from '../crawler/http.js';
 import { type HostThrottle, sharedHostThrottle } from '../crawler/throttle.js';
 
@@ -43,12 +43,18 @@ export interface PlaywrightAuditorOptions {
   launch?: () => Promise<Browser>;
 }
 
-/** Falha de rede (inclui o tempo esgotado): merece uma tentativa extra (seção 3.2.1). */
-function isNetworkError(err: unknown): boolean {
+/**
+ * Merece uma tentativa extra: falha de rede, inclusive o tempo esgotado (seção 3.2.1), e falhas
+ * do próprio navegador que não dizem nada sobre a página (processo caiu, a página redirecionou por
+ * script no meio da análise e o contexto de execução se perdeu).
+ */
+export function isTransientFailure(err: unknown): boolean {
   if (err instanceof errors.TimeoutError) return true;
   return (
     err instanceof Error &&
-    /net::ERR_|NS_ERROR_|ECONNREFUSED|ECONNRESET|ENOTFOUND/.test(err.message)
+    /net::ERR_|NS_ERROR_|ECONNREFUSED|ECONNRESET|ENOTFOUND|Execution context was destroyed|Target (?:page, context or browser )?(?:has been )?closed|Browser has been closed|Page crashed|crashed/i.test(
+      err.message,
+    )
   );
 }
 
@@ -71,6 +77,9 @@ export function describeFailure(err: unknown, timeoutMs: number): string {
     return `Tempo esgotado: a página não terminou de carregar em ${Math.round(timeoutMs / 1000)} s (a coleta espera a rede ficar ociosa).`;
   }
   const line = firstLine(err);
+  if (/Executable doesn't exist|browserType\.launch/i.test(line)) {
+    return 'O navegador do Playwright não abriu. Instale com: npx playwright install chromium.';
+  }
   if (/Download is starting/i.test(line)) {
     return 'A URL baixa um arquivo em vez de abrir uma página.';
   }
@@ -92,7 +101,27 @@ export function createPlaywrightAuditor({
   launch = () => chromium.launch(),
 }: PlaywrightAuditorOptions): PageAuditor {
   let browser: Promise<Browser> | null = null;
-  const getBrowser = () => (browser ??= launch());
+  // O navegador é reaproveitado entre páginas. Se ele cair (falta de memória, processo morto) ou
+  // não conseguir abrir, a referência é descartada e a próxima página abre outro: antes, um
+  // navegador morto ficava guardado e derrubava todas as páginas seguintes da coleta.
+  const getBrowser = () => {
+    if (!browser) {
+      const launching = launch().then(
+        (opened) => {
+          opened.once('disconnected', () => {
+            if (browser === launching) browser = null;
+          });
+          return opened;
+        },
+        (err: unknown) => {
+          if (browser === launching) browser = null;
+          throw err;
+        },
+      );
+      browser = launching;
+    }
+    return browser;
+  };
 
   return {
     async versions() {
@@ -104,62 +133,55 @@ export function createPlaywrightAuditor({
     },
 
     async audit(url) {
-      const context = await (
-        await getBrowser()
-      ).newContext({
-        viewport: VIEWPORT,
-        userAgent,
-        locale: 'pt-BR',
-      });
       const host = new URL(url).host;
       let lastError: unknown;
-      try {
-        for (let attempt = 1; attempt <= 2; attempt++) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        let context: BrowserContext | undefined;
+        try {
+          context = await (
+            await getBrowser()
+          ).newContext({ viewport: VIEWPORT, userAgent, locale: 'pt-BR' });
           const page = await context.newPage();
-          try {
-            await throttle.wait(host, minIntervalMs);
-            const response = await page.goto(url, {
-              waitUntil: 'networkidle',
-              timeout: navigationTimeoutMs,
-            });
-            const httpStatus = response?.status() ?? null;
-            if (httpStatus !== null && httpStatus >= 400) {
-              return { ok: false, httpStatus, error: `A página respondeu HTTP ${httpStatus}.` };
-            }
-            const contentType = response?.headers()['content-type'];
-            if (!isHtml(contentType)) {
-              return {
-                ok: false,
-                httpStatus,
-                error: `A URL não é uma página HTML (${contentType?.split(';')[0]}).`,
-              };
-            }
-            const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
-            if (results.testEngine.version !== AXE_VERSION) {
-              // Protege a reprodutibilidade: a versão gravada na coleta tem de ser a executada.
-              return {
-                ok: false,
-                httpStatus,
-                error: `O axe-core executado (${results.testEngine.version}) difere do registrado na coleta (${AXE_VERSION}).`,
-              };
-            }
-            const html = await page.content();
-            return { ok: true, httpStatus, finalUrl: page.url(), html, results };
-          } catch (err) {
-            lastError = err;
-            if (!isNetworkError(err)) break;
-          } finally {
-            await page.close().catch(() => {});
+          await throttle.wait(host, minIntervalMs);
+          const response = await page.goto(url, {
+            waitUntil: 'networkidle',
+            timeout: navigationTimeoutMs,
+          });
+          const httpStatus = response?.status() ?? null;
+          if (httpStatus !== null && httpStatus >= 400) {
+            return { ok: false, httpStatus, error: `A página respondeu HTTP ${httpStatus}.` };
           }
+          const contentType = response?.headers()['content-type'];
+          if (!isHtml(contentType)) {
+            return {
+              ok: false,
+              httpStatus,
+              error: `A URL não é uma página HTML (${contentType?.split(';')[0]}).`,
+            };
+          }
+          const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+          if (results.testEngine.version !== AXE_VERSION) {
+            // Protege a reprodutibilidade: a versão gravada na coleta tem de ser a executada.
+            return {
+              ok: false,
+              httpStatus,
+              error: `O axe-core executado (${results.testEngine.version}) difere do registrado na coleta (${AXE_VERSION}).`,
+            };
+          }
+          const html = await page.content();
+          return { ok: true, httpStatus, finalUrl: page.url(), html, results };
+        } catch (err) {
+          lastError = err;
+          if (!isTransientFailure(err)) break;
+        } finally {
+          await context?.close().catch(() => {});
         }
-        return {
-          ok: false,
-          httpStatus: null,
-          error: describeFailure(lastError, navigationTimeoutMs),
-        };
-      } finally {
-        await context.close().catch(() => {});
       }
+      return {
+        ok: false,
+        httpStatus: null,
+        error: describeFailure(lastError, navigationTimeoutMs),
+      };
     },
 
     async close() {
