@@ -3,7 +3,7 @@ import {
   pageFunctionLabels,
   type RouteReplacement,
 } from '@auditoria-rf/contracts';
-import { type ReactNode, useId } from 'react';
+import { type ReactNode, useId, useRef } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
   Button,
@@ -150,6 +150,9 @@ export function RouteReviewPage() {
   const nextAcronym = institutions.data?.find((i) => i.id === nextId)?.acronym;
   const running = discovery.data?.status === 'running';
   const summary = discovery.data?.summary;
+  const progressRef = useRef<HTMLParagraphElement>(null);
+  // A função decidida sai de uma lista e entra na outra: o botão que tinha o foco some.
+  const focusProgress = () => requestAnimationFrame(() => progressRef.current?.focus());
 
   const discoveryText = running
     ? 'Descobrindo rotas… Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos.'
@@ -239,6 +242,7 @@ export function RouteReviewPage() {
               routes={list}
               absence={absences.find((a) => a.functionKey === key)}
               institutionId={institutionId}
+              onDecided={focusProgress}
             />
           );
 
@@ -260,7 +264,7 @@ export function RouteReviewPage() {
             <>
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface p-5 shadow-card">
                 <div className="flex min-w-0 flex-1 basis-64 flex-col gap-2">
-                  <p className="text-card text-text">
+                  <p ref={progressRef} tabIndex={-1} className="text-card text-text">
                     {reviewed.length} de {functions.length} funções revisadas
                   </p>
                   <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-muted">

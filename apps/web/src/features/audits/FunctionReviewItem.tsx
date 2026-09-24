@@ -33,11 +33,14 @@ export function FunctionReviewItem({
   routes,
   absence,
   institutionId,
+  onDecided,
 }: {
   functionKey: PageFunctionKey;
   routes: Route[];
   absence: FunctionAbsence | undefined;
   institutionId: number;
+  /** Depois de uma decisão a função muda de lista: o foco vai para o andamento da revisão. */
+  onDecided?: () => void;
 }) {
   const update = useUpdateRoute(institutionId);
   const create = useCreateRoute(institutionId);
@@ -76,6 +79,7 @@ export function FunctionReviewItem({
     setChoice('');
     setManualUrl('');
     setReason('');
+    onDecided?.();
   };
   const confirm = (routeId: number) =>
     update.mutate(
@@ -232,7 +236,7 @@ export function FunctionReviewItem({
             }}
           >
             <label className="flex flex-col gap-1.5 text-label font-medium">
-              O portal não tem esta página? Diga onde procurou.
+              O portal não tem esta página? Diga onde procurou (ao menos 10 caracteres).
               <textarea
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}

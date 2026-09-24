@@ -1,6 +1,6 @@
 import { pageFunctionLabels, type InspectionProblem } from '@auditoria-rf/contracts';
 import { Check } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { Badge, Button, Choice, FindingCard, Note } from '../../components/ui';
 import { ApiError } from '../../lib/api';
@@ -18,10 +18,13 @@ function ProblemCard({
   problem,
   collectionId,
   institutionId,
+  onValidated,
 }: {
   problem: InspectionProblem;
   collectionId: number;
   institutionId: number;
+  /** O botão usado some (ou o cartão sai do filtro): o foco vai para o andamento. */
+  onValidated: () => void;
 }) {
   const validate = useValidateFinding(collectionId, institutionId);
   const [justifying, setJustifying] = useState(false);
@@ -69,7 +72,10 @@ function ProblemCard({
                     disabled={validate.isPending}
                     aria-label={`Confirmar: ${problem.title} (${problem.example.selector})`}
                     onClick={() =>
-                      validate.mutate({ findingId: problem.findingId, validation: 'confirmed' })
+                      validate.mutate(
+                        { findingId: problem.findingId, validation: 'confirmed' },
+                        { onSuccess: onValidated },
+                      )
                     }
                   >
                     <Check aria-hidden="true" size={16} strokeWidth={1.75} /> Confirmar
@@ -97,7 +103,10 @@ function ProblemCard({
             className="motion-safe:animate-enter flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              validate.mutate({ findingId: problem.findingId, validation: 'false_positive', note });
+              validate.mutate(
+                { findingId: problem.findingId, validation: 'false_positive', note },
+                { onSuccess: onValidated },
+              );
             }}
           >
             <label className="flex flex-col gap-1.5 text-label font-medium">
@@ -137,6 +146,8 @@ export function ValidationTab() {
   const { collectionId, institutionId } = useOutletContext<PortalContext>();
   const findings = useInspectionFindings(collectionId, institutionId);
   const [onlyPending, setOnlyPending] = useState(false);
+  const progressRef = useRef<HTMLParagraphElement>(null);
+  const focusProgress = () => requestAnimationFrame(() => progressRef.current?.focus());
   return (
     <div className="flex flex-col gap-6">
       <QueryState
@@ -148,7 +159,7 @@ export function ValidationTab() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface p-5 shadow-card">
               <div className="flex min-w-0 flex-1 basis-64 flex-col gap-2">
-                <p className="text-card text-text">
+                <p ref={progressRef} tabIndex={-1} className="text-card text-text">
                   {counts.problems - counts.pending} de {counts.problems}{' '}
                   {counts.problems === 1 ? 'problema validado' : 'problemas validados'}
                 </p>
@@ -215,6 +226,7 @@ export function ValidationTab() {
                           problem={p}
                           collectionId={collectionId}
                           institutionId={institutionId}
+                          onValidated={focusProgress}
                         />
                       </li>
                     ))}

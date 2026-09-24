@@ -140,6 +140,8 @@ describe('revisão de rotas (1.2)', () => {
         replaceConfirmed: true,
       }),
     );
+    // A função muda de lista e o botão some: o foco vai para o andamento, não para o topo.
+    await waitFor(() => expect(document.activeElement?.textContent).toMatch(/funções revisadas/));
   });
 
   it('sugere a candidata mais relevante e lista todas as URLs com filtro', async () => {
@@ -300,7 +302,9 @@ describe('revisão de rotas (1.2)', () => {
     const submit = within(schedule).getByRole('button', { name: 'Registrar que não existe' });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
     await userEvent.type(
-      within(schedule).getByLabelText('O portal não tem esta página? Diga onde procurou.'),
+      within(schedule).getByLabelText(
+        'O portal não tem esta página? Diga onde procurou (ao menos 10 caracteres).',
+      ),
       'Menu Ensino e página de cada curso.',
     );
     await userEvent.click(submit);
