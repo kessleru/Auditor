@@ -75,7 +75,7 @@ const buildDiscover =
   (domain, checkUrls) =>
     discoverRoutes({
       domain,
-      client: createHttpClient({ userAgent: ua }),
+      client: createHttpClient({ userAgent: ua, proxy: env.CRAWLER_PROXY }),
       robotsAgent: ROBOTS_AGENT,
       maxUrls: env.CRAWLER_MAX_URLS,
       checkUrls,
@@ -106,7 +106,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
       options.auditor === undefined
         ? perUserAgent(
             userAgent,
-            (ua) => createPlaywrightAuditor({ userAgent: ua }),
+            (ua) => createPlaywrightAuditor({ userAgent: ua, proxy: env.CRAWLER_PROXY }),
             (old) => void old.close(),
           )
         : () => options.auditor ?? null,
