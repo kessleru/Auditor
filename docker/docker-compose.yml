@@ -16,6 +16,9 @@ services:
       NODE_ENV: production
       API_PORT: '3333'
       WEB_ORIGIN: http://localhost:8080
+      # O nginx do serviço web fica na frente da API: o limite de login conta o IP de quem acessa
+      # (X-Forwarded-For), e o cookie de sessão só vira Secure quando o acesso é por HTTPS.
+      TRUST_PROXY: uniquelocal
       DATABASE_PATH: /app/data/auditoria.sqlite
       SNAPSHOTS_DIR: /app/data/snapshots
     volumes:
