@@ -28,6 +28,8 @@ import {
   useStartDiscovery,
   useUpdateRoute,
 } from './api';
+import { byRelevance, candidatesFor, routeCaption } from './candidates';
+import { DiscoveredRoutes } from './DiscoveredRoutes';
 import { displayUrl, sourceLabels, statusBadges } from './routeLabels';
 import { parseScope, scopeSearch } from './scope';
 
@@ -52,11 +54,24 @@ function FunctionRow({
   const formId = useId();
   const label = pageFunctionLabels[functionKey];
   const confirmed = routes.find((r) => r.status === 'confirmed' && r.functionKey === functionKey);
-  const suggestion = confirmed
-    ? undefined
-    : routes.find((r) => r.status === 'suggested' && r.functionKey === functionKey);
+  const candidates = candidatesFor(routes, functionKey);
+  // A sugestão mostrada é a mais relevante; as demais ficam na lista de escolha, em ordem.
+  const suggestion = confirmed ? undefined : candidates[0];
   const current = confirmed ?? suggestion;
-  const options = routes.filter((r) => r.status === 'suggested' || r.status === 'confirmed');
+  const others = routes
+    .filter(
+      (r) =>
+        (r.status === 'suggested' || r.status === 'confirmed') &&
+        !candidates.includes(r) &&
+        r !== confirmed,
+    )
+    .sort(byRelevance);
+  const caption = current ? routeCaption(current) : null;
+  const moreCandidates = candidates.filter((r) => r !== suggestion).length;
+  const optionText = (route: Route) => {
+    const text = route.title ?? route.linkText;
+    return `${displayUrl(route.url)}${text ? ` — ${text}` : ''}`;
+  };
 
   const confirm = (routeId: number) =>
     update.mutate(
@@ -71,7 +86,19 @@ function FunctionRow({
       </th>
       <td className="px-5 py-3">
         {current ? (
-          <span className="font-mono text-code break-all">{displayUrl(current.url)}</span>
+          <>
+            <span className="font-mono text-code break-all">{displayUrl(current.url)}</span>
+            {caption ? (
+              <span className="mt-1 block text-label text-text-muted">{caption}</span>
+            ) : null}
+            {moreCandidates > 0 ? (
+              <span className="mt-1 block text-label text-text-muted">
+                {moreCandidates === 1
+                  ? 'Mais 1 candidata em “Escolher outra”'
+                  : `Mais ${moreCandidates} candidatas em “Escolher outra”`}
+              </span>
+            ) : null}
+          </>
         ) : (
           <span className="text-text-muted">Nenhuma URL sugerida</span>
         )}
@@ -129,14 +156,27 @@ function FunctionRow({
                 className="min-h-10 w-full rounded-md border border-border-strong bg-surface px-2 font-normal"
               >
                 <option value="">Escolha uma URL descoberta</option>
-                {options.map((route) => (
-                  <option key={route.id} value={route.id}>
-                    {displayUrl(route.url)}
-                    {route.functionKey
-                      ? ` (sugerida: ${pageFunctionLabels[route.functionKey]})`
-                      : ''}
-                  </option>
-                ))}
+                {candidates.length > 0 ? (
+                  <optgroup label={`Sugeridas para ${label}, da mais relevante`}>
+                    {candidates.map((route) => (
+                      <option key={route.id} value={route.id}>
+                        {optionText(route)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {others.length > 0 ? (
+                  <optgroup label="Outras URLs descobertas">
+                    {others.map((route) => (
+                      <option key={route.id} value={route.id}>
+                        {optionText(route)}
+                        {route.functionKey
+                          ? ` (sugerida: ${pageFunctionLabels[route.functionKey]})`
+                          : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             </label>
             <Button
@@ -397,9 +437,9 @@ export function RouteReviewPage() {
           {running
             ? `Descobrindo rotas em ${institution?.domain ?? ''}… respeitando 1,5 s entre requisições; pode levar alguns minutos.`
             : summary
-              ? `${summary.found} URLs descobertas em ${institution?.domain ?? ''}, por ${
+              ? `${summary.found} URLs descobertas em ${institution?.domain ?? ''} (${summary.withSuggestion} com função sugerida), por ${
                   summary.source === 'sitemap'
-                    ? `sitemap (${summary.sitemapFiles} arquivo(s))`
+                    ? `sitemap (${summary.sitemapFiles} arquivo(s)) e links da página inicial`
                     : 'rastreamento até 2 níveis'
                 }. robots.txt ${summary.robotsTxtFound ? 'encontrado' : 'ausente'}.`
               : institution?.domain}
@@ -456,6 +496,8 @@ export function RouteReviewPage() {
                 institutionId={institutionId}
                 acronym={acronym}
               />
+
+              <DiscoveredRoutes routes={list} functions={functions} institutionId={institutionId} />
 
               <ManualRouteForm institutionId={institutionId} functions={functions} />
 
