@@ -69,6 +69,21 @@ export const FUNCTION_KEYWORDS: readonly {
     ],
   },
   {
+    key: 'accessibility_support',
+    any: [
+      'napne',
+      'napnee',
+      'napnes',
+      'nucleo de acessibilidade',
+      'coordenacao de acessibilidade',
+      'necessidades especificas',
+      'necessidades educacionais especificas',
+      'educacao inclusiva',
+      'atendimento educacional especializado',
+      'nucleo de inclusao',
+    ],
+  },
+  {
     key: 'student_support',
     any: [
       'assistencia estudantil',
@@ -85,7 +100,6 @@ export const FUNCTION_KEYWORDS: readonly {
       'pnaes',
       'cae',
       'nae',
-      'napne',
       'servico social',
       'atendimento psicologico',
     ],
@@ -93,6 +107,80 @@ export const FUNCTION_KEYWORDS: readonly {
   {
     key: 'library',
     any: ['biblioteca', 'bibliotecas', 'acervo', 'pergamum', 'sophia', 'repositorio institucional'],
+  },
+  {
+    key: 'academic_calendar',
+    any: [
+      'calendario academico',
+      'calendarios academicos',
+      'calendario escolar',
+      'calendarios escolares',
+      'calendario letivo',
+      'calendario de atividades academicas',
+    ],
+  },
+  {
+    key: 'class_schedule',
+    any: [
+      'horario de aula',
+      'horario de aulas',
+      'horarios de aula',
+      'horarios de aulas',
+      'horario das aulas',
+      'horarios das aulas',
+      'horario das turmas',
+      'horarios das turmas',
+      'quadro de horarios',
+      'grade horaria',
+    ],
+  },
+  {
+    key: 'courses',
+    any: [
+      'cursos',
+      'nossos cursos',
+      'cursos ofertados',
+      'oferta de cursos',
+      'cursos tecnicos',
+      'cursos superiores',
+      'cursos de graduacao',
+      'graduacao',
+      'tecnico integrado',
+    ],
+    not: ['concurso', 'minicurso', 'minicursos', 'extensao', 'fic', 'eventos'],
+  },
+  {
+    key: 'ombudsman',
+    any: ['ouvidoria', 'fala br', 'falabr', 'e ouv'],
+  },
+  {
+    key: 'information_access',
+    any: [
+      'acesso a informacao',
+      'acessoainformacao',
+      'acesso informacao',
+      'lai',
+      'sic',
+      'e sic',
+      'servico de informacao ao cidadao',
+      'transparencia',
+      'dados abertos',
+    ],
+  },
+  {
+    key: 'contact',
+    any: [
+      'contato',
+      'contatos',
+      'fale conosco',
+      'faleconosco',
+      'enderecos e telefones',
+      'telefones',
+    ],
+  },
+  {
+    key: 'campuses',
+    any: ['campi', 'nossos campi', 'conheca os campi', 'unidades', 'nossas unidades'],
   },
 ];
 

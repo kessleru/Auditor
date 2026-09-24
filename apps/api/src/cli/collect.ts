@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 import { createDatabase } from '../db/client.js';
 import { runMigrations } from '../db/migrate.js';
+import { seedReferenceData } from '../db/seeds/seed.js';
 import { createServices } from '../services.js';
 import { AppError } from '../shared/errors.js';
 import { runCollect } from './collect-command.js';
@@ -16,6 +17,8 @@ const program = new Command('collect')
 
 const db = createDatabase(env.DATABASE_PATH);
 runMigrations(db);
+// Funções de página e tarefas-alvo que o código espera (banco antigo ganha as novas).
+seedReferenceData(db);
 const services = createServices(db);
 
 try {

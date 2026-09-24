@@ -47,6 +47,44 @@ describe('suggestFunction', () => {
   });
 });
 
+describe('funções acrescentadas (ADR 0013)', () => {
+  it.each([
+    [{ url: `${base}/napne` }, 'accessibility_support'],
+    [
+      {
+        url: `${base}/p/1`,
+        title: 'Núcleo de Atendimento às Pessoas com Necessidades Específicas',
+      },
+      'accessibility_support',
+    ],
+    [{ url: `${base}/ensino/calendario-academico` }, 'academic_calendar'],
+    [{ url: `${base}/p/2`, linkText: 'Horários de aula' }, 'class_schedule'],
+    [{ url: `${base}/cursos` }, 'courses'],
+    [{ url: `${base}/p/3`, linkText: 'Cursos técnicos' }, 'courses'],
+    [{ url: `${base}/ouvidoria` }, 'ombudsman'],
+    [{ url: `${base}/acesso-a-informacao` }, 'information_access'],
+    [{ url: `${base}/p/4`, linkText: 'Fale conosco' }, 'contact'],
+    [{ url: `${base}/institucional/campi` }, 'campuses'],
+  ] as const)('%o → %s', (input, expected) => {
+    expect(suggestFunction(input)).toBe(expected);
+  });
+
+  it('não confunde funções parecidas', () => {
+    // A página "Acessibilidade" dos portais explica atalhos de teclado: não é o NAPNE.
+    expect(suggestFunction({ url: `${base}/acessibilidade` })).toBeNull();
+    // Horário da biblioteca é biblioteca, não horário de aula.
+    expect(suggestFunction({ url: `${base}/p/5`, title: 'Horário da biblioteca' })).toBe('library');
+    // Concurso e minicurso não são oferta de cursos.
+    expect(suggestFunction({ url: `${base}/concursos` })).toBeNull();
+    expect(suggestFunction({ url: `${base}/p/6`, title: 'Minicursos de extensão' })).toBeNull();
+    // Processo seletivo para cursos técnicos é ingresso; contato da ouvidoria é ouvidoria.
+    expect(
+      suggestFunction({ url: `${base}/p/7`, title: 'Processo seletivo cursos técnicos' }),
+    ).toBe('admission');
+    expect(suggestFunction({ url: `${base}/ouvidoria/contato` })).toBe('ombudsman');
+  });
+});
+
 describe('exclusões e variações', () => {
   it.each([
     { url: `${base}/p/1`, title: 'Processo seletivo para professor substituto' },
