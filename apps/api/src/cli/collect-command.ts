@@ -1,5 +1,6 @@
 import {
   classifyConformity,
+  pageFunctionLabels,
   type CollectionEvent,
   type PageFunctionKey,
   pageFunctionKeys,
@@ -92,19 +93,33 @@ export async function runCollect(
   print(`User-agent: ${finished.userAgent}`);
 
   const report = services.reports.summarizeCollection(finished.id, finished.scope);
-  for (const { acronym, summary } of report.institutions) {
-    if (summary.status === 'no_data') {
-      print(`${acronym}: sem dado (todas as ${summary.pagesTotal} página(s) falharam).`);
+  if (report.institutions.length > 1) {
+    print(
+      `Núcleo comum (funções avaliadas em todas): ${
+        report.coreFunctions.map((f) => pageFunctionLabels[f]).join(', ') || 'nenhuma'
+      }.`,
+    );
+  }
+  for (const { acronym, summary, core, coverage } of report.institutions) {
+    const covered = coverage
+      ? ` · cobertura ${coverage.found}/${coverage.expected} função(ões)${
+          coverage.missing.length > 0
+            ? ` (não encontradas: ${coverage.missing.map((f) => pageFunctionLabels[f]).join(', ')})`
+            : ''
+        }`
+      : '';
+    if (summary.status === 'no_data' || core.status === 'no_data') {
+      print(`${acronym}: sem dado (todas as ${summary.pagesTotal} página(s) falharam).${covered}`);
       continue;
     }
     const conformity =
-      summary.conformity === null
+      core.conformity === null
         ? 'sem regra aplicável'
-        : `${percent(summary.conformity)} (${CLASS_LABEL[classifyConformity(summary.conformity)]})`;
+        : `${percent(core.conformity)} (${CLASS_LABEL[classifyConformity(core.conformity)]})`;
     print(
-      `${acronym}: conformidade ${conformity} · ${summary.distinctProblems} problema(s) distinto(s)` +
-        ` (${summary.occurrences} ocorrência(s)) · ${summary.templateProblems} de template` +
-        ` · ${summary.pagesEvaluated}/${summary.pagesTotal} página(s) avaliada(s)`,
+      `${acronym}: conformidade ${conformity} · ${core.distinctProblems} problema(s) distinto(s)` +
+        ` (${core.occurrences} ocorrência(s)) · ${core.templateProblems} de template` +
+        ` · ${core.pagesEvaluated}/${summary.pagesTotal} página(s) avaliada(s)${covered}`,
     );
   }
   print('A conformidade cobre apenas critérios verificáveis automaticamente.');

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { assistiveCheckKinds, heuristics, severities, taskResults } from './domain.js';
 import {
   conformityHistoryEntrySchema,
+  coreFunctionsSchema,
   publicInstitutionSchema,
   publicProblemSchema,
 } from './public.js';
@@ -23,6 +24,7 @@ export const resultsOverviewSchema = z.object({
   institutionsTotal: z.number().int(),
   institutionsEvaluated: z.number().int(),
   averageConformity: z.number().nullable(),
+  coreFunctions: coreFunctionsSchema,
   distinctProblems: z.number().int(),
   tasks: z.object({ done: z.number().int(), total: z.number().int() }),
   institutions: z.array(auditorInstitutionSchema),

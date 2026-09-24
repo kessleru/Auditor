@@ -1,7 +1,23 @@
-import type { PublicInstitution } from '@auditoria-rf/contracts';
+import { pageFunctionLabels, type PublicInstitution } from '@auditoria-rf/contracts';
 import { Link } from 'react-router';
 import { ConformityBar, DataTable } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
+import { coverageText } from './CoreFunctionsNote';
+
+function Coverage({ row }: { row: PublicInstitution }) {
+  if (!row.coverage) return <span className="text-text-muted">—</span>;
+  const missing = row.coverage.missing;
+  return (
+    <span className="flex flex-col">
+      <span>{coverageText(row.coverage)}</span>
+      {missing.length > 0 ? (
+        <span className="text-label text-text-muted">
+          sem: {missing.map((key) => pageFunctionLabels[key]).join(', ')}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function Problems({ row }: { row: PublicInstitution }) {
   if (row.problems === null) return <span className="text-text-muted">—</span>;
@@ -54,6 +70,7 @@ export function InstitutionsTable({
           ),
         },
         { key: 'conformity', header: 'Conformidade', cell: (row) => <Conformity row={row} /> },
+        { key: 'coverage', header: 'Páginas encontradas', cell: (row) => <Coverage row={row} /> },
         {
           key: 'problems',
           header: 'Problemas confirmados',

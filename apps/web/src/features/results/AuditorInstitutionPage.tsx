@@ -17,6 +17,7 @@ import { CSV_PROBLEMS_URL, useAuditorInstitution } from './auditorApi';
 import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
+import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
 
 type Filter = 'all' | 'automated' | 'inspection' | 'critical';
@@ -146,6 +147,9 @@ export function AuditorInstitutionPage() {
                   },
                 ]}
               />
+            ) : null}
+            {institution.status === 'evaluated' ? (
+              <ComparisonBasis institution={institution} />
             ) : null}
 
             {history.length > 0 ? (

@@ -1,7 +1,8 @@
 import { useDeferredValue, useState } from 'react';
 import { Link } from 'react-router';
 import { EmptyState, Page, PageHeader, SearchField } from '../../components/ui';
-import { usePublicInstitutions } from './api';
+import { usePublicCoreFunctions, usePublicInstitutions } from './api';
+import { CoreFunctionsNote } from './CoreFunctionsNote';
 import { InstitutionsTable } from './InstitutionsTable';
 import { QueryState } from './QueryState';
 
@@ -14,6 +15,7 @@ const normalize = (value: string) =>
 /** Lista pública de instituições, com busca por nome ou sigla. */
 export function PublicInstitutionsPage() {
   const institutions = usePublicInstitutions();
+  const coreFunctions = usePublicCoreFunctions();
   const [search, setSearch] = useState('');
   const term = normalize(useDeferredValue(search).trim());
 
@@ -59,6 +61,9 @@ export function PublicInstitutionsPage() {
                 <p role="status" className="text-label text-text-muted">
                   {filtered.length === 1 ? '1 instituição' : `${filtered.length} instituições`}
                 </p>
+                {coreFunctions.data ? (
+                  <CoreFunctionsNote coreFunctions={coreFunctions.data} />
+                ) : null}
                 {filtered.length === 0 ? (
                   <EmptyState
                     title="Nenhuma instituição encontrada"

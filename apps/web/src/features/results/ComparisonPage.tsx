@@ -15,6 +15,7 @@ import {
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
 import { CSV_DICTIONARY_URL, CSV_URL, useResultsOverview } from './auditorApi';
+import { CoreFunctionsNote, coverageText } from './CoreFunctionsNote';
 import { inspectionBadge } from './inspectionBadge';
 import { QueryState } from './QueryState';
 
@@ -98,6 +99,7 @@ export function ComparisonPage() {
             />
 
             <div className="flex flex-col gap-4">
+              <CoreFunctionsNote coreFunctions={data.coreFunctions} />
               <div role="group" aria-label="Ordenar e filtrar" className="flex flex-wrap gap-2">
                 <Toggle pressed={sort === 'conformity'} onClick={() => setSort('conformity')}>
                   Ordenar por conformidade
@@ -143,6 +145,11 @@ export function ComparisonPage() {
                         ) : (
                           <span className="text-text-muted">{r.acronym}</span>
                         ),
+                    },
+                    {
+                      key: 'cov',
+                      header: 'Páginas encontradas',
+                      cell: (r) => coverageText(r.coverage),
                     },
                     {
                       key: 'conf',
