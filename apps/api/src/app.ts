@@ -9,6 +9,7 @@ import { notFound } from './middlewares/notFound.js';
 import { requireAuditor as requireAuditorFor } from './middlewares/requireAuditor.js';
 import { createAuthController } from './modules/auth/auth.controller.js';
 import { createAuthRoutes } from './modules/auth/auth.routes.js';
+import type { SecureCookies } from './modules/auth/session-cookie.js';
 import { createCollectionsController } from './modules/collections/collections.controller.js';
 import { createCollectionsRoutes } from './modules/collections/collections.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
@@ -27,7 +28,10 @@ import { createServices, type ServiceOptions, type Services } from './services.j
 export interface AppOptions extends ServiceOptions {
   db: DB;
   webOrigin?: string;
-  secureCookies?: boolean;
+  /** `auto`: `Secure` quando a requisição chegou por HTTPS (ver session-cookie.ts). */
+  secureCookies?: SecureCookies;
+  /** `trust proxy` do Express (proxy reverso na frente da API). */
+  trustProxy?: boolean | number | string;
   sseHeartbeatMs?: number;
   /** Services já compostos (ex.: para o servidor retomar a fila); por padrão, criados aqui. */
   services?: Services;
@@ -36,7 +40,8 @@ export interface AppOptions extends ServiceOptions {
 export function createApp({
   db,
   webOrigin = env.WEB_ORIGIN,
-  secureCookies = env.NODE_ENV === 'production',
+  secureCookies = env.COOKIE_SECURE === 'auto' ? 'auto' : env.COOKIE_SECURE === 'true',
+  trustProxy = env.TRUST_PROXY,
   sseHeartbeatMs,
   services,
   ...serviceOptions
@@ -47,6 +52,7 @@ export function createApp({
   const app = express();
 
   app.disable('x-powered-by');
+  app.set('trust proxy', trustProxy);
   app.use(helmet());
   app.use(cors({ origin: webOrigin, credentials: true }));
   app.use(express.json({ limit: '100kb' }));
