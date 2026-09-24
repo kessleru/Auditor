@@ -12,6 +12,11 @@ const envSchema = z.object({
     z.email('CRAWLER_CONTACT_EMAIL deve ser um e-mail.').optional(),
   ),
   CRAWLER_MAX_URLS: z.coerce.number().int().positive().default(200),
+  // Proxy da rede institucional para sair para a internet (crawler e navegador da coleta).
+  CRAWLER_PROXY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url('CRAWLER_PROXY deve ser uma URL, como http://proxy.iftm.edu.br:3128.').optional(),
+  ),
   COLLECTION_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   // Atrás de proxy reverso (nginx do docker/): quais proxies são confiáveis para X-Forwarded-*.

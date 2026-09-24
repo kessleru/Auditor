@@ -41,6 +41,8 @@ export interface PlaywrightAuditorOptions {
   minIntervalMs?: number;
   navigationTimeoutMs?: number;
   launch?: () => Promise<Browser>;
+  /** Proxy da rede institucional, o mesmo do crawler (CRAWLER_PROXY). */
+  proxy?: string;
 }
 
 /**
@@ -98,7 +100,8 @@ export function createPlaywrightAuditor({
   throttle = sharedHostThrottle,
   minIntervalMs = MIN_REQUEST_INTERVAL_MS,
   navigationTimeoutMs = NAVIGATION_TIMEOUT_MS,
-  launch = () => chromium.launch(),
+  proxy,
+  launch = () => chromium.launch(proxy ? { proxy: { server: proxy } } : {}),
 }: PlaywrightAuditorOptions): PageAuditor {
   let browser: Promise<Browser> | null = null;
   // O navegador é reaproveitado entre páginas. Se ele cair (falta de memória, processo morto) ou

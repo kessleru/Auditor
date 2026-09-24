@@ -1,6 +1,6 @@
 import { X509Certificate } from 'node:crypto';
 import tls from 'node:tls';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { Agent, type Dispatcher, fetch as undiciFetch, ProxyAgent } from 'undici';
 import { HostThrottle, sharedHostThrottle, systemClock } from './throttle.js';
 import {
   defaultRoots,
@@ -58,6 +58,11 @@ export interface HttpClientOptions {
   trustedRoots?: readonly string[];
   /** Baixa um certificado do AIA (padrão: GET simples com o user-agent). */
   downloadCertificate?: (url: string) => Promise<Buffer>;
+  /**
+   * Proxy HTTP(S) da rede institucional (ex.: http://proxy.iftm.edu.br:3128), para quando a
+   * máquina só sai para a internet por ele. Com proxy, a cadeia TLS não é completada pelo AIA.
+   */
+  proxy?: string;
 }
 
 /** Espera pedida por `Retry-After` (segundos ou data HTTP), em ms; `null` se ausente ou inválida. */
@@ -82,7 +87,9 @@ export function createHttpClient({
   sleep = systemClock.sleep,
   trustedRoots,
   downloadCertificate,
+  proxy,
 }: HttpClientOptions): HttpClient {
+  const viaProxy: Dispatcher | undefined = proxy ? new ProxyAgent(proxy) : undefined;
   const headers = {
     'user-agent': userAgent,
     accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -95,7 +102,7 @@ export function createHttpClient({
   const download =
     downloadCertificate ??
     (async (url: string) => {
-      const res = await globalThis.fetch(url, {
+      const res = await undiciFetch(url, {
         headers: { 'user-agent': userAgent },
         signal: AbortSignal.timeout(15_000),
       });
@@ -117,9 +124,13 @@ export function createHttpClient({
   const request = async (url: string): Promise<Response> => {
     const init = { redirect: 'manual' as const, headers, signal: AbortSignal.timeout(timeoutMs) };
     const target = new URL(url);
+    if (viaProxy) {
+      return (await undiciFetch(url, { ...init, dispatcher: viaProxy })) as unknown as Response;
+    }
     const known = completedChains.get(target.host);
-    if (known)
+    if (known) {
       return (await undiciFetch(url, { ...init, dispatcher: known })) as unknown as Response;
+    }
     try {
       return await fetch(url, init);
     } catch (err) {
