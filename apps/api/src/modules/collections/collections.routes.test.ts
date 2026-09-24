@@ -77,8 +77,22 @@ describe('POST /api/v1/collections', () => {
 
   it('recusa escopo sem rota confirmada, instituição inexistente e motor não configurado', async () => {
     const { agent } = await setup(fakeAuditor(async () => okOutcome()));
-    // IFTM (id 1, do seed) não tem rotas confirmadas.
-    const empty = await create(agent, { institutionIds: [1] });
+    // IFTM (id 1, do seed) não tem nenhuma função revisada.
+    const unreviewed = await create(agent, { institutionIds: [1], functions: ['home', 'library'] });
+    expect(unreviewed.status).toBe(422);
+    expect(unreviewed.body.error).toMatchObject({
+      code: 'FUNCTIONS_NOT_REVIEWED',
+      message: 'Confirme a rota ou marque como não encontrada: IFTM: Página inicial, Biblioteca.',
+      details: { unreviewed: [{ institutionId: 1, functions: ['home', 'library'] }] },
+    });
+    // Tudo marcado como não encontrado: sem nenhuma página, não há o que coletar.
+    for (const key of ['home', 'library']) {
+      const marked = await agent
+        .put(`/api/v1/institutions/1/functions/${key}/absence`)
+        .send({ reason: 'Procurei no menu e no mapa do site.' });
+      expect(marked.status).toBe(200);
+    }
+    const empty = await create(agent, { institutionIds: [1], functions: ['home', 'library'] });
     expect(empty.status).toBe(422);
     expect(empty.body.error.code).toBe('INSTITUTION_WITHOUT_ROUTES');
     expect((await create(agent, { institutionIds: [999] })).status).toBe(404);
@@ -104,17 +118,25 @@ describe('POST /api/v1/collections', () => {
     const { institution, routes } = institutionA();
     setRouteStatus(db, routes[2]!.id, 'suggested');
 
-    const res = await create(agent, {
+    // Biblioteca voltou a ser sugestão: ainda não foi revisada, então não pode entrar.
+    const pending = await create(agent, {
       institutionIds: [institution.id],
       functions: ['home', 'library'],
+    });
+    expect(pending.body.error.code).toBe('FUNCTIONS_NOT_REVIEWED');
+
+    const res = await create(agent, {
+      institutionIds: [institution.id],
+      functions: ['home', 'admission', 'courses'],
     });
     expect(res.status).toBe(201);
     const { collection } = collectionResponseSchema.parse(res.body);
     expect(collection.scope).toEqual({
       institutionIds: [institution.id],
-      functions: ['home', 'library'],
+      functions: ['home', 'admission', 'courses'],
     });
-    expect(collection.progress.total).toBe(1);
+    // Cursos está marcada como não encontrada: entra na cobertura, não vira página.
+    expect(collection.progress.total).toBe(2);
     await service.waitForFinish(collection.id);
   });
 });
@@ -236,12 +258,12 @@ describe('execução da coleta', () => {
     const a = seedInstitutionWithRoutes(db, {
       domain: 'if-a.edu.br',
       acronym: 'IFA',
-      urls: [{ url: 'https://www.if-a.edu.br' }],
+      urls: [{ url: 'https://www.if-a.edu.br', functionKey: 'home' }],
     });
     const b = seedInstitutionWithRoutes(db, {
       domain: 'if-b.edu.br',
       acronym: 'IFB',
-      urls: [{ url: 'https://www.if-b.edu.br' }],
+      urls: [{ url: 'https://www.if-b.edu.br', functionKey: 'home' }],
     });
 
     const { body } = await create(agent, { institutionIds: [a.institution.id, b.institution.id] });
@@ -360,6 +382,34 @@ describe('cancelamento, nova tentativa e retomada', () => {
     expect((await service.waitForFinish(body.collection.id)).status).toBe('completed');
   });
 
+  it('navegador que não abre encerra a coleta com o motivo, sem derrubar o servidor', async () => {
+    let broken = true;
+    const auditor = {
+      ...fakeAuditor(async () => okOutcome()),
+      versions: async () => {
+        if (broken) throw new Error("browserType.launch: Executable doesn't exist at /x");
+        return { axeVersion: '4.13.0', browserVersion: 'Chromium teste', userAgent: 'UA' };
+      },
+    };
+    const { agent, service } = await setup(auditor);
+    const { body } = await create(agent, { institutionIds: [institutionA().institution.id] });
+    expect((await service.waitForFinish(body.collection.id)).status).toBe('partial');
+    const pages = service.get(body.collection.id).pages;
+    expect(pages.every((p) => p.status === 'failed')).toBe(true);
+    expect(pages[0]!.error).toBe(
+      'Não foi possível iniciar o navegador: O navegador do Playwright não abriu. Instale com: npx playwright install chromium.',
+    );
+
+    // Corrigido o navegador, "tentar de novo" reabre a coleta, que agora registra as versões.
+    broken = false;
+    await agent.post(`/api/v1/collection-pages/${pages[0]!.id}/retry`);
+    const finished = await service.waitForFinish(body.collection.id);
+    expect(finished.axeVersion).toBe('4.13.0');
+    // A trava do domínio foi liberada: uma nova coleta no mesmo portal começa normalmente.
+    const again = await create(agent, { institutionIds: [pages[0]!.institutionId] });
+    expect((await service.waitForFinish(again.body.collection.id)).status).toBe('completed');
+  });
+
   it('retoma após reinício: o que estava em execução volta para a fila', async () => {
     await createServices(db, { auditor: null, discover: null }).auth.createAuditor(testAuditor);
     const { institution, routes } = institutionA();
@@ -417,7 +467,7 @@ describe('GET /api/v1/collections/:id/events (SSE)', () => {
     const { institution } = seedInstitutionWithRoutes(db, {
       domain: 'if-a.edu.br',
       acronym: 'IFA',
-      urls: [{ url: 'https://www.if-a.edu.br' }],
+      urls: [{ url: 'https://www.if-a.edu.br', functionKey: 'home' }],
     });
     const cookie = (
       await request(app)

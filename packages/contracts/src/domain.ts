@@ -7,6 +7,15 @@ export const pageFunctionKeys = [
   'student_aid_notices',
   'library',
   'student_support',
+  // Ampliação decidida com o autor (ADR 0013): páginas essenciais para estudantes.
+  'courses',
+  'academic_calendar',
+  'class_schedule',
+  'contact',
+  'ombudsman',
+  'information_access',
+  'accessibility_support',
+  'campuses',
 ] as const;
 export type PageFunctionKey = (typeof pageFunctionKeys)[number];
 
@@ -17,6 +26,14 @@ export const pageFunctionLabels: Record<PageFunctionKey, string> = {
   student_aid_notices: 'Editais de auxílio estudantil',
   library: 'Biblioteca',
   student_support: 'Assistência estudantil',
+  courses: 'Cursos ofertados',
+  academic_calendar: 'Calendário acadêmico',
+  class_schedule: 'Horários de aula',
+  contact: 'Contato',
+  ombudsman: 'Ouvidoria',
+  information_access: 'Acesso à informação',
+  accessibility_support: 'Núcleo de acessibilidade (NAPNE)',
+  campuses: 'Campi e unidades',
 };
 
 export const routeSources = ['sitemap', 'crawler', 'manual'] as const;

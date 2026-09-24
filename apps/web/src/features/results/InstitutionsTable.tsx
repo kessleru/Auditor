@@ -1,7 +1,24 @@
-import type { PublicInstitution } from '@auditoria-rf/contracts';
+import { pageFunctionLabels, type PublicInstitution } from '@auditoria-rf/contracts';
 import { Link } from 'react-router';
 import { ConformityBar, DataTable } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
+import { coverageText } from './CoreFunctionsNote';
+import { NotCollectedList } from './NotCollectedList';
+
+function Coverage({ row }: { row: PublicInstitution }) {
+  if (!row.coverage) return <span className="text-text-muted">—</span>;
+  const missing = row.coverage.missing;
+  return (
+    <span className="flex flex-col">
+      <span>{coverageText(row.coverage)}</span>
+      {missing.length > 0 ? (
+        <span className="text-label text-text-muted">
+          sem: {missing.map((key) => pageFunctionLabels[key]).join(', ')}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function Problems({ row }: { row: PublicInstitution }) {
   if (row.problems === null) return <span className="text-text-muted">—</span>;
@@ -25,15 +42,19 @@ function Conformity({ row }: { row: PublicInstitution }) {
 export function InstitutionsTable({
   rows,
   caption,
+  collapseNotCollected = false,
 }: {
   rows: PublicInstitution[];
   caption: string;
+  /** Instituições sem coleta numa linha recolhida abaixo da tabela, em vez de uma linha cada. */
+  collapseNotCollected?: boolean;
 }) {
-  return (
+  const shown = collapseNotCollected ? rows.filter((r) => r.status !== 'not_collected') : rows;
+  const table = (
     <DataTable
       caption={caption}
       captionHidden
-      rows={rows}
+      rows={shown}
       rowKey={(row) => row.id}
       columns={[
         {
@@ -54,6 +75,7 @@ export function InstitutionsTable({
           ),
         },
         { key: 'conformity', header: 'Conformidade', cell: (row) => <Conformity row={row} /> },
+        { key: 'coverage', header: 'Páginas encontradas', cell: (row) => <Coverage row={row} /> },
         {
           key: 'problems',
           header: 'Problemas confirmados',
@@ -62,5 +84,12 @@ export function InstitutionsTable({
         },
       ]}
     />
+  );
+  if (!collapseNotCollected) return table;
+  return (
+    <div className="flex flex-col gap-3">
+      {shown.length > 0 ? table : null}
+      <NotCollectedList rows={rows.filter((r) => r.status === 'not_collected')} />
+    </div>
   );
 }

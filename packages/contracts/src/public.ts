@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { conformityClasses } from './conformity.js';
-import { findingValidations, severities, wcagPrinciples } from './domain.js';
+import { findingValidations, pageFunctionKeys, severities, wcagPrinciples } from './domain.js';
 
 // Visão pública (somente leitura). Cada instituição aparece com a sua coleta mais recente
 // terminada; se falhou nela, é ausência de dado (ADR 0006).
@@ -15,28 +15,53 @@ export const publicInstitutionSchema = z.object({
   status: z.enum(publicInstitutionStatuses),
   collectionId: z.number().int().nullable(),
   collectedAt: z.string().nullable(),
+  // Conformidade e problemas medidos no NÚCLEO COMUM: as funções avaliadas em todas as
+  // instituições comparadas (ADR 0013). É o que entra no ranking.
   conformity: z.number().nullable(),
   classification: z.enum(conformityClasses).nullable(),
-  /** Problemas distintos confirmados pelo auditor. */
+  /** Problemas distintos confirmados pelo auditor, nas páginas do núcleo comum. */
   problems: z.number().int().nullable(),
   criticalProblems: z.number().int().nullable(),
   templateProblems: z.number().int().nullable(),
   /** Achados ainda aguardando a validação manual. */
   pendingValidation: z.number().int(),
+  /** Páginas avaliadas no núcleo comum. */
   pagesEvaluated: z.number().int(),
   pagesTotal: z.number().int(),
+  /** Funções do escopo encontradas no portal; `null` em coleta antiga ou sem coleta. */
+  coverage: z
+    .object({
+      found: z.number().int(),
+      expected: z.number().int(),
+      missing: z.array(z.enum(pageFunctionKeys)),
+    })
+    .nullable(),
+  /** Todas as páginas avaliadas da instituição, dentro e fora do núcleo comum. */
+  overall: z
+    .object({
+      conformity: z.number().nullable(),
+      problems: z.number().int(),
+      pagesEvaluated: z.number().int(),
+    })
+    .nullable(),
 });
 export type PublicInstitution = z.infer<typeof publicInstitutionSchema>;
 
+/** Funções avaliadas em todas as instituições comparadas: a base do ranking (ADR 0013). */
+export const coreFunctionsSchema = z.array(z.enum(pageFunctionKeys));
+
 export const publicInstitutionListResponseSchema = z.object({
   institutions: z.array(publicInstitutionSchema),
+  coreFunctions: coreFunctionsSchema,
 });
 
 export const publicSummarySchema = z.object({
   lastCollectionAt: z.string().nullable(),
   institutionsTotal: z.number().int(),
   institutionsEvaluated: z.number().int(),
+  /** Média da conformidade no núcleo comum, só entre as avaliadas. */
   averageConformity: z.number().nullable(),
+  coreFunctions: coreFunctionsSchema,
 });
 export type PublicSummary = z.infer<typeof publicSummarySchema>;
 

@@ -2,8 +2,10 @@ import {
   type CreateInstitutionInput,
   type CreateRouteInput,
   discoveryResponseSchema,
+  functionAbsenceResponseSchema,
   institutionListResponseSchema,
   institutionResponseSchema,
+  type PageFunctionKey,
   routeListResponseSchema,
   routeResponseSchema,
   type UpdateInstitutionInput,
@@ -52,15 +54,14 @@ export function useUpdateInstitution() {
   });
 }
 
+/** Rotas descobertas e funções marcadas como não encontradas de uma instituição. */
+export const fetchRoutes = (institutionId: number) =>
+  apiRequest(`/institutions/${institutionId}/routes`, { schema: routeListResponseSchema });
+
 export const useRoutes = (institutionId: number) =>
   useQuery({
     queryKey: auditKeys.routes(institutionId),
-    queryFn: async () =>
-      (
-        await apiRequest(`/institutions/${institutionId}/routes`, {
-          schema: routeListResponseSchema,
-        })
-      ).routes,
+    queryFn: () => fetchRoutes(institutionId),
   });
 
 /** Andamento da descoberta; consulta a cada 3 s enquanto está em execução. */
@@ -128,6 +129,31 @@ export function useReplaceRoute(institutionId: number) {
         method: 'POST',
         body: { newRouteId },
         schema: z.object({ route: z.unknown(), replaced: z.unknown() }),
+      }),
+    onSuccess: refresh,
+  });
+}
+
+/** O auditor procurou e a instituição não tem a página da função (ADR 0013). */
+export function useMarkAbsent(institutionId: number) {
+  const refresh = useRefreshInstitution(institutionId);
+  return useMutation({
+    mutationFn: ({ functionKey, reason }: { functionKey: PageFunctionKey; reason: string }) =>
+      apiRequest(`/institutions/${institutionId}/functions/${functionKey}/absence`, {
+        method: 'PUT',
+        body: { reason },
+        schema: functionAbsenceResponseSchema,
+      }),
+    onSuccess: refresh,
+  });
+}
+
+export function useClearAbsence(institutionId: number) {
+  const refresh = useRefreshInstitution(institutionId);
+  return useMutation({
+    mutationFn: (functionKey: PageFunctionKey) =>
+      apiRequest(`/institutions/${institutionId}/functions/${functionKey}/absence`, {
+        method: 'DELETE',
       }),
     onSuccess: refresh,
   });

@@ -1,10 +1,13 @@
 import {
   createRouteSchema,
+  markFunctionAbsentSchema,
+  pageFunctionKeys,
   replaceRouteSchema,
   routeListQuerySchema,
   updateRouteSchema,
 } from '@auditoria-rf/contracts';
 import type { RequestHandler } from 'express';
+import { z } from 'zod';
 import { parseId } from '../../shared/params.js';
 import type { DiscoveryService } from './discovery.service.js';
 import { toRoute } from './route.presenter.js';
@@ -24,7 +27,29 @@ export function createRoutesDiscoveryController(
 
   const listRoutes: RequestHandler = (req, res) => {
     const { status } = routeListQuerySchema.parse(req.query);
-    res.json({ routes: routes.list(parseId(req.params.id), status).map(toRoute) });
+    const institutionId = parseId(req.params.id);
+    res.json({
+      routes: routes.list(institutionId, status).map(toRoute),
+      absences: routes.absences(institutionId),
+    });
+  };
+
+  const functionKeyParam = z.enum(pageFunctionKeys, 'Função desconhecida.');
+
+  const markAbsent: RequestHandler = (req, res) => {
+    if (!req.auditor) throw new Error('requireAuditor deve preceder a marcação de ausência.');
+    const absence = routes.markAbsent(
+      parseId(req.params.id),
+      functionKeyParam.parse(req.params.functionKey),
+      markFunctionAbsentSchema.parse(req.body),
+      req.auditor.id,
+    );
+    res.json({ absence });
+  };
+
+  const clearAbsence: RequestHandler = (req, res) => {
+    routes.clearAbsence(parseId(req.params.id), functionKeyParam.parse(req.params.functionKey));
+    res.status(204).end();
   };
 
   const updateRoute: RequestHandler = (req, res) => {
@@ -46,5 +71,14 @@ export function createRoutesDiscoveryController(
     res.json({ replaced: toRoute(replaced), route: toRoute(route) });
   };
 
-  return { startDiscovery, getDiscovery, listRoutes, updateRoute, createRoute, replaceRoute };
+  return {
+    startDiscovery,
+    getDiscovery,
+    listRoutes,
+    updateRoute,
+    createRoute,
+    replaceRoute,
+    markAbsent,
+    clearAbsence,
+  };
 }

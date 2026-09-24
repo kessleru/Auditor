@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { AxeResults, Result } from 'axe-core';
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
-import { institutions, pageFunctions, routes } from '../db/schema.js';
+import { functionAbsences, institutions, pageFunctions, routes, users } from '../db/schema.js';
 import type { AuditOutcome, PageAuditor } from '../infra/auditor/page-auditor.js';
 
 /** Instituição com rotas já confirmadas, gravada direto no banco (sem validação de domínio). */
@@ -14,7 +14,13 @@ export function seedInstitutionWithRoutes(
     domain,
     acronym,
     urls,
-  }: { domain: string; acronym: string; urls: { url: string; functionKey?: string }[] },
+    markOthersAbsent = true,
+  }: {
+    domain: string;
+    acronym: string;
+    urls: { url: string; functionKey?: string }[];
+    markOthersAbsent?: boolean;
+  },
 ) {
   const institution = db
     .insert(institutions)
@@ -43,6 +49,29 @@ export function seedInstitutionWithRoutes(
       .returning()
       .get(),
   );
+  // As demais funções ficam marcadas como não encontradas: toda função do escopo precisa de uma
+  // decisão do auditor antes da coleta (ADR 0013).
+  if (markOthersAbsent) {
+    const decidedBy =
+      db.select({ id: users.id }).from(users).orderBy(users.id).get()?.id ??
+      db
+        .insert(users)
+        .values({ email: 'fixture@teste.local', name: 'Fixture', passwordHash: 'x' })
+        .returning()
+        .get().id;
+    const withRoute = new Set(urls.map((u) => u.functionKey));
+    for (const [key, functionId] of functionIds) {
+      if (withRoute.has(key)) continue;
+      db.insert(functionAbsences)
+        .values({
+          institutionId: institution.id,
+          functionId,
+          reason: 'Não há no portal de teste.',
+          decidedBy,
+        })
+        .run();
+    }
+  }
   return { institution, routes: created };
 }
 

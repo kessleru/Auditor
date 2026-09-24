@@ -1,12 +1,13 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pageFunctionKeys } from '@auditoria-rf/contracts';
+import { createInstitutionSchema, pageFunctionKeys } from '@auditoria-rf/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDatabase } from './client.js';
 import { runMigrations } from './migrate.js';
 import { institutions, pageFunctions, routes, targetTasks } from './schema.js';
-import { seed } from './seeds/seed.js';
+import { federalNetwork } from './seeds/federal-network.js';
+import { seed, seedReferenceData } from './seeds/seed.js';
 import { createTestDatabase } from '../test/db.js';
 
 const tempDirs: string[] = [];
@@ -48,9 +49,10 @@ describe('migrations', () => {
         'assistive_checks',
         'sessions',
         'inspection_sample',
+        'function_absences',
       ]),
     );
-    expect(tables).toHaveLength(12);
+    expect(tables).toHaveLength(13);
   });
 
   it('podem ser reaplicadas sem erro', () => {
@@ -75,7 +77,7 @@ describe('migrations', () => {
 });
 
 describe('seed', () => {
-  it('cria funções de página, tarefas-alvo e o IFTM', () => {
+  it('cria funções de página, tarefas-alvo e a Rede Federal, com o IFTM primeiro', () => {
     const db = freshDatabase();
     seed(db);
 
@@ -85,11 +87,19 @@ describe('seed', () => {
       .all()
       .map((r) => r.key);
     expect(keys.sort()).toEqual([...pageFunctionKeys].sort());
-    expect(db.select().from(targetTasks).all()).toHaveLength(5);
+    expect(keys).toHaveLength(13);
+    // Uma tarefa por função, menos contato (a tarefa de contato é da página inicial).
+    expect(db.select().from(targetTasks).all()).toHaveLength(12);
 
     const [iftm, ...rest] = db.select().from(institutions).all();
-    expect(rest).toHaveLength(0);
-    expect(iftm).toMatchObject({ acronym: 'IFTM', domain: 'iftm.edu.br', active: true });
+    expect(iftm).toMatchObject({ id: 1, acronym: 'IFTM', domain: 'iftm.edu.br', active: true });
+    expect(rest).toHaveLength(federalNetwork.length - 1);
+    const all = [iftm, ...rest];
+    expect(new Set(all.map((i) => i?.acronym)).size).toBe(federalNetwork.length);
+    expect(all.filter((i) => i?.acronym.startsWith('IF'))).toHaveLength(38);
+    for (const institution of all) {
+      expect(createInstitutionSchema.safeParse(institution).success).toBe(true);
+    }
     expect(iftm?.createdAt).toBeInstanceOf(Date);
   });
 
@@ -98,8 +108,32 @@ describe('seed', () => {
     seed(db);
     seed(db);
 
-    expect(db.select().from(pageFunctions).all()).toHaveLength(5);
-    expect(db.select().from(targetTasks).all()).toHaveLength(5);
-    expect(db.select().from(institutions).all()).toHaveLength(1);
+    expect(db.select().from(pageFunctions).all()).toHaveLength(13);
+    expect(db.select().from(targetTasks).all()).toHaveLength(12);
+    expect(db.select().from(institutions).all()).toHaveLength(federalNetwork.length);
+  });
+
+  it('dados de referência sozinhos não cadastram instituições', () => {
+    const db = freshDatabase();
+    seedReferenceData(db);
+    seedReferenceData(db);
+    expect(db.select().from(pageFunctions).all()).toHaveLength(13);
+    expect(db.select().from(institutions).all()).toHaveLength(0);
+  });
+
+  it('não duplica instituição já cadastrada com outro domínio ou outra sigla', () => {
+    const db = freshDatabase();
+    db.insert(institutions)
+      .values([
+        { name: 'IFSP', acronym: 'IFSP', domain: 'www.ifsp.edu.br' },
+        { name: 'Minha', acronym: 'MEU-IFB', domain: 'ifb.edu.br' },
+      ])
+      .run();
+    seed(db);
+
+    const rows = db.select().from(institutions).all();
+    expect(rows).toHaveLength(federalNetwork.length);
+    expect(rows.filter((r) => r.acronym === 'IFSP')).toHaveLength(1);
+    expect(rows.find((r) => r.domain === 'ifb.edu.br')?.acronym).toBe('MEU-IFB');
   });
 });

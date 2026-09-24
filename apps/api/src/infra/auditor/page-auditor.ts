@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { AxeBuilder } from '@axe-core/playwright';
 import type { AxeResults } from 'axe-core';
-import { type Browser, chromium, errors } from 'playwright';
+import { type Browser, type BrowserContext, chromium, errors } from 'playwright';
 import { MIN_REQUEST_INTERVAL_MS } from '../crawler/http.js';
 import { type HostThrottle, sharedHostThrottle } from '../crawler/throttle.js';
 
@@ -11,7 +11,13 @@ export const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
 export const VIEWPORT = { width: 1280, height: 800 };
 export const NAVIGATION_TIMEOUT_MS = 30_000;
 
-const AXE_VERSION: string = createRequire(import.meta.url)('axe-core/package.json').version;
+// A versão registrada é a do axe-core que o @axe-core/playwright injeta na página (a resolvida a
+// partir dele), não a de qualquer axe-core que esteja no projeto. Ver também a conferência com
+// `results.testEngine.version` em cada página.
+const requireHere = createRequire(import.meta.url);
+export const AXE_VERSION: string = createRequire(requireHere.resolve('@axe-core/playwright'))(
+  'axe-core/package.json',
+).version;
 
 export interface AuditorVersions {
   axeVersion: string;
@@ -35,29 +41,90 @@ export interface PlaywrightAuditorOptions {
   minIntervalMs?: number;
   navigationTimeoutMs?: number;
   launch?: () => Promise<Browser>;
+  /** Proxy da rede institucional, o mesmo do crawler (CRAWLER_PROXY). */
+  proxy?: string;
 }
 
-/** Falha de rede (inclui o tempo esgotado): merece uma tentativa extra (seção 3.2.1). */
-function isNetworkError(err: unknown): boolean {
+/**
+ * Merece uma tentativa extra: falha de rede, inclusive o tempo esgotado (seção 3.2.1), e falhas
+ * do próprio navegador que não dizem nada sobre a página (processo caiu, a página redirecionou por
+ * script no meio da análise e o contexto de execução se perdeu).
+ */
+export function isTransientFailure(err: unknown): boolean {
   if (err instanceof errors.TimeoutError) return true;
   return (
     err instanceof Error &&
-    /net::ERR_|NS_ERROR_|ECONNREFUSED|ECONNRESET|ENOTFOUND/.test(err.message)
+    /net::ERR_|NS_ERROR_|ECONNREFUSED|ECONNRESET|ENOTFOUND|Execution context was destroyed|Target (?:page, context or browser )?(?:has been )?closed|Browser has been closed|Page crashed|crashed/i.test(
+      err.message,
+    )
   );
 }
 
 const firstLine = (err: unknown) =>
   (err instanceof Error ? err.message : String(err)).split('\n')[0] ?? '';
 
+const NETWORK_ERRORS: [RegExp, string][] = [
+  [/ERR_NAME_NOT_RESOLVED|ENOTFOUND/, 'Endereço não encontrado (falha de DNS)'],
+  [/ERR_CONNECTION_REFUSED|ECONNREFUSED/, 'Conexão recusada pelo servidor'],
+  [/ERR_CONNECTION_RESET|ECONNRESET/, 'Conexão interrompida pelo servidor'],
+  [/ERR_CONNECTION_TIMED_OUT|ERR_TIMED_OUT/, 'O servidor não respondeu a tempo'],
+  [/ERR_CERT_|ERR_SSL_/, 'Certificado de segurança (TLS) inválido'],
+  [/ERR_TOO_MANY_REDIRECTS/, 'Redirecionamentos demais'],
+  [/ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED/, 'Sem conexão com a internet'],
+];
+
+/** Mensagem da falha em português, com o código técnico entre parênteses para diagnóstico. */
+export function describeFailure(err: unknown, timeoutMs: number): string {
+  if (err instanceof errors.TimeoutError) {
+    return `Tempo esgotado: a página não terminou de carregar em ${Math.round(timeoutMs / 1000)} s (a coleta espera a rede ficar ociosa).`;
+  }
+  const line = firstLine(err);
+  if (/Executable doesn't exist|browserType\.launch/i.test(line)) {
+    return 'O navegador do Playwright não abriu. Instale com: npx playwright install chromium.';
+  }
+  if (/Download is starting/i.test(line)) {
+    return 'A URL baixa um arquivo em vez de abrir uma página.';
+  }
+  const code = /net::ERR_[A-Z_]+|E[A-Z]{4,}/.exec(line)?.[0];
+  const known = NETWORK_ERRORS.find(([pattern]) => pattern.test(line));
+  if (known) return `${known[1]}${code ? ` (${code})` : ''}.`;
+  return line;
+}
+
+/** Só HTML (ou XHTML) é auditado: PDF, imagem ou JSON aberto no navegador não é página do portal. */
+const isHtml = (contentType: string | undefined) =>
+  contentType === undefined || /html|xml/i.test(contentType);
+
 export function createPlaywrightAuditor({
   userAgent,
   throttle = sharedHostThrottle,
   minIntervalMs = MIN_REQUEST_INTERVAL_MS,
   navigationTimeoutMs = NAVIGATION_TIMEOUT_MS,
-  launch = () => chromium.launch(),
+  proxy,
+  launch = () => chromium.launch(proxy ? { proxy: { server: proxy } } : {}),
 }: PlaywrightAuditorOptions): PageAuditor {
   let browser: Promise<Browser> | null = null;
-  const getBrowser = () => (browser ??= launch());
+  // O navegador é reaproveitado entre páginas. Se ele cair (falta de memória, processo morto) ou
+  // não conseguir abrir, a referência é descartada e a próxima página abre outro: antes, um
+  // navegador morto ficava guardado e derrubava todas as páginas seguintes da coleta.
+  const getBrowser = () => {
+    if (!browser) {
+      const launching = launch().then(
+        (opened) => {
+          opened.once('disconnected', () => {
+            if (browser === launching) browser = null;
+          });
+          return opened;
+        },
+        (err: unknown) => {
+          if (browser === launching) browser = null;
+          throw err;
+        },
+      );
+      browser = launching;
+    }
+    return browser;
+  };
 
   return {
     async versions() {
@@ -69,36 +136,55 @@ export function createPlaywrightAuditor({
     },
 
     async audit(url) {
-      const context = await (await getBrowser()).newContext({ viewport: VIEWPORT, userAgent });
       const host = new URL(url).host;
       let lastError: unknown;
-      try {
-        for (let attempt = 1; attempt <= 2; attempt++) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        let context: BrowserContext | undefined;
+        try {
+          context = await (
+            await getBrowser()
+          ).newContext({ viewport: VIEWPORT, userAgent, locale: 'pt-BR' });
           const page = await context.newPage();
-          try {
-            await throttle.wait(host, minIntervalMs);
-            const response = await page.goto(url, {
-              waitUntil: 'networkidle',
-              timeout: navigationTimeoutMs,
-            });
-            const httpStatus = response?.status() ?? null;
-            if (httpStatus !== null && httpStatus >= 400) {
-              return { ok: false, httpStatus, error: `A página respondeu HTTP ${httpStatus}.` };
-            }
-            const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
-            const html = await page.content();
-            return { ok: true, httpStatus, finalUrl: page.url(), html, results };
-          } catch (err) {
-            lastError = err;
-            if (!isNetworkError(err)) break;
-          } finally {
-            await page.close().catch(() => {});
+          await throttle.wait(host, minIntervalMs);
+          const response = await page.goto(url, {
+            waitUntil: 'networkidle',
+            timeout: navigationTimeoutMs,
+          });
+          const httpStatus = response?.status() ?? null;
+          if (httpStatus !== null && httpStatus >= 400) {
+            return { ok: false, httpStatus, error: `A página respondeu HTTP ${httpStatus}.` };
           }
+          const contentType = response?.headers()['content-type'];
+          if (!isHtml(contentType)) {
+            return {
+              ok: false,
+              httpStatus,
+              error: `A URL não é uma página HTML (${contentType?.split(';')[0]}).`,
+            };
+          }
+          const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+          if (results.testEngine.version !== AXE_VERSION) {
+            // Protege a reprodutibilidade: a versão gravada na coleta tem de ser a executada.
+            return {
+              ok: false,
+              httpStatus,
+              error: `O axe-core executado (${results.testEngine.version}) difere do registrado na coleta (${AXE_VERSION}).`,
+            };
+          }
+          const html = await page.content();
+          return { ok: true, httpStatus, finalUrl: page.url(), html, results };
+        } catch (err) {
+          lastError = err;
+          if (!isTransientFailure(err)) break;
+        } finally {
+          await context?.close().catch(() => {});
         }
-        return { ok: false, httpStatus: null, error: firstLine(lastError) };
-      } finally {
-        await context.close().catch(() => {});
       }
+      return {
+        ok: false,
+        httpStatus: null,
+        error: describeFailure(lastError, navigationTimeoutMs),
+      };
     },
 
     async close() {

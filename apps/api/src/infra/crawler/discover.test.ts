@@ -218,7 +218,9 @@ describe('descoberta pelo crawler', () => {
     expect(result.routes).toContainEqual({
       url: 'https://hml.if.edu.br/novo-portal',
       status: 'excluded',
+      source: 'crawler',
       suggestedFunction: null,
+      relevance: null,
       exclusionReason: 'Domínio de desenvolvimento ou homologação.',
     });
     expect(site.requested).not.toContain('https://hml.if.edu.br/novo-portal');
@@ -245,6 +247,210 @@ describe('descoberta pelo crawler', () => {
     const result = await run(site.client);
     expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/ok`]);
     expect(result.failed).toBe(3);
+  });
+});
+
+describe('links da página inicial, subdomínios e prioridade', () => {
+  it('no modo sitemap, também usa os links da página inicial, com o texto do link', async () => {
+    const site = fakeSite({
+      [`https://if.edu.br/robots.txt`]: { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: { status: 404, body: '', contentType: 'text/plain' },
+      [`${ORIGIN}/`]: {
+        body: html('Início', `<nav>${links(['/p/77', 'Biblioteca'], '/noticias/1')}</nav>`),
+      },
+      [`${ORIGIN}/sitemap.xml`]: {
+        body: '<urlset><url><loc>https://www.if.edu.br/noticias/1</loc></url></urlset>',
+      },
+      [`${ORIGIN}/p/77`]: { body: html('Página 77') },
+      [`${ORIGIN}/noticias/1`]: { body: html('Notícia') },
+    });
+    const result = await run(site.client);
+    expect(result.source).toBe('sitemap');
+    const menu = result.routes.find((r) => r.url === `${ORIGIN}/p/77`);
+    expect(menu).toMatchObject({
+      source: 'crawler',
+      suggestedFunction: 'library',
+      linkText: 'Biblioteca',
+      title: 'Página 77',
+    });
+    expect(result.routes.find((r) => r.url === `${ORIGIN}/noticias/1`)?.source).toBe('sitemap');
+  });
+
+  it('registra subdomínio da instituição que sugere função, sem acessá-lo', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: {
+        body: html(
+          'Início',
+          links(
+            ['https://biblioteca.if.edu.br', 'Biblioteca'],
+            ['https://suap.if.edu.br/', 'SUAP'],
+            ['https://www.campus.if.edu.br/ingresso', 'Veja'],
+          ),
+        ),
+      },
+    });
+    const result = await run(site.client);
+    expect(result.routes.find((r) => r.url === 'https://biblioteca.if.edu.br')).toMatchObject({
+      status: 'suggested',
+      suggestedFunction: 'library',
+      external: true,
+    });
+    expect(
+      result.routes.find((r) => r.url === 'https://www.campus.if.edu.br/ingresso'),
+    ).toMatchObject({ suggestedFunction: 'admission', external: true });
+    expect(result.routes.some((r) => r.url.includes('suap'))).toBe(false);
+    expect(site.requested.some((u) => !u.startsWith(ORIGIN) && !u.includes('robots'))).toBe(false);
+  });
+
+  it('aceita links do mesmo site com http:// ou sem www.', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: {
+        body: html('Início', links('https://if.edu.br/a', 'http://www.if.edu.br/b')),
+      },
+      [`${ORIGIN}/a`]: { body: html('A') },
+      [`${ORIGIN}/b`]: { body: html('B') },
+    });
+    const result = await run(site.client);
+    expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/a`, `${ORIGIN}/b`]);
+  });
+
+  it('ignora busca, feed e impressão, e trata index.php como a própria página', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: {
+        body: html('Início', links('/?s=edital', '/feed', '/a/index.php', '/a?print=1', '/a')),
+      },
+      [`${ORIGIN}/a`]: { body: html('A') },
+    });
+    const result = await run(site.client);
+    expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/a`]);
+    expect(site.pageRequests()).toEqual([`${ORIGIN}/`, `${ORIGIN}/a`]);
+  });
+
+  it('com teto, o crawler visita antes as páginas que sugerem uma função', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: {
+        body: html('Início', links('/a', '/b', ['/c', 'Assistência Estudantil'])),
+      },
+      [`${ORIGIN}/a`]: { body: html('A') },
+      [`${ORIGIN}/b`]: { body: html('B') },
+      [`${ORIGIN}/c`]: { body: html('C') },
+    });
+    const result = await run(site.client, { maxUrls: 2 });
+    expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/c`]);
+  });
+
+  it('link de menu curto é mais relevante que notícia com o mesmo tema', async () => {
+    const news = '/noticias/2026/03/processo-seletivo-2026';
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: {
+        body: html('Início', `<nav>${links(['/ingresso', 'Ingresso'])}</nav>${links(news)}`),
+      },
+      [`${ORIGIN}/ingresso`]: { body: html('Ingresso') },
+      [`${ORIGIN}${news}`]: { body: html('Abertas as inscrições do processo seletivo') },
+    });
+    const result = await run(site.client);
+    const relevance = (path: string) =>
+      result.routes.find((r) => r.url === `${ORIGIN}${path}`)?.relevance ?? 0;
+    expect(relevance('/ingresso')).toBeGreaterThan(relevance(news));
+    expect(result.routes.find((r) => r.url === `${ORIGIN}${news}`)?.suggestedFunction).toBe(
+      'admission',
+    );
+  });
+
+  it('lê página em ISO-8859-1 sem estragar os acentos da sugestão', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início', links('/p/5')) },
+      [`${ORIGIN}/p/5`]: {
+        body: Buffer.from(html('Coordenação de Assistência Estudantil'), 'latin1'),
+        contentType: 'text/html; charset=iso-8859-1',
+      },
+    });
+    const result = await run(site.client);
+    expect(result.routes.find((r) => r.url === `${ORIGIN}/p/5`)).toMatchObject({
+      title: 'Coordenação de Assistência Estudantil',
+      suggestedFunction: 'student_support',
+    });
+  });
+
+  it('com o sitemap declarado quebrado, tenta os caminhos padrão', async () => {
+    const site = fakeSite({
+      [`https://if.edu.br/robots.txt`]: { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: {
+        body: `Sitemap: ${ORIGIN}/nao-existe.xml`,
+        contentType: 'text/plain',
+      },
+      [`${ORIGIN}/`]: { body: html('Início') },
+      [`${ORIGIN}/sitemap.xml`]: {
+        body: '<urlset><url><loc>https://www.if.edu.br/a</loc></url></urlset>',
+      },
+      [`${ORIGIN}/a`]: { body: html('A') },
+    });
+    const result = await run(site.client);
+    expect(result.sitemapFiles).toEqual([`${ORIGIN}/sitemap.xml`]);
+    expect(result.source).toBe('sitemap');
+  });
+
+  it('conta uma vez a URL proibida pelo robots.txt, mesmo linkada várias vezes', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: { body: 'User-agent: *\nDisallow: /x', contentType: 'text/plain' },
+      [`${ORIGIN}/`]: { body: html('Início', links('/x', '/x/', '/a')) },
+      [`${ORIGIN}/a`]: { body: html('A', links('/x')) },
+    });
+    const result = await run(site.client);
+    expect(result.blockedByRobots).toBe(1);
+  });
+});
+
+describe('limites de tempo e de falhas', () => {
+  it('para depois de falhas seguidas demais, sem insistir no portal', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => `/p${i}`);
+    const pages: Record<string, FakeResource> = {
+      [`${ORIGIN}/`]: { body: html('Início', links(...many)) },
+    };
+    for (const path of many) pages[`${ORIGIN}${path}`] = { status: 403, body: 'bloqueado' };
+    const site = crawlerSite(pages);
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      maxConsecutiveFailures: 5,
+    });
+    expect(result.stoppedEarly).toBe('failures');
+    expect(site.pageRequests()).toHaveLength(1 + 5);
+    expect(byUrl(result.routes)).toEqual([ORIGIN]);
+  });
+
+  it('para no tempo máximo, guardando o que já encontrou', async () => {
+    let clock = 0;
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início', links('/a', '/b', '/c')) },
+      [`${ORIGIN}/a`]: { body: html('A') },
+      [`${ORIGIN}/b`]: { body: html('B') },
+      [`${ORIGIN}/c`]: { body: html('C') },
+    });
+    const slow = {
+      get: async (url: string) => {
+        clock += 60_000;
+        return site.client.get(url);
+      },
+    };
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: slow,
+      robotsAgent: agent,
+      // robots, página inicial e 3 tentativas de sitemap = 5 min; sobra tempo para uma visita.
+      maxDurationMs: 330_000,
+      now: () => clock,
+    });
+    expect(result.stoppedEarly).toBe('deadline');
+    expect(result.routes.length).toBeGreaterThan(1);
+    expect(result.routes.length).toBeLessThan(4);
+  });
+
+  it('percorrendo tudo, não marca parada antecipada', async () => {
+    const site = crawlerSite({ [`${ORIGIN}/`]: { body: html('Início') } });
+    expect((await run(site.client)).stoppedEarly).toBeNull();
   });
 });
 
@@ -283,6 +489,38 @@ describe('falhas da página inicial', () => {
       'https://if.edu.br/': { body: html('Início') },
     });
     await expect(run(site.client)).rejects.toThrow(/robots\.txt/);
+  });
+
+  it('robots.txt com erro de servidor interrompe a descoberta (RFC 9309)', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { status: 503, body: 'fora', contentType: 'text/plain' },
+      'https://if.edu.br/': { body: html('Início') },
+    });
+    await expect(run(site.client)).rejects.toThrow(/RFC 9309/);
+    expect(site.pageRequests()).toEqual([]);
+  });
+
+  it('domínio que não responde sem www. é tentado com www.', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { networkError: true },
+      'https://if.edu.br/': { networkError: true },
+      [`${ORIGIN}/robots.txt`]: { status: 404, body: '', contentType: 'text/plain' },
+      [`${ORIGIN}/`]: { body: html('Início', links('/a')) },
+      [`${ORIGIN}/a`]: { body: html('A') },
+    });
+    const result = await run(site.client);
+    expect(result.origin).toBe(ORIGIN);
+    expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/a`]);
+  });
+
+  it('sem resposta com nem sem www., a descoberta falha com o motivo', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { networkError: true },
+      'https://if.edu.br/': { networkError: true },
+      [`${ORIGIN}/robots.txt`]: { networkError: true },
+      [`${ORIGIN}/`]: { networkError: true },
+    });
+    await expect(run(site.client)).rejects.toThrow(/Falha ao acessar https:\/\/www\.if\.edu\.br/);
   });
 
   it('domínio de homologação é recusado', async () => {

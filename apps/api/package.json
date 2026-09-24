@@ -14,6 +14,7 @@
     "db:seed": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/db-seed.ts",
     "create-auditor": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/create-auditor.ts",
     "collect": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/collect.ts",
+    "discover": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/discover.ts",
     "dogfood": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/dogfood.ts"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "pino": "10.3.1",
     "playwright": "1.63.0",
     "robots-parser": "3.0.1",
+    "undici": "7.29.1",
     "zod": "4.6.5"
   },
   "devDependencies": {

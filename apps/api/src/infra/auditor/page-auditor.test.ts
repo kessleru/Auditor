@@ -2,7 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HostThrottle } from '../crawler/throttle.js';
 import { closedPortUrl, htmlFixture, startLocalSite } from './__fixtures__/local-server.js';
 import { countRules, findingsFromViolations } from './axe-mapping.js';
-import { createPlaywrightAuditor } from './page-auditor.js';
+import { type Browser, chromium } from 'playwright';
+import {
+  AXE_VERSION,
+  createPlaywrightAuditor,
+  describeFailure,
+  isTransientFailure,
+} from './page-auditor.js';
 
 // Navegador real contra HTML servido localmente (critério de aceite da Fase 4).
 
@@ -19,6 +25,7 @@ beforeAll(async () => {
     '/violacoes': htmlFixture('violacoes.html'),
     '/conforme': htmlFixture('conforme.html'),
     '/erro': { status: 500, body: 'erro' },
+    '/edital.pdf': { status: 200, body: '%PDF-1.4', contentType: 'application/pdf' },
   });
 });
 
@@ -87,13 +94,104 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
   it('falha de rede vira falha, após a tentativa extra', async () => {
     const outcome = await auditor.audit(await closedPortUrl());
     expect(outcome.ok).toBe(false);
-    if (!outcome.ok) expect(outcome.error).toMatch(/ERR_CONNECTION_REFUSED/);
+    if (!outcome.ok) {
+      expect(outcome.error).toBe('Conexão recusada pelo servidor (net::ERR_CONNECTION_REFUSED).');
+    }
+  });
+
+  it('URL que não é página HTML vira falha, sem auditar', async () => {
+    const outcome = await auditor.audit(`${site.origin}/edital.pdf`);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.error).toMatch(/não é uma página HTML|baixa um arquivo/);
   });
 
   it('informa as versões usadas', async () => {
     const versions = await auditor.versions();
     expect(versions.axeVersion).toBe('4.13.0');
+    // A versão registrada é a que o @axe-core/playwright injeta, a mesma fixada no package.json.
+    expect(versions.axeVersion).toBe(AXE_VERSION);
     expect(versions.browserVersion).toMatch(/^Chromium \d+/);
     expect(versions.userAgent).toBe('AuditoriaRF/1.0 (+teste)');
+  });
+});
+
+describe('describeFailure', () => {
+  it.each([
+    [
+      'page.goto: net::ERR_NAME_NOT_RESOLVED at https://x',
+      'Endereço não encontrado (falha de DNS) (net::ERR_NAME_NOT_RESOLVED).',
+    ],
+    [
+      'page.goto: net::ERR_CERT_DATE_INVALID at https://x',
+      'Certificado de segurança (TLS) inválido (net::ERR_CERT_DATE_INVALID).',
+    ],
+    ['page.goto: Download is starting', 'A URL baixa um arquivo em vez de abrir uma página.'],
+    [
+      "browserType.launch: Executable doesn't exist at /x/chrome",
+      'O navegador do Playwright não abriu. Instale com: npx playwright install chromium.',
+    ],
+    ['Erro qualquer\ncom pilha', 'Erro qualquer'],
+  ])('%s', (message, expected) => {
+    expect(describeFailure(new Error(message), 30_000)).toBe(expected);
+  });
+});
+
+describe('isTransientFailure', () => {
+  it.each([
+    'page.goto: net::ERR_CONNECTION_RESET',
+    'page.content: Execution context was destroyed, most likely because of a navigation',
+    'browser.newContext: Target page, context or browser has been closed',
+    'page.goto: Page crashed',
+  ])('tenta de novo: %s', (message) => {
+    expect(isTransientFailure(new Error(message))).toBe(true);
+  });
+
+  it('não repete erro da página em si', () => {
+    expect(isTransientFailure(new Error('axe: regra inválida'))).toBe(false);
+  });
+});
+
+describe('navegador que cai', { timeout: 60_000 }, () => {
+  it('abre outro navegador e a coleta continua', async () => {
+    const opened: Browser[] = [];
+    const resilient = createPlaywrightAuditor({
+      userAgent: 'AuditoriaRF/1.0 (+teste)',
+      throttle: new HostThrottle(),
+      minIntervalMs: 0,
+      launch: async () => {
+        const browser = await chromium.launch();
+        opened.push(browser);
+        return browser;
+      },
+    });
+    try {
+      expect((await resilient.audit(`${site.origin}/conforme`)).ok).toBe(true);
+      await opened[0]!.close(); // simula a queda do processo
+      expect((await resilient.audit(`${site.origin}/conforme`)).ok).toBe(true);
+      expect(opened).toHaveLength(2);
+    } finally {
+      await resilient.close();
+    }
+  });
+
+  it('se o navegador não abre, tenta abrir de novo na página seguinte', async () => {
+    let attempts = 0;
+    const flaky = createPlaywrightAuditor({
+      userAgent: 'UA',
+      throttle: new HostThrottle(),
+      minIntervalMs: 0,
+      launch: async () => {
+        attempts++;
+        if (attempts === 1) throw new Error("browserType.launch: Executable doesn't exist");
+        return chromium.launch();
+      },
+    });
+    try {
+      const first = await flaky.audit(`${site.origin}/conforme`);
+      expect(first).toMatchObject({ ok: false });
+      expect((await flaky.audit(`${site.origin}/conforme`)).ok).toBe(true);
+    } finally {
+      await flaky.close();
+    }
   });
 });

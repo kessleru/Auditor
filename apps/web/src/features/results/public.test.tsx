@@ -16,7 +16,9 @@ describe('visão pública (0.2)', () => {
       name: 'Conformidade e problemas confirmados por instituição',
     });
     const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows).toHaveLength(3);
+    // Instituição sem coleta sai da tabela e vai para uma linha recolhida.
+    expect(rows).toHaveLength(2);
+    expect(screen.getByText('1 instituição ainda não avaliada')).toBeTruthy();
 
     expect(
       within(rows[0]!)
@@ -26,7 +28,6 @@ describe('visão pública (0.2)', () => {
     expect(rows[0]!.textContent).toContain('validação em andamento');
     expect(rows[1]!.textContent).toContain('Sem dado');
     expect(rows[1]!.textContent).not.toContain('0%');
-    expect(rows[2]!.textContent).toContain('Ainda não avaliado');
 
     expect(screen.getByRole('link', { name: 'Abrir relatório do IFTM' }).getAttribute('href')).toBe(
       '/instituicoes/1',
@@ -34,6 +35,11 @@ describe('visão pública (0.2)', () => {
     expect(screen.getByText('Última coleta').nextElementSibling?.textContent).toBe('12/09/2026');
     expect(screen.getByText('Portais avaliados').nextElementSibling?.textContent).toBe('1 de 3');
     expect(screen.getByRole('link', { name: 'Entenda a metodologia' })).toBeTruthy();
+    expect(
+      screen.getByText(/Comparação justa: conformidade e problemas contam só as 4 funções/),
+    ).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Páginas encontradas' })).toBeTruthy();
+    expect(screen.getAllByText('sem: Horários de aula').length).toBeGreaterThan(0);
     await expectNoAxeViolations(container);
   });
 
@@ -100,7 +106,11 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     const cards = await screen.findAllByRole('article');
     expect(cards).toHaveLength(2);
     expect(within(cards[0]!).getByText('Template')).toBeTruthy();
-    expect(within(cards[0]!).getByText('em 4 páginas, 4 ocorrências')).toBeTruthy();
+    expect(within(cards[0]!).getByText(/em 4 páginas, 4 ocorrências/)).toBeTruthy();
+    const basis = screen.getByRole('region', { name: 'Base da comparação' });
+    expect(basis.textContent).toContain('12 de 13 funções procuradas');
+    expect(basis.textContent).toContain('Não encontradas: Horários de aula');
+    expect(basis.textContent).toContain('80% de conformidade, 30 problemas em 12 páginas');
     await expectNoAxeViolations(container);
   });
 

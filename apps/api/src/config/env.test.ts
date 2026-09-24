@@ -17,4 +17,20 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ API_PORT: 'abc' })).toThrow(/API_PORT/);
     expect(() => loadEnv({ WEB_ORIGIN: 'não é url' })).toThrow(/WEB_ORIGIN/);
   });
+
+  it.each([
+    [undefined, false],
+    ['', false],
+    ['false', false],
+    ['true', true],
+    ['1', 1],
+    ['uniquelocal', 'uniquelocal'],
+  ])('TRUST_PROXY=%s → %s', (value, expected) => {
+    expect(loadEnv(value === undefined ? {} : { TRUST_PROXY: value }).TRUST_PROXY).toBe(expected);
+  });
+
+  it('COOKIE_SECURE é auto por padrão e recusa outros valores', () => {
+    expect(loadEnv({}).COOKIE_SECURE).toBe('auto');
+    expect(() => loadEnv({ COOKIE_SECURE: 'sim' })).toThrow(/COOKIE_SECURE/);
+  });
 });

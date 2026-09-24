@@ -15,7 +15,9 @@ import {
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
 import { CSV_DICTIONARY_URL, CSV_URL, useResultsOverview } from './auditorApi';
+import { CoreFunctionsNote, coverageText } from './CoreFunctionsNote';
 import { inspectionBadge } from './inspectionBadge';
+import { NotCollectedList } from './NotCollectedList';
 import { QueryState } from './QueryState';
 
 type Sort = 'conformity' | 'problems';
@@ -62,7 +64,9 @@ export function ComparisonPage() {
       errorTitle="Não foi possível carregar o comparativo"
     >
       {(data) => {
+        const notCollected = data.institutions.filter((r) => r.status === 'not_collected');
         const rows = data.institutions
+          .filter((r) => r.status !== 'not_collected')
           .filter(
             (r) => !onlyInspected || (r.inspection !== null && r.inspection !== 'not_in_sample'),
           )
@@ -98,6 +102,7 @@ export function ComparisonPage() {
             />
 
             <div className="flex flex-col gap-4">
+              <CoreFunctionsNote coreFunctions={data.coreFunctions} />
               <div role="group" aria-label="Ordenar e filtrar" className="flex flex-wrap gap-2">
                 <Toggle pressed={sort === 'conformity'} onClick={() => setSort('conformity')}>
                   Ordenar por conformidade
@@ -145,6 +150,11 @@ export function ComparisonPage() {
                         ),
                     },
                     {
+                      key: 'cov',
+                      header: 'Páginas encontradas',
+                      cell: (r) => coverageText(r.coverage),
+                    },
+                    {
                       key: 'conf',
                       header: 'Conformidade',
                       cell: (r) =>
@@ -186,6 +196,7 @@ export function ComparisonPage() {
                   ]}
                 />
               )}
+              <NotCollectedList rows={notCollected} />
             </div>
 
             <Note tone="surface" title="Como ler esta tabela">

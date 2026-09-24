@@ -12,5 +12,15 @@ export function createRoutesDiscoveryRoutes(
   router.post('/institutions/:id/routes', requireAuditor, controller.createRoute);
   router.patch('/routes/:id', requireAuditor, controller.updateRoute);
   router.post('/routes/:id/replace', requireAuditor, controller.replaceRoute);
+  router.put(
+    '/institutions/:id/functions/:functionKey/absence',
+    requireAuditor,
+    controller.markAbsent,
+  );
+  router.delete(
+    '/institutions/:id/functions/:functionKey/absence',
+    requireAuditor,
+    controller.clearAbsence,
+  );
   return router;
 }

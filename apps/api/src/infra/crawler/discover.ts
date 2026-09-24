@@ -1,17 +1,19 @@
 import type { PageFunctionKey, RouteSource } from '@auditoria-rf/contracts';
 import { isAuthenticatedArea, isAuthUrl } from './auth-detection.js';
-import { parseHtml } from './html.js';
+import { decodeHtml, type PageLink, parseHtml } from './html.js';
 import { FetchFailedError, type HttpClient, type HttpResponse } from './http.js';
 import { parseRobots, type RobotsRules } from './robots.js';
 import { decodeSitemapBody, parseSitemap } from './sitemap.js';
-import { suggestFunction } from './suggest-function.js';
+import { suggestionRelevance } from './suggest-function.js';
 import {
   DEV_HOST_REASON,
+  isCrawlTrap,
   isDevHost,
   isNavigable,
   isSameOrigin,
   isWithinDomain,
   normalizeUrl,
+  toCanonicalOrigin,
 } from './url.js';
 
 // Descoberta de rotas de um portal (seção 3.1 do plano): robots.txt → sitemap → crawler.
@@ -23,24 +25,46 @@ const MAX_SITEMAP_FILES = 50;
 const MAX_SITEMAP_INDEX_DEPTH = 2;
 const MAX_CRAWL_DELAY_MS = 30_000;
 
+/** Explicação das respostas mais comuns de portais que recusam a ferramenta. */
+const HTTP_HINTS: Record<number, string> = {
+  403: ' (acesso negado: o portal ou um firewall pode estar bloqueando robôs ou a rede de origem)',
+  429: ' (requisições demais: tente de novo mais tarde)',
+  503: ' (serviço indisponível: o portal pode estar fora do ar ou em manutenção)',
+};
+
 export interface DiscoveredRoute {
   url: string;
   status: 'suggested' | 'authenticated' | 'excluded';
+  /** `sitemap` se a URL veio do sitemap; `crawler` se veio de um link de página. */
+  source: Extract<RouteSource, 'sitemap' | 'crawler'>;
   suggestedFunction: PageFunctionKey | null;
+  /** Relevância da sugestão, 0–100 (`suggestionRelevance`); `null` sem sugestão. */
+  relevance: number | null;
   exclusionReason?: string;
   title?: string;
+  /** Texto do link que levou à página, quando houver. */
+  linkText?: string;
+  /** Subdomínio da instituição linkado pelo portal: registrado como sugestão, sem ser acessado. */
+  external?: boolean;
 }
 
 export interface DiscoveryResult {
   origin: string;
+  /** Como a descoberta percorreu o portal: sitemap (com os links da página inicial) ou crawler. */
   source: Extract<RouteSource, 'sitemap' | 'crawler'>;
   robotsTxtFound: boolean;
   sitemapFiles: string[];
   routes: DiscoveredRoute[];
-  /** URLs não visitadas porque o robots.txt proíbe. */
+  /** URLs distintas não visitadas porque o robots.txt proíbe. */
   blockedByRobots: number;
   /** URLs que falharam, deram erro HTTP ou não eram HTML. */
   failed: number;
+  /**
+   * A descoberta parou antes de percorrer tudo: `deadline` (passou do tempo máximo) ou
+   * `failures` (falhas seguidas demais: o portal parou de responder ou passou a bloquear).
+   * As rotas encontradas até ali ficam valendo.
+   */
+  stoppedEarly: 'deadline' | 'failures' | null;
   /** Verificação das rotas já confirmadas (seção 3.1.7). */
   checks: RouteCheck[];
 }
@@ -65,7 +89,15 @@ export interface DiscoveryOptions {
   maxDepth?: number;
   /** Rotas confirmadas a verificar (possível substituição, seção 3.1.7). */
   checkUrls?: string[];
+  /** Tempo máximo percorrendo páginas (padrão 20 min). */
+  maxDurationMs?: number;
+  /** Falhas seguidas que encerram a descoberta (padrão 10). */
+  maxConsecutiveFailures?: number;
+  now?: () => number;
 }
+
+export const DEFAULT_MAX_DURATION_MS = 20 * 60 * 1000;
+export const DEFAULT_MAX_CONSECUTIVE_FAILURES = 10;
 
 export class DiscoveryError extends Error {
   constructor(message: string) {
@@ -79,6 +111,13 @@ type PageOutcome =
   | { kind: 'authenticated'; url: string; title: string | undefined }
   | { kind: 'skipped' };
 
+/** O que se sabe de uma URL pelos links que apontam para ela. */
+interface LinkInfo {
+  text: string | undefined;
+  inNav: boolean;
+  depth: number;
+}
+
 export async function discoverRoutes({
   domain,
   client,
@@ -86,25 +125,36 @@ export async function discoverRoutes({
   maxUrls = DEFAULT_MAX_URLS,
   maxDepth = DEFAULT_MAX_DEPTH,
   checkUrls = [],
+  maxDurationMs = DEFAULT_MAX_DURATION_MS,
+  maxConsecutiveFailures = DEFAULT_MAX_CONSECUTIVE_FAILURES,
+  now = Date.now,
 }: DiscoveryOptions): Promise<DiscoveryResult> {
+  const startedAt = now();
   if (isDevHost(domain)) throw new DiscoveryError(DEV_HOST_REASON);
 
   // robots.txt antes de qualquer página; o redirecionamento dele já revela a origem canônica.
-  let { robots, robotsTxtFound, origin } = await loadRobots(
-    client,
-    `https://${domain}`,
-    robotsAgent,
-  );
-  let intervalMs = crawlInterval(robots);
-
-  let homeResponse: HttpResponse;
+  // Domínio que não responde sem "www." (sem DNS ou sem servidor no endereço raiz) é tentado com
+  // "www.", como faria quem digita o endereço no navegador.
+  let opened: Awaited<ReturnType<typeof openPortal>>;
   try {
-    homeResponse = await client.get(`${origin}/`, { intervalMs });
+    opened = await openPortal(client, `https://${domain}`, robotsAgent);
   } catch (err) {
-    throw new DiscoveryError(err instanceof Error ? err.message : String(err));
+    if (!(err instanceof FetchFailedError) || domain.startsWith('www.')) {
+      throw new DiscoveryError(err instanceof Error ? err.message : String(err));
+    }
+    try {
+      opened = await openPortal(client, `https://www.${domain}`, robotsAgent);
+    } catch (again) {
+      throw new DiscoveryError(again instanceof Error ? again.message : String(again));
+    }
   }
+  let { robots, robotsTxtFound, origin } = opened;
+  const { homeResponse } = opened;
+  let intervalMs = crawlInterval(robots);
   if (homeResponse.status >= 400) {
-    throw new DiscoveryError(`A página inicial respondeu HTTP ${homeResponse.status}.`);
+    throw new DiscoveryError(
+      `A página inicial respondeu HTTP ${homeResponse.status}${HTTP_HINTS[homeResponse.status] ?? ''}.`,
+    );
   }
   const homeOrigin = new URL(homeResponse.url).origin;
   if (isDevHost(new URL(homeOrigin).host)) throw new DiscoveryError(DEV_HOST_REASON);
@@ -121,49 +171,142 @@ export async function discoverRoutes({
 
   const state = {
     routes: new Map<string, DiscoveredRoute>(),
-    blockedByRobots: 0,
+    blockedByRobots: new Set<string>(),
     failed: 0,
   };
+  const linkInfo = new Map<string, LinkInfo>();
+  const inSitemap = new Set<string>();
 
   const addExcluded = (url: string, reason: string) => {
     if (!state.routes.has(url)) {
       state.routes.set(url, {
         url,
         status: 'excluded',
+        source: 'crawler',
         suggestedFunction: null,
+        relevance: null,
         exclusionReason: reason,
       });
     }
   };
 
-  /** Classifica um link encontrado: candidato, excluído (homologação) ou ignorado. */
-  const screen = (raw: string, base: string): string | null => {
-    const url = normalizeUrl(raw, base);
-    if (!url) return null;
+  /**
+   * Link para outro subdomínio da instituição (ex.: `biblioteca.if.edu.br`): fica fora do
+   * rastreamento (seção 3.1.3), mas, se o link sugere uma das funções, entra como sugestão sem ser
+   * acessado, para o auditor decidir. Portais costumam ter biblioteca e processo seletivo assim.
+   */
+  const addSubdomain = (url: string, link: PageLink, depth: number) => {
+    if (state.routes.has(url) || !isNavigable(url) || isCrawlTrap(url)) return;
+    const { functionKey, relevance } = suggestionRelevance({
+      url,
+      linkText: link.text,
+      inNav: link.inNav,
+      depth,
+      includeHost: true,
+    });
+    if (functionKey === null || functionKey === 'home') return;
+    state.routes.set(url, {
+      url,
+      status: 'suggested',
+      source: 'crawler',
+      suggestedFunction: functionKey,
+      relevance: Math.max(0, (relevance ?? 0) - 10),
+      ...(link.text && { linkText: link.text }),
+      external: true,
+    });
+  };
+
+  const noteLink = (url: string, link: PageLink | undefined, depth: number) => {
+    const known = linkInfo.get(url);
+    const text = known?.text ?? (link?.text || undefined);
+    linkInfo.set(url, {
+      text,
+      inNav: (known?.inNav ?? false) || (link?.inNav ?? false),
+      depth: Math.min(known?.depth ?? depth, depth),
+    });
+  };
+
+  /**
+   * Classifica uma URL encontrada (link de página ou entrada de sitemap): candidata a visita,
+   * excluída (homologação), sugestão de subdomínio ou ignorada.
+   */
+  const screen = (raw: string, base: string, depth: number, link?: PageLink): string | null => {
+    const normalized = normalizeUrl(raw, base);
+    if (!normalized) return null;
+    const url = toCanonicalOrigin(normalized, origin);
     if (!isSameOrigin(url, origin)) {
       const { host } = new URL(url);
-      if (isWithinDomain(host, domain) && isDevHost(host)) addExcluded(url, DEV_HOST_REASON);
+      if (!isWithinDomain(host, domain)) return null;
+      if (isDevHost(host)) addExcluded(url, DEV_HOST_REASON);
+      else if (link) addSubdomain(url, link, depth);
       return null;
     }
-    if (!isNavigable(url)) return null;
+    if (!isNavigable(url) || isCrawlTrap(url)) return null;
     if (!robots.isAllowed(url)) {
-      state.blockedByRobots++;
+      state.blockedByRobots.add(url);
       return null;
     }
+    if (link) noteLink(url, link, depth);
     return url;
   };
 
-  const record = (outcome: PageOutcome, linkText?: string) => {
+  const linksOf = (html: string, pageUrl: string, depth: number): string[] => {
+    const page = parseHtml(html);
+    const base = page.baseHref ? (normalizeUrl(page.baseHref, pageUrl) ?? pageUrl) : pageUrl;
+    const found: string[] = [];
+    for (const link of page.links) {
+      const url = screen(link.href, base, depth, link);
+      if (url) found.push(url);
+    }
+    return [...new Set(found)];
+  };
+
+  /** Relevância pelo que se sabe antes de visitar (URL e links): decide a ordem das visitas. */
+  const priority = (url: string) => {
+    const info = linkInfo.get(url);
+    return (
+      suggestionRelevance({
+        url,
+        linkText: info?.text,
+        inNav: info?.inNav ?? false,
+        depth: info?.depth ?? DEFAULT_MAX_DEPTH,
+      }).relevance ?? -1
+    );
+  };
+
+  let consecutiveFailures = 0;
+  let stoppedEarly: DiscoveryResult['stoppedEarly'] = null;
+  /** Parar de visitar? Portal que parou de responder não recebe mais requisições. */
+  const shouldStop = () => {
+    if (consecutiveFailures >= maxConsecutiveFailures) stoppedEarly = 'failures';
+    else if (now() - startedAt >= maxDurationMs) stoppedEarly = 'deadline';
+    return stoppedEarly !== null;
+  };
+
+  const record = (outcome: PageOutcome) => {
     if (outcome.kind === 'skipped') {
       state.failed++;
+      consecutiveFailures++;
       return;
     }
+    consecutiveFailures = 0;
     if (state.routes.has(outcome.url)) return;
+    const info = linkInfo.get(outcome.url);
+    const { functionKey, relevance } = suggestionRelevance({
+      url: outcome.url,
+      title: outcome.title,
+      linkText: info?.text,
+      inNav: info?.inNav ?? false,
+      depth: outcome.url === homeUrl ? 0 : (info?.depth ?? DEFAULT_MAX_DEPTH),
+    });
     state.routes.set(outcome.url, {
       url: outcome.url,
       status: outcome.kind === 'authenticated' ? 'authenticated' : 'suggested',
-      suggestedFunction: suggestFunction({ url: outcome.url, title: outcome.title, linkText }),
+      source: inSitemap.has(outcome.url) ? 'sitemap' : 'crawler',
+      suggestedFunction: functionKey,
+      relevance,
       ...(outcome.title !== undefined && { title: outcome.title }),
+      ...(info?.text && { linkText: info.text }),
     });
   };
 
@@ -180,53 +323,63 @@ export async function discoverRoutes({
   if (homeOutcome.kind !== 'page') {
     throw new DiscoveryError('A página inicial não pôde ser lida como HTML público.');
   }
+  record(homeOutcome);
+  // Os links da página inicial (menus, atalhos) são o melhor indício das páginas de cada função.
+  const homeLinks = linksOf(homeOutcome.html, homeUrl, 1).filter((u) => u !== homeUrl);
 
   // 1) Sitemap: declarado no robots.txt ou em um dos caminhos padrão.
   const sitemap = await collectSitemapUrls(client, origin, domain, robots, intervalMs);
-  const sitemapCandidates = [...new Set(sitemap.urls.map((u) => screen(u, origin)))].filter(
-    (u): u is string => u !== null && u !== homeUrl,
-  );
+  const sitemapCandidates = [
+    ...new Set(sitemap.urls.map((u) => screen(u, origin, DEFAULT_MAX_DEPTH))),
+  ].filter((u): u is string => u !== null && u !== homeUrl);
+  for (const url of sitemapCandidates) inSitemap.add(url);
 
   let source: DiscoveryResult['source'];
   if (sitemapCandidates.length > 0) {
     source = 'sitemap';
-    record(homeOutcome);
-    // Teto: primeiro as URLs cujo caminho sugere uma das funções, depois as demais na ordem do sitemap.
-    const prioritized = [
-      ...sitemapCandidates.filter((url) => suggestFunction({ url }) !== null),
-      ...sitemapCandidates.filter((url) => suggestFunction({ url }) === null),
-    ].slice(0, maxUrls - 1);
-    for (const url of prioritized) record(await visit(url));
+    // Teto: primeiro as URLs mais relevantes para alguma função, depois as demais — links da
+    // página inicial antes, e o restante na ordem do sitemap.
+    const candidates = [...new Set([...homeLinks, ...sitemapCandidates])];
+    const ranked = candidates
+      .map((url, index) => ({ url, index, score: priority(url) }))
+      .sort((a, b) => b.score - a.score || a.index - b.index)
+      .slice(0, maxUrls - 1);
+    for (const { url } of ranked) {
+      if (shouldStop()) break;
+      record(await visit(url));
+    }
   } else {
-    // 2) Sem sitemap: crawler em largura a partir da página inicial.
+    // 2) Sem sitemap: crawler em largura a partir da página inicial. Dentro de cada nível, as
+    // URLs mais relevantes primeiro, para o teto não cortar justamente as páginas das funções.
     source = 'crawler';
-    const seen = new Set([homeUrl]);
-    const queue: { url: string; depth: number; linkText?: string }[] = [];
+    const seen = new Set([homeUrl, ...homeLinks]);
+    const queue: { url: string; depth: number }[] = homeLinks.map((url) => ({ url, depth: 1 }));
     let visits = 1;
 
-    const enqueueLinks = (html: string, pageUrl: string, depth: number) => {
-      if (depth >= maxDepth) return;
-      const page = parseHtml(html);
-      const base = page.baseHref ? (normalizeUrl(page.baseHref, pageUrl) ?? pageUrl) : pageUrl;
-      for (const link of page.links) {
-        const url = screen(link.href, base);
-        if (!url || seen.has(url)) continue;
-        seen.add(url);
-        queue.push({ url, depth: depth + 1, linkText: link.text || undefined });
+    const next = () => {
+      const depth = (queue[0] as (typeof queue)[number]).depth;
+      let best = 0;
+      let bestScore = priority(queue[0]!.url);
+      for (let i = 1; i < queue.length && queue[i]!.depth === depth; i++) {
+        const score = priority(queue[i]!.url);
+        if (score > bestScore) [best, bestScore] = [i, score];
       }
+      return queue.splice(best, 1)[0] as (typeof queue)[number];
     };
 
-    record(homeOutcome);
-    enqueueLinks(homeOutcome.html, homeUrl, 0);
-
-    while (queue.length > 0 && visits < maxUrls) {
-      const item = queue.shift() as (typeof queue)[number];
+    while (queue.length > 0 && visits < maxUrls && !shouldStop()) {
+      const item = next();
       visits++;
       const outcome = await visit(item.url);
-      record(outcome, item.linkText);
+      record(outcome);
       if (outcome.kind === 'page') {
         seen.add(outcome.url);
-        enqueueLinks(outcome.html, outcome.url, item.depth);
+        if (item.depth >= maxDepth) continue;
+        for (const url of linksOf(outcome.html, outcome.url, item.depth + 1)) {
+          if (seen.has(url)) continue;
+          seen.add(url);
+          queue.push({ url, depth: item.depth + 1 });
+        }
       }
     }
   }
@@ -241,7 +394,8 @@ export async function discoverRoutes({
     robotsTxtFound,
     sitemapFiles: sitemap.files,
     routes: [...state.routes.values()],
-    blockedByRobots: state.blockedByRobots,
+    blockedByRobots: state.blockedByRobots.size,
+    stoppedEarly,
     failed: state.failed,
   };
 }
@@ -252,6 +406,15 @@ function crawlInterval(robots: RobotsRules): number | undefined {
     : Math.min(robots.crawlDelayMs, MAX_CRAWL_DELAY_MS);
 }
 
+/** robots.txt e página inicial a partir de `baseUrl`. Falha de rede na inicial propaga. */
+async function openPortal(client: HttpClient, baseUrl: string, robotsAgent: string) {
+  const loaded = await loadRobots(client, baseUrl, robotsAgent);
+  const homeResponse = await client.get(`${loaded.origin}/`, {
+    intervalMs: crawlInterval(loaded.robots),
+  });
+  return { ...loaded, homeResponse };
+}
+
 async function loadRobots(client: HttpClient, baseUrl: string, robotsAgent: string) {
   let origin = new URL(baseUrl).origin;
   let content: string | null = null;
@@ -259,6 +422,13 @@ async function loadRobots(client: HttpClient, baseUrl: string, robotsAgent: stri
     const res = await client.get(`${origin}/robots.txt`);
     origin = new URL(res.url).origin;
     if (res.status === 200) content = res.body.toString('utf8');
+    // RFC 9309 (2.3.1.4): robots.txt com erro de servidor = tudo proibido. Por cautela, a
+    // descoberta não prossegue; 4xx (inexistente) libera, como antes.
+    if (res.status >= 500 || res.status === 429) {
+      throw new DiscoveryError(
+        `O robots.txt respondeu HTTP ${res.status}: pelo protocolo (RFC 9309), sem ele o portal é tratado como proibido. Tente de novo mais tarde.`,
+      );
+    }
   } catch (err) {
     if (!(err instanceof FetchFailedError)) throw err;
   }
@@ -280,7 +450,7 @@ function analyzePage(res: HttpResponse, origin: string): PageOutcome {
   const url = normalizeUrl(res.url);
   if (!url || !isSameOrigin(url, origin)) return { kind: 'skipped' };
 
-  const html = res.body.toString('utf8');
+  const html = decodeHtml(res.body, res.contentType);
   const page = parseHtml(html);
   if (
     isAuthenticatedArea({
@@ -330,7 +500,8 @@ async function collectSitemapUrls(
     if (parsed.kind === 'urlset') {
       urls.push(...parsed.urls);
     } else if (depth < MAX_SITEMAP_INDEX_DEPTH) {
-      for (const child of parsed.sitemaps) {
+      // Páginas institucionais antes de notícias: se o limite de arquivos apertar, sobram notícias.
+      for (const child of [...parsed.sitemaps].sort((a, b) => sitemapRank(a) - sitemapRank(b))) {
         const childUrl = normalizeUrl(child, url);
         if (childUrl && isWithinDomain(new URL(childUrl).host, domain))
           await readSitemap(childUrl, depth + 1);
@@ -339,9 +510,9 @@ async function collectSitemapUrls(
     return true;
   };
 
-  if (declared.length > 0) {
-    for (const url of declared) await readSitemap(url, 0);
-  } else {
+  for (const url of declared) await readSitemap(url, 0);
+  // Sem sitemap declarado, ou com o declarado quebrado: tenta os caminhos padrão.
+  if (urls.length === 0) {
     for (const path of FALLBACK_SITEMAPS) {
       const url = `${origin}${path}`;
       if (robots.isAllowed(url) && (await readSitemap(url, 0))) break;
@@ -349,6 +520,13 @@ async function collectSitemapUrls(
   }
 
   return { urls, files };
+}
+
+/** Ordem de leitura dos sitemaps filhos: páginas primeiro, notícias e posts por último. */
+function sitemapRank(url: string): number {
+  if (/page|pagina/i.test(url)) return 0;
+  if (/post|noticia|news|event|tag|categor|author/i.test(url)) return 2;
+  return 1;
 }
 
 async function checkRoute(
