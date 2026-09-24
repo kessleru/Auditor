@@ -1,4 +1,4 @@
-import type { PageFunctionKey, RouteSource } from '@auditoria-rf/contracts';
+import type { DiscoveryProgress, PageFunctionKey, RouteSource } from '@auditoria-rf/contracts';
 import { isAuthenticatedArea, isAuthUrl } from './auth-detection.js';
 import { decodeHtml, type PageLink, parseHtml } from './html.js';
 import { FetchFailedError, type HttpClient, type HttpResponse } from './http.js';
@@ -93,6 +93,8 @@ export interface DiscoveryOptions {
   maxDurationMs?: number;
   /** Falhas seguidas que encerram a descoberta (padrão 10). */
   maxConsecutiveFailures?: number;
+  /** Chamada a cada etapa e a cada página lida, para mostrar o andamento. */
+  onProgress?: (progress: DiscoveryProgress) => void;
   now?: () => number;
 }
 
@@ -127,10 +129,22 @@ export async function discoverRoutes({
   checkUrls = [],
   maxDurationMs = DEFAULT_MAX_DURATION_MS,
   maxConsecutiveFailures = DEFAULT_MAX_CONSECUTIVE_FAILURES,
+  onProgress = () => {},
   now = Date.now,
 }: DiscoveryOptions): Promise<DiscoveryResult> {
   const startedAt = now();
   if (isDevHost(domain)) throw new DiscoveryError(DEV_HOST_REASON);
+  let progress: DiscoveryProgress = { phase: 'robots', visited: 0, planned: null };
+  /** Só informa: um andamento que falha (ex.: canal fechado) não interrompe a descoberta. */
+  const report = (change: Partial<DiscoveryProgress> = {}) => {
+    progress = { ...progress, ...change };
+    try {
+      onProgress(progress);
+    } catch {
+      // ignorado de propósito
+    }
+  };
+  report();
 
   // robots.txt antes de qualquer página; o redirecionamento dele já revela a origem canônica.
   // Domínio que não responde sem "www." (sem DNS ou sem servidor no endereço raiz) é tentado com
@@ -316,6 +330,8 @@ export async function discoverRoutes({
     } catch (err) {
       if (err instanceof FetchFailedError) return { kind: 'skipped' };
       throw err;
+    } finally {
+      report({ visited: progress.visited + 1 });
     }
   };
 
@@ -324,6 +340,7 @@ export async function discoverRoutes({
     throw new DiscoveryError('A página inicial não pôde ser lida como HTML público.');
   }
   record(homeOutcome);
+  report({ phase: 'sitemap', visited: 1 });
   // Os links da página inicial (menus, atalhos) são o melhor indício das páginas de cada função.
   const homeLinks = linksOf(homeOutcome.html, homeUrl, 1).filter((u) => u !== homeUrl);
 
@@ -344,6 +361,7 @@ export async function discoverRoutes({
       .map((url, index) => ({ url, index, score: priority(url) }))
       .sort((a, b) => b.score - a.score || a.index - b.index)
       .slice(0, maxUrls - 1);
+    report({ phase: 'pages', planned: ranked.length + 1 });
     for (const { url } of ranked) {
       if (shouldStop()) break;
       record(await visit(url));
@@ -355,6 +373,9 @@ export async function discoverRoutes({
     const seen = new Set([homeUrl, ...homeLinks]);
     const queue: { url: string; depth: number }[] = homeLinks.map((url) => ({ url, depth: 1 }));
     let visits = 1;
+    // Teto da rodada: o que já foi visitado mais a fila, sem passar do limite de URLs.
+    const planned = () => Math.min(maxUrls, visits + queue.length);
+    report({ phase: 'pages', planned: planned() });
 
     const next = () => {
       const depth = (queue[0] as (typeof queue)[number]).depth;
@@ -380,11 +401,13 @@ export async function discoverRoutes({
           seen.add(url);
           queue.push({ url, depth: item.depth + 1 });
         }
+        if (planned() !== progress.planned) report({ planned: planned() });
       }
     }
   }
 
   const checks: RouteCheck[] = [];
+  if (checkUrls.length > 0) report({ phase: 'checks' });
   for (const url of checkUrls) checks.push(await checkRoute(client, url, intervalMs));
 
   return {

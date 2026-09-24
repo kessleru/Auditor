@@ -117,9 +117,23 @@ export const routeReplacementSchema = z.object({
 });
 export type RouteReplacement = z.infer<typeof routeReplacementSchema>;
 
+/** Etapas da descoberta, na ordem: robots.txt e página inicial, sitemap, páginas, rotas confirmadas. */
+export const discoveryPhases = ['robots', 'sitemap', 'pages', 'checks'] as const;
+
+export const discoveryProgressSchema = z.object({
+  phase: z.enum(discoveryPhases),
+  /** Páginas lidas até agora (inclui a inicial). */
+  visited: z.number().int(),
+  /** Teto de páginas desta rodada; `null` enquanto não se sabe (antes do sitemap). */
+  planned: z.number().int().nullable(),
+});
+export type DiscoveryProgress = z.infer<typeof discoveryProgressSchema>;
+
 export const discoveryStateSchema = z.object({
   institutionId: z.number().int(),
   status: z.enum(discoveryStatuses),
+  /** Andamento enquanto `status = 'running'`; `null` fora disso. */
+  progress: discoveryProgressSchema.nullable(),
   startedAt: z.string().nullable(),
   finishedAt: z.string().nullable(),
   error: z.string().nullable(),
