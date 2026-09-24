@@ -1,4 +1,5 @@
 import {
+  type FunctionAbsence,
   type PageFunctionKey,
   pageFunctionLabels,
   type Route,
@@ -20,7 +21,9 @@ import {
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import {
+  useClearAbsence,
   useCreateRoute,
+  useMarkAbsent,
   useDiscovery,
   useInstitutions,
   useReplaceRoute,
@@ -42,21 +45,29 @@ const errorMessage = (error: unknown) =>
 function FunctionRow({
   functionKey,
   routes,
+  absence,
   institutionId,
 }: {
   functionKey: PageFunctionKey;
   routes: Route[];
+  /** Marcada como não encontrada no portal (ADR 0013). */
+  absence: FunctionAbsence | undefined;
   institutionId: number;
 }) {
   const update = useUpdateRoute(institutionId);
+  const markAbsent = useMarkAbsent(institutionId);
+  const clearAbsence = useClearAbsence(institutionId);
   const [choosing, setChoosing] = useState(false);
+  const [markingAbsent, setMarkingAbsent] = useState(false);
+  const [reason, setReason] = useState('');
   const [choice, setChoice] = useState<number | ''>('');
   const formId = useId();
+  const absentFormId = useId();
   const label = pageFunctionLabels[functionKey];
   const confirmed = routes.find((r) => r.status === 'confirmed' && r.functionKey === functionKey);
   const candidates = candidatesFor(routes, functionKey);
   // A sugestão mostrada é a mais relevante; as demais ficam na lista de escolha, em ordem.
-  const suggestion = confirmed ? undefined : candidates[0];
+  const suggestion = confirmed || absence ? undefined : candidates[0];
   const current = confirmed ?? suggestion;
   const others = routes
     .filter(
@@ -99,6 +110,11 @@ function FunctionRow({
               </span>
             ) : null}
           </>
+        ) : absence ? (
+          <>
+            <span className="text-text">Não encontrada no portal</span>
+            <span className="mt-1 block text-label text-text-muted">Motivo: {absence.reason}</span>
+          </>
         ) : (
           <span className="text-text-muted">Nenhuma URL sugerida</span>
         )}
@@ -109,6 +125,8 @@ function FunctionRow({
           <Badge variant={statusBadges[current.status].variant}>
             {statusBadges[current.status].label}
           </Badge>
+        ) : absence ? (
+          <Badge variant="neutral">Não encontrada</Badge>
         ) : (
           <Badge variant="neutral">Sem rota</Badge>
         )}
@@ -136,7 +154,66 @@ function FunctionRow({
             >
               {confirmed ? 'Trocar' : 'Escolher outra'}
             </Button>
+            {absence ? (
+              <Button
+                variant="secondary"
+                className="min-h-8 px-3"
+                disabled={clearAbsence.isPending}
+                aria-label={`Desfazer: ${label} não encontrada`}
+                onClick={() => clearAbsence.mutate(functionKey)}
+              >
+                Desfazer
+              </Button>
+            ) : confirmed ? null : (
+              <Button
+                variant="secondary"
+                className="min-h-8 px-3"
+                aria-expanded={markingAbsent}
+                aria-controls={absentFormId}
+                aria-label={`Marcar ${label} como não encontrada`}
+                onClick={() => setMarkingAbsent((m) => !m)}
+              >
+                Não encontrada
+              </Button>
+            )}
           </div>
+          <form
+            id={absentFormId}
+            hidden={!markingAbsent || absence !== undefined}
+            className="motion-safe:animate-enter flex w-full max-w-md flex-col items-end gap-2"
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              markAbsent.mutate(
+                { functionKey, reason },
+                {
+                  onSuccess: () => {
+                    setMarkingAbsent(false);
+                    setReason('');
+                  },
+                },
+              );
+            }}
+          >
+            <label className="flex w-full flex-col gap-1 text-left text-label font-medium">
+              Onde você procurou? ({label})
+              <textarea
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                rows={2}
+                className="rounded-md border border-border-strong bg-surface px-2 py-1 text-body font-normal"
+              />
+            </label>
+            <p className="text-label text-text-muted">
+              Fica registrado e entra na cobertura da instituição, sem virar 0%.
+            </p>
+            <Button
+              type="submit"
+              className="min-h-8 px-3"
+              disabled={reason.trim().length < 10 || markAbsent.isPending}
+            >
+              Registrar que não existe
+            </Button>
+          </form>
           <form
             id={formId}
             hidden={!choosing}
@@ -187,9 +264,9 @@ function FunctionRow({
               Usar esta URL
             </Button>
           </form>
-          {update.error ? (
+          {update.error || markAbsent.error || clearAbsence.error ? (
             <p role="alert" className="text-label text-critical-text">
-              {errorMessage(update.error)}
+              {errorMessage(update.error ?? markAbsent.error ?? clearAbsence.error)}
             </p>
           ) : null}
         </div>
@@ -201,11 +278,13 @@ function FunctionRow({
 function RoutesTable({
   functions,
   routes,
+  absences,
   institutionId,
   acronym,
 }: {
   functions: PageFunctionKey[];
   routes: Route[];
+  absences: FunctionAbsence[];
   institutionId: number;
   acronym: string;
 }) {
@@ -233,6 +312,7 @@ function RoutesTable({
               key={key}
               functionKey={key}
               routes={routes}
+              absence={absences.find((a) => a.functionKey === key)}
               institutionId={institutionId}
             />
           ))}
@@ -479,7 +559,7 @@ export function RouteReviewPage() {
         loadingText="Carregando rotas…"
         errorTitle="Não foi possível carregar as rotas"
       >
-        {(list) => {
+        {({ routes: list, absences }) => {
           const authenticated = list.filter((r) => r.status === 'authenticated');
           if (list.length === 0 && !running) {
             return (
@@ -499,6 +579,7 @@ export function RouteReviewPage() {
               <RoutesTable
                 functions={functions}
                 routes={list}
+                absences={absences}
                 institutionId={institutionId}
                 acronym={acronym}
               />

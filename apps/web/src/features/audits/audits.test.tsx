@@ -95,7 +95,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes },
+        'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': idleDiscovery,
         'PATCH /routes/2': (init: RequestInit | undefined) => {
           patched = JSON.parse(String(init?.body));
@@ -154,7 +154,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes: ranked },
+        'GET /institutions/1/routes': { routes: ranked, absences: [] },
         'GET /institutions/1/discovery': idleDiscovery,
         'PATCH /routes/7': (init: RequestInit | undefined) => {
           patched = JSON.parse(String(init?.body));
@@ -209,7 +209,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes },
+        'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': {
           discovery: {
             ...idleDiscovery.discovery,
@@ -246,12 +246,94 @@ describe('revisão de rotas (1.2)', () => {
     await waitFor(() => expect(replaced).toEqual({ newRouteId: 3 }));
   });
 
+  it('marca função como não encontrada, com o motivo, e desfaz', async () => {
+    let body: unknown;
+    let deleted = false;
+    const absent = {
+      institutionId: 1,
+      functionKey: 'library',
+      reason: 'Procurei no menu e no mapa do site.',
+      decidedAt: '2026-09-24T10:00:00.000Z',
+    };
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': { routes, absences: [absent] },
+        'GET /institutions/1/discovery': idleDiscovery,
+        'PUT /institutions/1/functions/class_schedule/absence': (init: RequestInit | undefined) => {
+          body = JSON.parse(String(init?.body));
+          return Response.json({ absence: { ...absent, functionKey: 'class_schedule' } });
+        },
+        'DELETE /institutions/1/functions/library/absence': () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+    const { container } = renderRoute(
+      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=library,class_schedule',
+    );
+    const table = await screen.findByRole('table', { name: 'Rotas por função avaliada — IFTM' });
+    const [library, schedule] = within(table).getAllByRole('row').slice(1);
+    expect(library!.textContent).toContain('Não encontrada no portal');
+    expect(library!.textContent).toContain('Motivo: Procurei no menu e no mapa do site.');
+    await expectNoAxeViolations(container);
+
+    await userEvent.click(
+      within(schedule!).getByRole('button', {
+        name: 'Marcar Horários de aula como não encontrada',
+      }),
+    );
+    const submit = within(schedule!).getByRole('button', { name: 'Registrar que não existe' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.type(
+      within(schedule!).getByLabelText('Onde você procurou? (Horários de aula)'),
+      'Menu Ensino e página de cada curso.',
+    );
+    await userEvent.click(submit);
+    await waitFor(() => expect(body).toEqual({ reason: 'Menu Ensino e página de cada curso.' }));
+
+    await userEvent.click(
+      within(library!).getByRole('button', { name: 'Desfazer: Biblioteca não encontrada' }),
+    );
+    await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it('visão geral conta como revisada a função não encontrada', async () => {
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': {
+          routes,
+          absences: [
+            {
+              institutionId: 1,
+              functionKey: 'admission',
+              reason: 'Não há página própria de ingresso.',
+              decidedAt: '2026-09-24T10:00:00.000Z',
+            },
+          ],
+        },
+      },
+    });
+    renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
+    expect(await screen.findByText('2 de 2')).toBeTruthy();
+    expect(screen.getByText('1 confirmada, 1 não encontrada')).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'Iniciar coleta' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+  });
+
   it('visão geral só libera a coleta com todas as funções confirmadas', async () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes },
+        'GET /institutions/1/routes': { routes, absences: [] },
       },
     });
     renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
@@ -259,7 +341,9 @@ describe('revisão de rotas (1.2)', () => {
     expect(
       (screen.getByRole('button', { name: 'Iniciar coleta' }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(screen.getByText('Falta confirmar rotas em: IFTM.')).toBeTruthy();
+    expect(
+      screen.getByText('Falta confirmar a rota ou marcar como não encontrada em: IFTM.'),
+    ).toBeTruthy();
   });
 
   it('inicia a coleta e vai para o acompanhamento', async () => {
@@ -268,7 +352,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes: confirmedAll },
+        'GET /institutions/1/routes': { routes: confirmedAll, absences: [] },
         'POST /collections': {
           collection: {
             id: 9,
