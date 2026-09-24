@@ -28,7 +28,7 @@ npm run db:seed                 # funções de página, tarefas-alvo e a Rede Fe
 npm run db:generate -w @auditoria-rf/api   # gera migration após mudar src/db/schema.ts
 ```
 
-`npm run create-auditor -- --email <e-mail> --name <nome>` é o único jeito de criar auditor; a senha é pedida sem eco (ou lida da entrada padrão), nunca como argumento. `npm run collect -- --institution=<sigla|id> [--functions=home,admission] [--auditor=<e-mail>]` executa uma coleta. `npm run discover -- --institution=<sigla|id>` (ou `--all`) roda a descoberta contra os portais reais e imprime as candidatas por função (nada é confirmado). Descoberta e coleta exigem `CRAWLER_CONTACT_EMAIL` no `.env`.
+`npm run create-auditor -- --email <e-mail> --name <nome>` é o único jeito de criar auditor; a senha é pedida sem eco (ou lida da entrada padrão), nunca como argumento. `npm run collect -- --institution=<sigla|id> [--functions=home,admission] [--auditor=<e-mail>]` executa uma coleta. `npm run discover -- --institution=<sigla|id>` (ou `--all`) roda a descoberta contra os portais reais e imprime as candidatas por função (nada é confirmado). Descoberta e coleta exigem um contato no user-agent: `CRAWLER_CONTACT_EMAIL` no `.env` ou, sem ele, o e-mail do primeiro auditor.
 
 O motor precisa do Chromium do Playwright: `npx playwright install chromium` (e `sudo npx playwright install-deps chromium` se faltarem bibliotecas do sistema). Os testes de aceite da Fase 4 abrem o navegador de verdade contra HTML servido em `127.0.0.1`.
 
@@ -47,6 +47,8 @@ Monorepo npm workspaces:
 API organizada **por módulo de domínio** (`src/modules/<módulo>/`), com camadas dentro de cada módulo. Dependências fluem só para baixo: `routes → controllers → services → repositories → db`. Services não conhecem `req/res`; repositories são o único acesso ao banco. `infra/` (crawler, auditor, queue, storage, events, locks) é consumida **apenas por services**. A CLI (`src/cli/`) usa os **mesmos services** da API — nunca duplicar lógica.
 
 Descoberta de rotas: `infra/crawler/discover.ts` (puro, recebe um `HttpClient`); os testes usam o site falso em memória de `infra/crawler/__fixtures__/site.ts`. Detalhes e decisões em `docs/decisoes/0002-descoberta-de-rotas.md` e `0011-candidatas-de-rota-e-rede-federal.md`; palavras-chave (com exclusões) em `FUNCTION_KEYWORDS`, relevância das candidatas em `suggestionRelevance` (só ordena, nunca decide). Controllers validam a entrada com os schemas de `contracts` e passam dados já tipados aos services.
+
+Robustez (ADR 0012): o cliente HTTP do crawler tenta de novo uma vez (rede, 429/503 com `Retry-After`), completa cadeia TLS incompleta pelo AIA (`tls-chain.ts`) e sai por `CRAWLER_PROXY` se definido; robots.txt 5xx = proibido (RFC 9309); a descoberta para após 10 falhas seguidas ou 20 min. Sem `CRAWLER_CONTACT_EMAIL`, o user-agent usa o e-mail do primeiro auditor. `TRUST_PROXY`/`COOKIE_SECURE=auto` para rodar atrás do nginx. Nunca contornar bloqueio de portal trocando o user-agent.
 
 `src/services.ts` compõe todos os services; `createApp` e as CLIs usam essa mesma função (nunca montar services à mão). Métricas em `modules/reports/metrics.ts` (ADR 0003); motor, fila e travas na ADR 0004.
 
