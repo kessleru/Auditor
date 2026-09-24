@@ -1,12 +1,24 @@
-import type { DiscoveryState, DiscoverySummary, RouteReplacement } from '@auditoria-rf/contracts';
+import type {
+  DiscoveryProgress,
+  DiscoveryState,
+  DiscoverySummary,
+  RouteReplacement,
+} from '@auditoria-rf/contracts';
 import type { DiscoveryResult } from '../../infra/crawler/index.js';
 import { AppError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import type { InstitutionsService } from '../institutions/institutions.service.js';
 import type { RoutesRepository } from './routes.repository.js';
 
-/** Executa a descoberta; `checkUrls` são as rotas confirmadas a verificar (seção 3.1.7). */
-export type DiscoverFn = (domain: string, checkUrls: string[]) => Promise<DiscoveryResult>;
+/**
+ * Executa a descoberta; `checkUrls` são as rotas confirmadas a verificar (seção 3.1.7) e
+ * `onProgress` recebe o andamento (etapa e páginas lidas).
+ */
+export type DiscoverFn = (
+  domain: string,
+  checkUrls: string[],
+  onProgress?: (progress: DiscoveryProgress) => void,
+) => Promise<DiscoveryResult>;
 
 interface DiscoveryRun {
   state: DiscoveryState;
@@ -32,6 +44,7 @@ export function createDiscoveryService(
   const idle = (institutionId: number): DiscoveryState => ({
     institutionId,
     status: 'idle',
+    progress: null,
     startedAt: null,
     finishedAt: null,
     error: null,
@@ -187,6 +200,7 @@ export function createDiscoveryService(
       const state: DiscoveryState = {
         ...idle(institutionId),
         status: 'running',
+        progress: { phase: 'robots', visited: 0, planned: null },
         startedAt: now().toISOString(),
       };
       const done = (async () => {
@@ -194,7 +208,9 @@ export function createDiscoveryService(
           const confirmed = routesRepo
             .listByInstitution(institutionId, 'confirmed')
             .map((r) => r.url);
-          const result = await run(institution.domain, confirmed);
+          const result = await run(institution.domain, confirmed, (progress) => {
+            state.progress = progress;
+          });
           state.summary = persist(institutionId, result);
           state.replacements = findReplacements(institutionId, result);
           state.status = 'completed';
@@ -203,6 +219,7 @@ export function createDiscoveryService(
           state.error = err instanceof Error ? err.message : String(err);
           logger.warn({ err, institutionId }, 'descoberta de rotas falhou');
         } finally {
+          state.progress = null;
           state.finishedAt = now().toISOString();
         }
       })();

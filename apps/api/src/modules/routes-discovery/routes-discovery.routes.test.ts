@@ -39,8 +39,14 @@ function iftmSite(extraLinks: string[] = []) {
 
 const crawl =
   (site: ReturnType<typeof fakeSite>): DiscoverFn =>
-  (domain, checkUrls) =>
-    discoverRoutes({ domain, client: site.client, robotsAgent: 'AuditoriaRF', checkUrls });
+  (domain, checkUrls, onProgress) =>
+    discoverRoutes({
+      domain,
+      client: site.client,
+      robotsAgent: 'AuditoriaRF',
+      checkUrls,
+      onProgress,
+    });
 
 let db: DB;
 let discover: DiscoverFn;
@@ -52,7 +58,10 @@ beforeEach(() => {
 });
 
 async function setup() {
-  const app = createApp({ db, discover: (domain, checkUrls) => discover(domain, checkUrls) });
+  const app = createApp({
+    db,
+    discover: (domain, checkUrls, onProgress) => discover(domain, checkUrls, onProgress),
+  });
   const agent = await loggedInAgent(app, db);
   return { app, agent };
 }
@@ -155,6 +164,39 @@ describe('descoberta de rotas', () => {
       exclusionReason: 'Listagem de notícias',
     });
     expect(byUrl[`${ORIGIN}/nova`]?.status).toBe('suggested');
+  });
+
+  it('mostra o andamento enquanto roda e o limpa ao terminar', async () => {
+    let release: (value: DiscoveryResult) => void = () => {};
+    let report: Parameters<DiscoverFn>[2];
+    discover = (_domain, _checkUrls, onProgress) => {
+      report = onProgress;
+      return new Promise((resolve) => (release = resolve));
+    };
+    const { agent } = await setup();
+
+    const started = await agent.post('/api/v1/institutions/1/discover');
+    expect(started.body.discovery.progress).toEqual({
+      phase: 'robots',
+      visited: 0,
+      planned: null,
+    });
+    report?.({ phase: 'pages', visited: 12, planned: 200 });
+    const running = await agent.get('/api/v1/institutions/1/discovery');
+    expect(running.body.discovery.progress).toEqual({ phase: 'pages', visited: 12, planned: 200 });
+
+    release({
+      origin: ORIGIN,
+      source: 'crawler',
+      robotsTxtFound: false,
+      sitemapFiles: [],
+      routes: [],
+      blockedByRobots: 0,
+      failed: 0,
+      stoppedEarly: null,
+      checks: [],
+    });
+    expect(await waitForDiscovery(agent)).toMatchObject({ status: 'completed', progress: null });
   });
 
   it('não inicia duas descobertas ao mesmo tempo na mesma instituição', async () => {
