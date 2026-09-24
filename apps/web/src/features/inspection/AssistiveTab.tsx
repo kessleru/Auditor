@@ -169,6 +169,19 @@ export function AssistiveTab() {
                 Página {index + 1} de {list.length}, com {done} de {total} verificações registradas
               </p>
             </form>
+            <p className="text-body">
+              <a
+                href={current.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
+                Abrir a página em verificação (nova janela)
+              </a>{' '}
+              <span className="font-mono text-code break-all text-text-muted">
+                {current.url.replace(/^https?:\/\//, '')}
+              </span>
+            </p>
             <ul
               key={current.id}
               className="flex flex-col divide-y divide-border rounded-lg bg-surface shadow-card"

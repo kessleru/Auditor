@@ -7,13 +7,14 @@ import {
   type TaskResult,
 } from '@auditoria-rf/contracts';
 import { Pause, Play, Plus, RotateCcw } from 'lucide-react';
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import { type FormEvent, useId, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router';
 import { Badge, Button, Choice, cn, EmptyState, Note, TextField } from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import { usePortalTasks, useSaveTaskInspection } from './api';
 import type { PortalContext } from './context';
+import { useStopwatch } from './useStopwatch';
 
 const resultLabels: Record<TaskResult, string> = {
   completed: 'Concluída sem dificuldade',
@@ -41,8 +42,8 @@ function TaskForm({
   const { collectionId, institutionId } = useOutletContext<PortalContext>();
   const save = useSaveTaskInspection(collectionId, institutionId);
   const previous = item.inspection;
-  const [seconds, setSeconds] = useState(previous?.durationSeconds ?? 0);
-  const [running, setRunning] = useState(false);
+  const stopwatch = useStopwatch(previous?.durationSeconds ?? 0, TASK_LIMITS.maxSeconds);
+  const { seconds, running } = stopwatch;
   const [interactions, setInteractions] = useState(previous?.interactions ?? 0);
   const [depth, setDepth] = useState(previous?.depth ?? 0);
   const [path, setPath] = useState<string[]>(previous?.path ?? []);
@@ -53,20 +54,15 @@ function TaskForm({
   const [note, setNote] = useState(previous?.note ?? '');
   const ids = { result: useId(), heuristic: useId(), severity: useId() };
 
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
+  const interactionsReached = interactions >= TASK_LIMITS.maxInteractions;
+  const limitReached = stopwatch.limitReached || interactionsReached;
 
-  const limitReached =
-    seconds >= TASK_LIMITS.maxSeconds || interactions >= TASK_LIMITS.maxInteractions;
   const needsHeuristic = result !== null && result !== 'completed';
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!result) return;
-    setRunning(false);
+    stopwatch.pause();
     save.mutate(
       {
         collectionId,
@@ -103,12 +99,14 @@ function TaskForm({
             <p className="text-label text-text-muted">Tempo decorrido</p>
             <p className="text-metric" aria-live="off">
               {clock(seconds)}
+              <span className="text-body text-text-muted"> de {clock(TASK_LIMITS.maxSeconds)}</span>
             </p>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
                 className="min-h-9 px-3"
-                onClick={() => setRunning((r) => !r)}
+                disabled={!running && limitReached}
+                onClick={() => (running ? stopwatch.pause() : stopwatch.start())}
               >
                 {running ? (
                   <Pause aria-hidden="true" size={16} strokeWidth={1.75} />
@@ -121,10 +119,7 @@ function TaskForm({
                 variant="secondary"
                 className="min-h-9 px-3"
                 aria-label="Zerar cronômetro"
-                onClick={() => {
-                  setRunning(false);
-                  setSeconds(0);
-                }}
+                onClick={stopwatch.reset}
               >
                 <RotateCcw aria-hidden="true" size={16} strokeWidth={1.75} /> Zerar
               </Button>
@@ -132,13 +127,22 @@ function TaskForm({
           </div>
           <div className="flex flex-col gap-2 rounded-lg bg-muted p-4">
             <p className="text-label text-text-muted">Interações</p>
-            <p className="text-metric">{interactions}</p>
+            <p className="text-metric">
+              {interactions}
+              <span className="text-body text-text-muted"> de {TASK_LIMITS.maxInteractions}</span>
+            </p>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
                 className="min-h-9 px-3"
                 aria-label="Registrar uma interação"
-                onClick={() => setInteractions((n) => n + 1)}
+                disabled={interactionsReached}
+                onClick={() => {
+                  const next = Math.min(TASK_LIMITS.maxInteractions, interactions + 1);
+                  setInteractions(next);
+                  // No limite de interações o tempo também para: a tarefa terminou ali.
+                  if (next >= TASK_LIMITS.maxInteractions) stopwatch.pause();
+                }}
               >
                 +1 clique
               </Button>
@@ -315,7 +319,7 @@ function TaskForm({
 
 /** Tela 3.1: tarefas-alvo do portal, uma por vez. */
 export function TasksTab() {
-  const { collectionId, institutionId } = useOutletContext<PortalContext>();
+  const { collectionId, institutionId, portal } = useOutletContext<PortalContext>();
   const tasks = usePortalTasks(collectionId, institutionId);
   const [params, setParams] = useSearchParams();
 
@@ -361,6 +365,19 @@ export function TasksTab() {
                 ))}
               </ol>
             </nav>
+            <p className="text-body">
+              <a
+                href={`https://${portal.domain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
+                Abrir a página inicial de {portal.acronym} (nova janela)
+              </a>{' '}
+              <span className="text-text-muted">
+                — toda tarefa começa na página inicial do portal.
+              </span>
+            </p>
             <TaskForm
               key={current.task.id}
               item={current}

@@ -201,7 +201,18 @@ export const taskInspectionInputSchema = z
   .refine((v) => v.result === 'completed' || v.note.length >= 3, {
     message: 'Descreva o que dificultou ou impediu a tarefa.',
     path: ['note'],
-  });
+  })
+  // Critério de parada (ADR 0008): passou do limite, a tarefa foi interrompida ali.
+  .refine(
+    (v) =>
+      v.result === 'interrupted' ||
+      (v.durationSeconds <= TASK_LIMITS.maxSeconds &&
+        v.interactions <= TASK_LIMITS.maxInteractions),
+    {
+      message: `Acima de ${TASK_LIMITS.maxSeconds / 60} minutos ou ${TASK_LIMITS.maxInteractions} interações a tarefa conta como interrompida.`,
+      path: ['result'],
+    },
+  );
 export type TaskInspectionInput = z.input<typeof taskInspectionInputSchema>;
 
 export const taskInspectionSchema = z.object({
