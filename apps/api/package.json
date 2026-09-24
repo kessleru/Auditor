@@ -14,6 +14,7 @@
     "db:seed": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/db-seed.ts",
     "create-auditor": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/create-auditor.ts",
     "collect": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/collect.ts",
+    "discover": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/discover.ts",
     "dogfood": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/dogfood.ts"
   },
   "dependencies": {
