@@ -1,9 +1,10 @@
 import {
+  type DiscoveryProgress,
   type PageFunctionKey,
   pageFunctionLabels,
   type RouteReplacement,
 } from '@auditoria-rf/contracts';
-import { type ReactNode, useId, useRef } from 'react';
+import { type ReactNode, useId, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
   Button,
@@ -14,6 +15,7 @@ import {
   Stepper,
 } from '../../components/ui';
 import { ApiError } from '../../lib/api';
+import { useThrottledAnnouncement } from '../../lib/useThrottledAnnouncement';
 import { QueryState } from '../results/QueryState';
 import {
   useDiscovery,
@@ -104,6 +106,20 @@ function Replacements({
   );
 }
 
+/** Etapa da descoberta em andamento, com as páginas lidas quando já se sabe o teto. */
+function progressText(progress: DiscoveryProgress | null): string {
+  switch (progress?.phase) {
+    case 'sitemap':
+      return 'Descobrindo rotas: lendo o sitemap…';
+    case 'pages':
+      return `Descobrindo rotas: ${progress.visited} de até ${progress.planned ?? '?'} páginas lidas.`;
+    case 'checks':
+      return 'Descobrindo rotas: conferindo as rotas já confirmadas…';
+    default:
+      return 'Descobrindo rotas: lendo o robots.txt e a página inicial…';
+  }
+}
+
 /** Grupo de funções ("Para revisar" ou "Revisadas"), numa lista com divisórias. */
 function FunctionGroup({
   title,
@@ -154,8 +170,9 @@ export function RouteReviewPage() {
   // A função decidida sai de uma lista e entra na outra: o botão que tinha o foco some.
   const focusProgress = () => requestAnimationFrame(() => progressRef.current?.focus());
 
-  const discoveryText = running
-    ? 'Descobrindo rotas… Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos.'
+  const runningText = running ? progressText(discovery.data?.progress ?? null) : null;
+  const discoveryText = runningText
+    ? `${runningText} Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos.`
     : summary
       ? `Última descoberta: ${summary.found} URLs, ${summary.withSuggestion} com função sugerida.${
           summary.stoppedEarly === 'failures'
@@ -166,9 +183,20 @@ export function RouteReviewPage() {
         }`
       : null;
 
+  // Anuncia só a descoberta acompanhada nesta visita: abrir a página não lê o resumo antigo. A
+  // contagem muda a cada consulta (3 s); o leitor de tela ouve no máximo uma vez a cada 10 s.
+  const [watched, setWatched] = useState(false);
+  if (running && !watched) setWatched(true);
+  const announcement = useThrottledAnnouncement(
+    runningText ?? (watched ? (discoveryText ?? '') : ''),
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <Stepper current={1} />
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
       <nav aria-label="Trilha de navegação">
         <ol className="flex flex-wrap items-center gap-2 text-label">
           <li>
@@ -274,9 +302,7 @@ export function RouteReviewPage() {
                     />
                   </div>
                   {discoveryText ? (
-                    <p className="text-label text-text-muted" aria-live="polite">
-                      {discoveryText}
-                    </p>
+                    <p className="text-label text-text-muted">{discoveryText}</p>
                   ) : null}
                 </div>
                 <Button
