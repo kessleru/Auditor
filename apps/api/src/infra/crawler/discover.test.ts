@@ -454,6 +454,73 @@ describe('limites de tempo e de falhas', () => {
   });
 });
 
+describe('andamento', () => {
+  it('informa a etapa e as páginas lidas, com o teto da rodada', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: {
+        body: `Sitemap: ${ORIGIN}/sitemap.xml`,
+        contentType: 'text/plain',
+      },
+      [`${ORIGIN}/`]: { body: html('Início') },
+      [`${ORIGIN}/sitemap.xml`]: {
+        body: `<urlset><url><loc>${ORIGIN}/ingresso</loc></url><url><loc>${ORIGIN}/biblioteca</loc></url></urlset>`,
+      },
+      [`${ORIGIN}/ingresso`]: { body: html('Ingresso') },
+      [`${ORIGIN}/biblioteca`]: { body: html('Biblioteca') },
+    });
+    const events: unknown[] = [];
+    await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      checkUrls: [`${ORIGIN}/ingresso`],
+      onProgress: (progress) => events.push(progress),
+    });
+
+    expect(events[0]).toEqual({ phase: 'robots', visited: 0, planned: null });
+    expect(events).toContainEqual({ phase: 'sitemap', visited: 1, planned: null });
+    expect(events).toContainEqual({ phase: 'pages', visited: 2, planned: 3 });
+    expect(events).toContainEqual({ phase: 'pages', visited: 3, planned: 3 });
+    expect(events.at(-1)).toEqual({ phase: 'checks', visited: 3, planned: 3 });
+  });
+
+  it('no crawler, o teto é o que está na fila, limitado ao teto de URLs', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início', links('/a', '/b', '/c')) },
+      [`${ORIGIN}/a`]: { body: html('A') },
+      [`${ORIGIN}/b`]: { body: html('B') },
+      [`${ORIGIN}/c`]: { body: html('C') },
+    });
+    const lastEvent = async (maxUrls: number) => {
+      const events: unknown[] = [];
+      await discoverRoutes({
+        domain: 'if.edu.br',
+        client: site.client,
+        robotsAgent: agent,
+        maxUrls,
+        onProgress: (progress) => events.push(progress),
+      });
+      return events.at(-1);
+    };
+    expect(await lastEvent(50)).toEqual({ phase: 'pages', visited: 4, planned: 4 });
+    expect(await lastEvent(2)).toEqual({ phase: 'pages', visited: 2, planned: 2 });
+  });
+
+  it('um andamento que falha não interrompe a descoberta', async () => {
+    const site = crawlerSite({ [`${ORIGIN}/`]: { body: html('Início') } });
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      onProgress: () => {
+        throw new Error('canal fechado');
+      },
+    });
+    expect(byUrl(result.routes)).toEqual([ORIGIN]);
+  });
+});
+
 describe('área autenticada', () => {
   it('marca redirecionamento para login e página com senha, sem seguir seus links', async () => {
     const site = crawlerSite({

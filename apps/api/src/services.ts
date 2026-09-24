@@ -72,13 +72,14 @@ function perUserAgent<T>(
 
 const buildDiscover =
   (ua: string): DiscoverFn =>
-  (domain, checkUrls) =>
+  (domain, checkUrls, onProgress) =>
     discoverRoutes({
       domain,
       client: createHttpClient({ userAgent: ua, proxy: env.CRAWLER_PROXY }),
       robotsAgent: ROBOTS_AGENT,
       maxUrls: env.CRAWLER_MAX_URLS,
       checkUrls,
+      onProgress,
     });
 
 /** Composição dos services. A API (`createApp`) e a CLI usam exatamente esta função. */
