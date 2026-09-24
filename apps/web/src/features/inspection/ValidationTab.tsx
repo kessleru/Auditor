@@ -2,15 +2,7 @@ import { pageFunctionLabels, type InspectionProblem } from '@auditoria-rf/contra
 import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import {
-  Badge,
-  Button,
-  Choice,
-  FindingCard,
-  Note,
-  StatGroup,
-  StatGroupSkeleton,
-} from '../../components/ui';
+import { Badge, Button, Choice, FindingCard, Note } from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import { useInspectionFindings, useValidateFinding } from './api';
@@ -38,71 +30,70 @@ function ProblemCard({
   const status = validationBadge[problem.validation];
 
   return (
-    <div className="flex flex-col gap-3">
-      <FindingCard
-        title={problem.title}
-        severity={problem.severity}
-        origin="automated"
-        wcagCriteria={problem.wcagCriteria}
-        principle={problem.principle}
-        description={problem.description}
-        pageUrl={problem.example.pageUrl}
-        snippet={problem.example.htmlSnippet}
-        template={problem.template}
-        meta={
-          <>
-            <Badge variant={status.variant}>{status.label}</Badge> em {problem.pages}{' '}
-            {problem.pages === 1 ? 'página' : 'páginas'}, {problem.occurrences}{' '}
-            {problem.occurrences === 1 ? 'ocorrência' : 'ocorrências'}
-            <span className="block">
-              Seletor do elemento:{' '}
-              <code className="font-mono text-code break-all">{problem.example.selector}</code>
-            </span>
-            {problem.validationNote ? (
-              <span className="block">Justificativa: {problem.validationNote}</span>
+    <FindingCard
+      title={problem.title}
+      severity={problem.severity}
+      origin="automated"
+      wcagCriteria={problem.wcagCriteria}
+      principle={problem.principle}
+      description={problem.description}
+      pageUrl={problem.example.pageUrl}
+      snippet={problem.example.htmlSnippet}
+      template={problem.template}
+      meta={
+        <>
+          em {problem.pages} {problem.pages === 1 ? 'página' : 'páginas'}, {problem.occurrences}{' '}
+          {problem.occurrences === 1 ? 'ocorrência' : 'ocorrências'} · seletor{' '}
+          <code className="font-mono text-code break-all">{problem.example.selector}</code>
+        </>
+      }
+      recommendation={
+        <a
+          href={problem.helpUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent-text underline underline-offset-2 hover:decoration-2"
+        >
+          como corrigir (documentação do axe, em inglês; abre em nova aba)
+        </a>
+      }
+      actions={
+        <div className="flex w-full flex-col gap-2 border-t border-border pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={status.variant}>{status.label}</Badge>
+            {problem.validation !== 'false_positive' ? (
+              <>
+                {problem.validation !== 'confirmed' ? (
+                  <Button
+                    className="min-h-9"
+                    disabled={validate.isPending}
+                    aria-label={`Confirmar: ${problem.title} (${problem.example.selector})`}
+                    onClick={() =>
+                      validate.mutate({ findingId: problem.findingId, validation: 'confirmed' })
+                    }
+                  >
+                    <Check aria-hidden="true" size={16} strokeWidth={1.75} /> Confirmar
+                  </Button>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  className="min-h-9"
+                  aria-expanded={justifying}
+                  aria-controls={noteId}
+                  aria-label={`Marcar como falso positivo: ${problem.title} (${problem.example.selector})`}
+                  onClick={() => setJustifying((j) => !j)}
+                >
+                  Falso positivo
+                </Button>
+              </>
             ) : null}
-          </>
-        }
-        recommendation={
-          <a
-            href={problem.helpUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent-text underline underline-offset-2 hover:decoration-2"
-          >
-            como corrigir (documentação do axe, em inglês; abre em nova aba)
-          </a>
-        }
-      />
-      {problem.validation !== 'false_positive' ? (
-        <div className="flex flex-col gap-2 px-1">
-          <div className="flex flex-wrap gap-2">
-            {problem.validation !== 'confirmed' ? (
-              <Button
-                className="min-h-9"
-                disabled={validate.isPending}
-                aria-label={`Confirmar: ${problem.title} (${problem.example.selector})`}
-                onClick={() =>
-                  validate.mutate({ findingId: problem.findingId, validation: 'confirmed' })
-                }
-              >
-                <Check aria-hidden="true" size={16} strokeWidth={1.75} /> Confirmar na inspeção
-              </Button>
-            ) : null}
-            <Button
-              variant="secondary"
-              className="min-h-9"
-              aria-expanded={justifying}
-              aria-controls={noteId}
-              aria-label={`Marcar como falso positivo: ${problem.title} (${problem.example.selector})`}
-              onClick={() => setJustifying((j) => !j)}
-            >
-              Marcar como falso positivo
-            </Button>
           </div>
+          {problem.validationNote ? (
+            <p className="text-label text-text-muted">Justificativa: {problem.validationNote}</p>
+          ) : null}
           <form
             id={noteId}
-            hidden={!justifying}
+            hidden={!justifying || problem.validation === 'false_positive'}
             className="motion-safe:animate-enter flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
@@ -136,8 +127,8 @@ function ProblemCard({
             </p>
           ) : null}
         </div>
-      ) : null}
-    </div>
+      }
+    />
   );
 }
 
@@ -152,31 +143,35 @@ export function ValidationTab() {
         query={findings}
         loadingText="Carregando achados…"
         errorTitle="Não foi possível carregar os achados"
-        skeleton={<StatGroupSkeleton count={4} label="Carregando achados…" />}
       >
         {({ counts, groups }) => (
           <>
-            <StatGroup
-              label="Situação da validação"
-              stats={[
-                { label: 'Problemas automatizados', value: counts.problems },
-                { label: 'Confirmados', value: counts.confirmed },
-                { label: 'Falsos positivos', value: counts.falsePositive },
-                { label: 'Pendentes', value: counts.pending },
-              ]}
-            />
-            <div className="flex flex-col gap-1">
-              <Choice
-                type="checkbox"
-                checked={onlyPending}
-                onChange={(e) => setOnlyPending(e.target.checked)}
-                label="Mostrar só os problemas pendentes"
-              />
-              <p className="text-label text-text-muted" aria-live="polite">
-                {onlyPending
-                  ? `${counts.pending} de ${counts.problems} problemas exibidos`
-                  : `${counts.problems} ${counts.problems === 1 ? 'problema exibido' : 'problemas exibidos'}`}
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface p-5 shadow-card">
+              <div className="flex min-w-0 flex-1 basis-64 flex-col gap-2">
+                <p className="text-card text-text">
+                  {counts.problems - counts.pending} de {counts.problems}{' '}
+                  {counts.problems === 1 ? 'problema validado' : 'problemas validados'}
+                </p>
+                <p className="text-label text-text-muted">
+                  {counts.confirmed} {counts.confirmed === 1 ? 'confirmado' : 'confirmados'} ·{' '}
+                  {counts.falsePositive}{' '}
+                  {counts.falsePositive === 1 ? 'falso positivo' : 'falsos positivos'} ·{' '}
+                  {counts.pending} {counts.pending === 1 ? 'pendente' : 'pendentes'}
+                </p>
+              </div>
+              <div className="flex flex-col items-start gap-1">
+                <Choice
+                  type="checkbox"
+                  checked={onlyPending}
+                  onChange={(e) => setOnlyPending(e.target.checked)}
+                  label="Mostrar só os pendentes"
+                />
+                <p className="text-label text-text-muted" aria-live="polite">
+                  {onlyPending
+                    ? `${counts.pending} de ${counts.problems} problemas exibidos`
+                    : `${counts.problems} ${counts.problems === 1 ? 'problema exibido' : 'problemas exibidos'}`}
+                </p>
+              </div>
             </div>
             {onlyPending && counts.pending === 0 ? (
               <p className="text-body text-text-muted">

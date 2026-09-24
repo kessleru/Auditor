@@ -14,6 +14,7 @@ import {
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
 import { useResultsOverview } from '../results/auditorApi';
+import { NotCollectedList } from '../results/NotCollectedList';
 import { QueryState } from '../results/QueryState';
 import { FINISHED_STATUSES, useCollections } from './api';
 
@@ -81,7 +82,7 @@ function Overview({ running }: { running: number }) {
             <DataTable
               caption="Conformidade e problemas por instituição na última coleta"
               captionHidden
-              rows={data.institutions}
+              rows={data.institutions.filter((row) => row.status !== 'not_collected')}
               rowKey={(row) => row.id}
               columns={[
                 {
@@ -123,6 +124,9 @@ function Overview({ running }: { running: number }) {
                   cell: (row) => (row.problems === null ? '—' : formatNumber(row.problems)),
                 },
               ]}
+            />
+            <NotCollectedList
+              rows={data.institutions.filter((row) => row.status === 'not_collected')}
             />
           </Section>
         </>

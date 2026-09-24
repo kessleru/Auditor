@@ -17,6 +17,7 @@ import { formatDate, formatNumber } from '../../lib/format';
 import { CSV_DICTIONARY_URL, CSV_URL, useResultsOverview } from './auditorApi';
 import { CoreFunctionsNote, coverageText } from './CoreFunctionsNote';
 import { inspectionBadge } from './inspectionBadge';
+import { NotCollectedList } from './NotCollectedList';
 import { QueryState } from './QueryState';
 
 type Sort = 'conformity' | 'problems';
@@ -63,7 +64,9 @@ export function ComparisonPage() {
       errorTitle="Não foi possível carregar o comparativo"
     >
       {(data) => {
+        const notCollected = data.institutions.filter((r) => r.status === 'not_collected');
         const rows = data.institutions
+          .filter((r) => r.status !== 'not_collected')
           .filter(
             (r) => !onlyInspected || (r.inspection !== null && r.inspection !== 'not_in_sample'),
           )
@@ -193,6 +196,7 @@ export function ComparisonPage() {
                   ]}
                 />
               )}
+              <NotCollectedList rows={notCollected} />
             </div>
 
             <Note tone="surface" title="Como ler esta tabela">
