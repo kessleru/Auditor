@@ -440,3 +440,54 @@ describe('substituição de rota (3.1.7)', () => {
     expect(res.body.error.code).toBe('ROUTE_NOT_CONFIRMED');
   });
 });
+
+describe('função não encontrada (ADR 0013)', () => {
+  const absence = (key: string) => `/api/v1/institutions/1/functions/${key}/absence`;
+
+  it('marca com motivo, lista junto das rotas e desfaz', async () => {
+    const { agent } = await setup();
+    expect((await agent.put(absence('class_schedule')).send({ reason: 'curto' })).status).toBe(400);
+    expect(
+      (await agent.put(absence('inexistente')).send({ reason: 'Procurei em tudo.' })).status,
+    ).toBe(400);
+
+    const marked = await agent
+      .put(absence('class_schedule'))
+      .send({ reason: 'Procurei no menu, no mapa do site e na busca.' });
+    expect(marked.status).toBe(200);
+    expect(marked.body.absence).toMatchObject({
+      institutionId: 1,
+      functionKey: 'class_schedule',
+      reason: 'Procurei no menu, no mapa do site e na busca.',
+    });
+    const listed = routeListResponseSchema.parse(
+      (await agent.get('/api/v1/institutions/1/routes')).body,
+    );
+    expect(listed.absences.map((a) => a.functionKey)).toEqual(['class_schedule']);
+
+    expect((await agent.delete(absence('class_schedule'))).status).toBe(204);
+    const after = routeListResponseSchema.parse(
+      (await agent.get('/api/v1/institutions/1/routes')).body,
+    );
+    expect(after.absences).toEqual([]);
+  });
+
+  it('não marca função com rota confirmada; confirmar uma rota desfaz a marcação', async () => {
+    const { agent } = await setup();
+    await agent.put(absence('library')).send({ reason: 'Não achei no menu principal do portal.' });
+    const created = await agent
+      .post('/api/v1/institutions/1/routes')
+      .send({ url: 'https://iftm.edu.br/biblioteca', functionKey: 'library' });
+    expect(created.status).toBe(201);
+    const listed = routeListResponseSchema.parse(
+      (await agent.get('/api/v1/institutions/1/routes')).body,
+    );
+    expect(listed.absences).toEqual([]);
+
+    const refused = await agent
+      .put(absence('library'))
+      .send({ reason: 'Tentando marcar mesmo assim.' });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('FUNCTION_ALREADY_CONFIRMED');
+  });
+});

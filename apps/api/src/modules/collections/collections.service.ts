@@ -1,8 +1,10 @@
-import type {
-  CollectionEvent,
-  CollectionScope,
-  CollectionStatus,
-  createCollectionSchema,
+import {
+  type CollectionEvent,
+  type CollectionScope,
+  type CollectionStatus,
+  type createCollectionSchema,
+  pageFunctionKeys,
+  pageFunctionLabels,
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
 import { countRules, findingsFromViolations } from '../../infra/auditor/axe-mapping.js';
@@ -278,10 +280,24 @@ export function createCollectionsService({
         );
       }
 
-      const withoutRoutes = repo.institutionsWithoutRoutes(
-        input.institutionIds,
-        input.functions ?? null,
-      );
+      // Escopo sempre explícito: sem `functions`, todas as funções de hoje. Assim a cobertura
+      // de cada instituição (encontradas / esperadas) fica gravada com a coleta (ADR 0013).
+      const functions = input.functions ?? [...pageFunctionKeys];
+      const unreviewed = repo.unreviewedFunctions(input.institutionIds, functions);
+      if (unreviewed.length > 0) {
+        const names = unreviewed.map((gap) => {
+          const acronym = found.find((i) => i.id === gap.institutionId)?.acronym;
+          return `${acronym}: ${gap.functions.map((f) => pageFunctionLabels[f]).join(', ')}`;
+        });
+        throw new AppError(
+          422,
+          'FUNCTIONS_NOT_REVIEWED',
+          `Confirme a rota ou marque como não encontrada: ${names.join('; ')}.`,
+          { unreviewed },
+        );
+      }
+
+      const withoutRoutes = repo.institutionsWithoutRoutes(input.institutionIds, functions);
       if (withoutRoutes.length > 0) {
         const acronyms = found.filter((i) => withoutRoutes.includes(i.id)).map((i) => i.acronym);
         // Sem isso, a instituição apareceria como "sem dado" sem nunca ter sido tentada.
@@ -293,10 +309,7 @@ export function createCollectionsService({
         );
       }
 
-      const scope: CollectionScope = {
-        institutionIds: input.institutionIds,
-        functions: input.functions ?? null,
-      };
+      const scope: CollectionScope = { institutionIds: input.institutionIds, functions };
       const routes = repo.confirmedRoutes(scope.institutionIds, scope.functions);
       if (routes.length === 0) {
         throw new AppError(

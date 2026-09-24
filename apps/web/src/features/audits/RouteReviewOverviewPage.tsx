@@ -12,12 +12,11 @@ import {
   PageHeader,
   Stepper,
 } from '../../components/ui';
-import { ApiError, apiRequest } from '../../lib/api';
+import { ApiError } from '../../lib/api';
 import { useCreateCollection } from '../collections/api';
 import { QueryState } from '../results/QueryState';
-import { auditKeys, useInstitutions } from './api';
+import { auditKeys, fetchRoutes, useInstitutions } from './api';
 import { isScopeValid, parseScope, scopeSearch } from './scope';
-import { routeListResponseSchema } from '@auditoria-rf/contracts';
 
 /** Tela 1.2 (visão geral): andamento da revisão de rotas de cada instituição do escopo. */
 export function RouteReviewOverviewPage() {
@@ -31,9 +30,7 @@ export function RouteReviewOverviewPage() {
   const routeQueries = useQueries({
     queries: scope.institutionIds.map((id) => ({
       queryKey: auditKeys.routes(id),
-      queryFn: async () =>
-        (await apiRequest(`/institutions/${id}/routes`, { schema: routeListResponseSchema }))
-          .routes,
+      queryFn: () => fetchRoutes(id),
     })),
   });
 
@@ -55,7 +52,7 @@ export function RouteReviewOverviewPage() {
       <PageHeader
         title="Revisão de rotas"
         breadcrumb={<Stepper current={1} />}
-        description={`Confirme, para cada instituição, a URL de cada página avaliada: ${scope.functions
+        description={`Para cada instituição, confirme a URL de cada página avaliada ou marque que o portal não tem a página (isso entra na cobertura): ${scope.functions
           .map((f) => pageFunctionLabels[f])
           .join(', ')}.`}
       />
@@ -68,13 +65,24 @@ export function RouteReviewOverviewPage() {
         {(all) => {
           const rows = scope.institutionIds.map((id, index) => {
             const institution = all.find((i) => i.id === id);
-            const routes = routeQueries[index]?.data ?? [];
+            const data = routeQueries[index]?.data;
             const confirmed = scope.functions.filter((f) =>
-              routes.some((r) => r.status === 'confirmed' && r.functionKey === f),
+              data?.routes.some((r) => r.status === 'confirmed' && r.functionKey === f),
             ).length;
-            return { id, institution, confirmed, loading: routeQueries[index]?.isPending ?? true };
+            // Revisada = rota confirmada ou marcada como não encontrada (entra na cobertura).
+            const absent = scope.functions.filter((f) =>
+              data?.absences.some((a) => a.functionKey === f),
+            ).length;
+            return {
+              id,
+              institution,
+              confirmed,
+              absent,
+              reviewed: confirmed + absent,
+              loading: routeQueries[index]?.isPending ?? true,
+            };
           });
-          const pending = rows.filter((r) => r.confirmed < scope.functions.length);
+          const pending = rows.filter((r) => r.reviewed < scope.functions.length);
           const ready = rows.length > 0 && pending.length === 0 && rows.every((r) => !r.loading);
 
           const start = () =>
@@ -108,16 +116,22 @@ export function RouteReviewOverviewPage() {
                   },
                   {
                     key: 'status',
-                    header: 'Funções confirmadas',
+                    header: 'Funções revisadas',
                     cell: (row) =>
                       row.loading ? (
                         <span className="text-text-muted">Carregando…</span>
                       ) : (
-                        <Badge
-                          variant={row.confirmed === scope.functions.length ? 'good' : 'moderate'}
-                        >
-                          {row.confirmed} de {scope.functions.length}
-                        </Badge>
+                        <span className="flex flex-col items-start gap-1">
+                          <Badge
+                            variant={row.reviewed === scope.functions.length ? 'good' : 'moderate'}
+                          >
+                            {row.reviewed} de {scope.functions.length}
+                          </Badge>
+                          <span className="text-label text-text-muted">
+                            {row.confirmed} {row.confirmed === 1 ? 'confirmada' : 'confirmadas'},{' '}
+                            {row.absent} não {row.absent === 1 ? 'encontrada' : 'encontradas'}
+                          </span>
+                        </span>
                       ),
                   },
                   {
@@ -152,7 +166,7 @@ export function RouteReviewOverviewPage() {
 
               {!ready && pending.length > 0 ? (
                 <p className="text-body text-text-muted">
-                  Falta confirmar rotas em:{' '}
+                  Falta confirmar a rota ou marcar como não encontrada em:{' '}
                   {pending.map((r) => r.institution?.acronym ?? r.id).join(', ')}.
                 </p>
               ) : null}
