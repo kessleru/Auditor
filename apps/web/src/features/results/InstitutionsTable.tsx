@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { ConformityBar, DataTable } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
 import { coverageText } from './CoreFunctionsNote';
+import { NotCollectedList } from './NotCollectedList';
 
 function Coverage({ row }: { row: PublicInstitution }) {
   if (!row.coverage) return <span className="text-text-muted">—</span>;
@@ -41,15 +42,19 @@ function Conformity({ row }: { row: PublicInstitution }) {
 export function InstitutionsTable({
   rows,
   caption,
+  collapseNotCollected = false,
 }: {
   rows: PublicInstitution[];
   caption: string;
+  /** Instituições sem coleta numa linha recolhida abaixo da tabela, em vez de uma linha cada. */
+  collapseNotCollected?: boolean;
 }) {
-  return (
+  const shown = collapseNotCollected ? rows.filter((r) => r.status !== 'not_collected') : rows;
+  const table = (
     <DataTable
       caption={caption}
       captionHidden
-      rows={rows}
+      rows={shown}
       rowKey={(row) => row.id}
       columns={[
         {
@@ -79,5 +84,12 @@ export function InstitutionsTable({
         },
       ]}
     />
+  );
+  if (!collapseNotCollected) return table;
+  return (
+    <div className="flex flex-col gap-3">
+      {shown.length > 0 ? table : null}
+      <NotCollectedList rows={rows.filter((r) => r.status === 'not_collected')} />
+    </div>
   );
 }

@@ -139,9 +139,7 @@ describe('portal: contexto, abas e validação (3.3)', () => {
     expect(sections[0]!.textContent).toContain('Em todas as páginas (template)');
     await expectNoAxeViolations(container);
 
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Mostrar só os problemas pendentes' }),
-    );
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mostrar só os pendentes' }));
     expect(screen.getByText('1 de 2 problemas exibidos')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: /template/ })).toBeNull();
     expect(screen.getByText('main img').tagName).toBe('CODE');
@@ -265,23 +263,41 @@ describe('verificação assistiva (3.2)', () => {
           saved = JSON.parse(String(init?.body));
           return Response.json({ check: {} });
         },
+        'PUT /assistive-checks/7/captions': (init: RequestInit | undefined) => {
+          autosaved = JSON.parse(String(init?.body));
+          return Response.json({ check: {} });
+        },
       },
     });
+    let autosaved: unknown;
     const { container } = renderRoute('/inspecao/5/1/verificacao');
-    const keyboard = await screen.findByRole('form', { name: 'Navegação apenas por teclado' });
+    const keyboard = await screen.findByRole('listitem', { name: 'Navegação apenas por teclado' });
     expect(
       screen
         .getByRole('link', { name: 'Abrir a página em verificação (nova janela)' })
         .getAttribute('href'),
     ).toBe('https://iftm.edu.br');
-    expect(screen.getByText(/Página 1 de 2, com 0 de 5 verificações/)).toBeTruthy();
+    expect(screen.getByText(/Página 1 de 2 · 0 de 5 verificações registradas/)).toBeTruthy();
     await expectNoAxeViolations(container);
 
+    // "Não se aplica" e "Conforme" salvam ao escolher.
+    const captions = screen.getByRole('listitem', { name: 'Legendas e alternativas em texto' });
+    await userEvent.click(within(captions).getByRole('radio', { name: 'Não se aplica' }));
+    await waitFor(() =>
+      expect(autosaved).toEqual({ state: 'not_applicable', severity: null, note: '' }),
+    );
+    expect(await within(captions).findByText('Salvo')).toBeTruthy();
+
+    // Barreira não salva ao escolher: espera severidade e descrição.
     await userEvent.click(within(keyboard).getByRole('radio', { name: 'Barreira' }));
-    const save = within(keyboard).getByRole('button', { name: 'Salvar verificação' });
+    expect(saved).toBeUndefined();
+    const save = within(keyboard).getByRole('button', { name: 'Salvar barreira' });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(within(keyboard).getByRole('radio', { name: 'Crítico' }));
-    await userEvent.type(within(keyboard).getByLabelText(/Observação/), 'Menu não recebe foco.');
+    await userEvent.type(
+      within(keyboard).getByLabelText('Descreva a barreira (obrigatório)'),
+      'Menu não recebe foco.',
+    );
     await userEvent.click(save);
     await waitFor(() =>
       expect(saved).toEqual({

@@ -86,6 +86,7 @@ export function PublicHomePage() {
                 <InstitutionsTable
                   rows={rows}
                   caption="Conformidade e problemas confirmados por instituição"
+                  collapseNotCollected
                 />
               </div>
             </div>
