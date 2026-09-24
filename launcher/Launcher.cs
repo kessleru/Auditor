@@ -447,6 +447,12 @@ namespace AuditoriaRf
                     aviso.Text = "A senha precisa de pelo menos 12 caracteres.";
                     return;
                 }
+                // Nome e e-mail vão como argumentos do comando: aspas quebrariam a linha de comando.
+                if (TemCaractereProibido(nome.Text) || TemCaractereProibido(email.Text))
+                {
+                    aviso.Text = "Não use aspas nem barras invertidas no nome ou no e-mail.";
+                    return;
+                }
 
                 criar.Enabled = false;
                 aviso.ForeColor = Tokens.TextMuted;
@@ -492,6 +498,29 @@ namespace AuditoriaRf
             dialogo.Controls.Add(explicacao);
             dialogo.AcceptButton = criar;
             dialogo.ShowDialog(this);
+        }
+
+        private static bool TemCaractereProibido(string texto)
+        {
+            foreach (char c in texto)
+                if (c == '"' || c == '\\' || char.IsControl(c)) return true;
+            return false;
+        }
+
+        /// <summary>Explica os erros mais comuns do Docker em vez de só mostrar a saída crua.</summary>
+        private static string ExplicarFalhaDoDocker(string saida, string padrao)
+        {
+            string texto = (saida ?? "").ToLowerInvariant();
+            if (texto.Contains("port is already allocated") || texto.Contains("address already in use")
+                || texto.Contains("only one usage of each socket address"))
+                return "A porta 8080 ou 3333 já está em uso por outro programa. Feche-o (ou pare outro contêiner) e abra o launcher de novo.";
+            if (texto.Contains("no space left on device"))
+                return "Falta espaço em disco para o Docker. Libere espaço e abra o launcher de novo.";
+            if (texto.Contains("error during connect") || texto.Contains("cannot connect to the docker daemon"))
+                return "O Docker Desktop parou de responder. Abra o Docker Desktop, espere iniciar e abra o launcher de novo.";
+            if (texto.Contains("tls handshake timeout") || texto.Contains("i/o timeout") || texto.Contains("temporary failure in name resolution"))
+                return "Sem acesso à internet para baixar as imagens. Na primeira vez a montagem precisa de internet.";
+            return padrao;
         }
 
         private void MostrarErro()
@@ -669,7 +698,7 @@ namespace AuditoriaRf
             Saida build = Rodar("docker", "compose build", 60 * 25);
             if (build.Codigo != 0)
             {
-                Falhar(etapaImagens, "Não foi possível montar a aplicação.", build.Texto);
+                Falhar(etapaImagens, ExplicarFalhaDoDocker(build.Texto, "Não foi possível montar a aplicação."), build.Texto);
                 return;
             }
             NaTela(delegate { etapaImagens.Definir(EstadoEtapa.Concluida, "pronto"); });
@@ -679,12 +708,18 @@ namespace AuditoriaRf
             Saida up = Rodar("docker", "compose up -d", 60 * 10);
             if (up.Codigo != 0)
             {
-                Falhar(etapaServicos, "Não foi possível subir o sistema.", up.Texto);
+                Falhar(etapaServicos, ExplicarFalhaDoDocker(up.Texto, "Não foi possível subir o sistema."), up.Texto);
                 return;
             }
 
-            // Primeira execução: banco vazio ganha as tabelas e os dados iniciais.
-            Rodar("docker", "compose exec -T api node apps/api/dist/cli/db-seed.js", 180);
+            // Primeira execução: banco vazio ganha as tabelas e os dados iniciais. O seed não
+            // duplica nada, então roda sempre; se falhar, o sistema fica sem as instituições.
+            Saida seed = Rodar("docker", "compose exec -T api node apps/api/dist/cli/db-seed.js", 180);
+            if (seed.Codigo != 0)
+            {
+                Falhar(etapaServicos, "O sistema subiu, mas não foi possível preparar o banco de dados.", seed.Texto);
+                return;
+            }
             NaTela(delegate { etapaServicos.Definir(EstadoEtapa.Concluida, "no ar"); });
 
             // 4. Esperar responder.
