@@ -439,6 +439,38 @@ describe('falhas da página inicial', () => {
     await expect(run(site.client)).rejects.toThrow(/robots\.txt/);
   });
 
+  it('robots.txt com erro de servidor interrompe a descoberta (RFC 9309)', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { status: 503, body: 'fora', contentType: 'text/plain' },
+      'https://if.edu.br/': { body: html('Início') },
+    });
+    await expect(run(site.client)).rejects.toThrow(/RFC 9309/);
+    expect(site.pageRequests()).toEqual([]);
+  });
+
+  it('domínio que não responde sem www. é tentado com www.', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { networkError: true },
+      'https://if.edu.br/': { networkError: true },
+      [`${ORIGIN}/robots.txt`]: { status: 404, body: '', contentType: 'text/plain' },
+      [`${ORIGIN}/`]: { body: html('Início', links('/a')) },
+      [`${ORIGIN}/a`]: { body: html('A') },
+    });
+    const result = await run(site.client);
+    expect(result.origin).toBe(ORIGIN);
+    expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/a`]);
+  });
+
+  it('sem resposta com nem sem www., a descoberta falha com o motivo', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { networkError: true },
+      'https://if.edu.br/': { networkError: true },
+      [`${ORIGIN}/robots.txt`]: { networkError: true },
+      [`${ORIGIN}/`]: { networkError: true },
+    });
+    await expect(run(site.client)).rejects.toThrow(/Falha ao acessar https:\/\/www\.if\.edu\.br/);
+  });
+
   it('domínio de homologação é recusado', async () => {
     const site = fakeSite({});
     await expect(

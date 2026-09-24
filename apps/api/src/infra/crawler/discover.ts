@@ -115,19 +115,24 @@ export async function discoverRoutes({
   if (isDevHost(domain)) throw new DiscoveryError(DEV_HOST_REASON);
 
   // robots.txt antes de qualquer página; o redirecionamento dele já revela a origem canônica.
-  let { robots, robotsTxtFound, origin } = await loadRobots(
-    client,
-    `https://${domain}`,
-    robotsAgent,
-  );
-  let intervalMs = crawlInterval(robots);
-
-  let homeResponse: HttpResponse;
+  // Domínio que não responde sem "www." (sem DNS ou sem servidor no endereço raiz) é tentado com
+  // "www.", como faria quem digita o endereço no navegador.
+  let opened: Awaited<ReturnType<typeof openPortal>>;
   try {
-    homeResponse = await client.get(`${origin}/`, { intervalMs });
+    opened = await openPortal(client, `https://${domain}`, robotsAgent);
   } catch (err) {
-    throw new DiscoveryError(err instanceof Error ? err.message : String(err));
+    if (!(err instanceof FetchFailedError) || domain.startsWith('www.')) {
+      throw new DiscoveryError(err instanceof Error ? err.message : String(err));
+    }
+    try {
+      opened = await openPortal(client, `https://www.${domain}`, robotsAgent);
+    } catch (again) {
+      throw new DiscoveryError(again instanceof Error ? again.message : String(again));
+    }
   }
+  let { robots, robotsTxtFound, origin } = opened;
+  const { homeResponse } = opened;
+  let intervalMs = crawlInterval(robots);
   if (homeResponse.status >= 400) {
     throw new DiscoveryError(
       `A página inicial respondeu HTTP ${homeResponse.status}${HTTP_HINTS[homeResponse.status] ?? ''}.`,
@@ -368,6 +373,15 @@ function crawlInterval(robots: RobotsRules): number | undefined {
     : Math.min(robots.crawlDelayMs, MAX_CRAWL_DELAY_MS);
 }
 
+/** robots.txt e página inicial a partir de `baseUrl`. Falha de rede na inicial propaga. */
+async function openPortal(client: HttpClient, baseUrl: string, robotsAgent: string) {
+  const loaded = await loadRobots(client, baseUrl, robotsAgent);
+  const homeResponse = await client.get(`${loaded.origin}/`, {
+    intervalMs: crawlInterval(loaded.robots),
+  });
+  return { ...loaded, homeResponse };
+}
+
 async function loadRobots(client: HttpClient, baseUrl: string, robotsAgent: string) {
   let origin = new URL(baseUrl).origin;
   let content: string | null = null;
@@ -375,6 +389,13 @@ async function loadRobots(client: HttpClient, baseUrl: string, robotsAgent: stri
     const res = await client.get(`${origin}/robots.txt`);
     origin = new URL(res.url).origin;
     if (res.status === 200) content = res.body.toString('utf8');
+    // RFC 9309 (2.3.1.4): robots.txt com erro de servidor = tudo proibido. Por cautela, a
+    // descoberta não prossegue; 4xx (inexistente) libera, como antes.
+    if (res.status >= 500 || res.status === 429) {
+      throw new DiscoveryError(
+        `O robots.txt respondeu HTTP ${res.status}: pelo protocolo (RFC 9309), sem ele o portal é tratado como proibido. Tente de novo mais tarde.`,
+      );
+    }
   } catch (err) {
     if (!(err instanceof FetchFailedError)) throw err;
   }
