@@ -28,6 +28,9 @@ const route = (id: number, path: string, overrides: Partial<Route> = {}): Route 
   discoveredAt: '2026-09-01T00:00:00.000Z',
   confirmedAt: null,
   lastSeenAt: null,
+  title: null,
+  linkText: null,
+  relevance: null,
   ...overrides,
 });
 const idleDiscovery = {

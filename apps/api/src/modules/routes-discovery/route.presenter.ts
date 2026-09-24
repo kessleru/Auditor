@@ -14,4 +14,7 @@ export const toRoute = (row: RouteWithFunction): Route => ({
   discoveredAt: row.discoveredAt.toISOString(),
   confirmedAt: row.confirmedAt?.toISOString() ?? null,
   lastSeenAt: row.lastSeenAt?.toISOString() ?? null,
+  title: row.title,
+  linkText: row.linkText,
+  relevance: row.relevance,
 });

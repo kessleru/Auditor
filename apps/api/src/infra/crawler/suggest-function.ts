@@ -9,22 +9,25 @@ export const FUNCTION_KEYWORDS: readonly {
   any: readonly string[];
   /** Se presente, exige também um destes termos. */
   with?: readonly string[];
+  /** Não casa se algum destes termos aparecer (seleção de servidores, pesquisa etc.). */
+  not?: readonly string[];
 }[] = [
   {
     key: 'student_aid_notices',
-    any: ['edital', 'editais'],
+    any: ['edital', 'editais', 'selecao', 'chamada publica', 'resultado', 'inscricoes'],
     with: [
       'auxilio',
       'auxilios',
       'assistencia estudantil',
+      'assistenciaestudantil',
       'permanencia',
-      'bolsa',
-      'bolsas',
+      'bolsa permanencia',
       'pnaes',
       'alimentacao',
       'moradia',
       'transporte estudantil',
     ],
+    not: ['pesquisa', 'extensao', 'iniciacao cientifica', 'pibic', 'servidor', 'servidores'],
   },
   {
     key: 'admission',
@@ -34,25 +37,51 @@ export const FUNCTION_KEYWORDS: readonly {
       'como ingressar',
       'processo seletivo',
       'processos seletivos',
+      'processoseletivo',
+      'processosseletivos',
       'vestibular',
+      'vestibulinho',
       'sisu',
       'exame de selecao',
+      'exame classificatorio',
       'selecao de estudantes',
       'selecao discente',
       'inscricoes abertas',
       'seja nosso aluno',
       'seja nosso estudante',
       'estude no',
+      'quero estudar',
+    ],
+    not: [
+      'professor substituto',
+      'professores substitutos',
+      'docente',
+      'docentes',
+      'concurso',
+      'concursos',
+      'servidor',
+      'servidores',
+      'tecnico administrativo',
+      'estagiario',
+      'estagiarios',
+      'bolsista',
+      'bolsistas',
     ],
   },
   {
     key: 'student_support',
     any: [
       'assistencia estudantil',
+      'assistenciaestudantil',
       'apoio ao estudante',
+      'apoio ao discente',
       'atendimento ao estudante',
       'assistencia ao estudante',
+      'assistencia ao educando',
       'coordenacao de assistencia',
+      'auxilio estudantil',
+      'politica de assistencia',
+      'programa de assistencia',
       'pnaes',
       'cae',
       'nae',
@@ -83,20 +112,91 @@ export interface SuggestionInput {
   url: string;
   title?: string | undefined;
   linkText?: string | undefined;
+  /**
+   * Considera também o nome do host (ex.: `biblioteca.if.edu.br`), para subdomínios da
+   * instituição. A raiz de um subdomínio não é `home`: `home` é só a raiz do portal.
+   */
+  includeHost?: boolean;
+}
+
+type Rule = (typeof FUNCTION_KEYWORDS)[number];
+
+function matches(rule: Rule, text: string): boolean {
+  const hasAny = rule.any.some((term) => containsTerm(text, term));
+  const hasWith = !rule.with || rule.with.some((term) => containsTerm(text, term));
+  const hasNot = rule.not?.some((term) => containsTerm(text, term)) ?? false;
+  return hasAny && hasWith && !hasNot;
+}
+
+function parts({ url, title, linkText, includeHost }: SuggestionInput) {
+  const { hostname, pathname, search } = new URL(url);
+  const host = includeHost ? hostname.split('.').slice(0, -2).join(' ') : '';
+  return {
+    isRoot: pathname.replace(/\/+$/, '') === '' && search === '',
+    path: toSearchText(`${host} ${decodeSafe(pathname)}`),
+    title: toSearchText(title ?? ''),
+    link: toSearchText(linkText ?? ''),
+  };
 }
 
 /** Sugere a função da página, ou `null`. A raiz do site é sempre `home`. */
-export function suggestFunction({ url, title, linkText }: SuggestionInput): PageFunctionKey | null {
-  const { pathname, search } = new URL(url);
-  if (pathname.replace(/\/+$/, '') === '' && search === '') return 'home';
+export function suggestFunction(input: SuggestionInput): PageFunctionKey | null {
+  const p = parts(input);
+  if (p.isRoot && !input.includeHost) return 'home';
+  const text = [p.path, p.title, p.link].join(' ');
+  // As exclusões valem para o texto todo: "Processo seletivo" no link de uma página cujo título
+  // fala de professor substituto não é ingresso de estudante.
+  return FUNCTION_KEYWORDS.find((rule) => matches(rule, text))?.key ?? null;
+}
 
-  const text = toSearchText([decodeSafe(pathname), title ?? '', linkText ?? ''].join(' '));
-  for (const rule of FUNCTION_KEYWORDS) {
-    const hasAny = rule.any.some((term) => containsTerm(text, term));
-    const hasWith = !rule.with || rule.with.some((term) => containsTerm(text, term));
-    if (hasAny && hasWith) return rule.key;
-  }
-  return null;
+// Relevância da sugestão ---------------------------------------------------------------------
+
+/** Caminhos típicos de conteúdo datado ou de listagem: raramente são a página da função. */
+const EPHEMERAL_PATH =
+  /(?:^|\/)(?:noticias?|news|posts?|blog|eventos?|agenda|tags?|categorias?|category|author|autor|page|pagina|arquivo|archive|comunicados?|avisos?)(?:\/|$)|\/(?:19|20)\d{2}\/\d{1,2}(?:\/|$)/i;
+
+export interface RelevanceInput extends SuggestionInput {
+  /** Link de menu (cabeçalho ou navegação) de alguma página visitada. */
+  inNav?: boolean;
+  /** Distância em links a partir da página inicial (1 = link da página inicial). */
+  depth?: number;
+}
+
+/**
+ * Relevância (0–100) da sugestão de função, para ordenar as candidatas na revisão e escolher o
+ * que visitar primeiro quando o teto de URLs aperta. Não decide nada: só ordena o que o auditor vê.
+ *
+ * - termo da função no caminho da URL: +40; no título: +25; no texto do link: +25;
+ * - link de menu: +15; link direto da página inicial: +10;
+ * - caminho curto: +15 (1 nível), +10 (2), +5 (3);
+ * - notícia, evento, listagem ou caminho com data: −35; parâmetros na URL: −10.
+ */
+export function suggestionRelevance(input: RelevanceInput): {
+  functionKey: PageFunctionKey | null;
+  relevance: number | null;
+} {
+  const functionKey = suggestFunction(input);
+  if (functionKey === null) return { functionKey, relevance: null };
+  if (functionKey === 'home') return { functionKey, relevance: 100 };
+
+  const rule = FUNCTION_KEYWORDS.find((r) => r.key === functionKey) as Rule;
+  const p = parts(input);
+  const { pathname, search } = new URL(input.url);
+  const segments = pathname.split('/').filter(Boolean).length;
+
+  const terms = [...rule.any, ...(rule.with ?? [])];
+  const has = (text: string) => terms.some((t) => containsTerm(text, t));
+
+  let score = 0;
+  if (has(p.path)) score += 40;
+  if (has(p.title)) score += 25;
+  if (has(p.link)) score += 25;
+  if (input.inNav) score += 15;
+  if (input.depth === 1) score += 10;
+  score += segments <= 1 ? 15 : segments === 2 ? 10 : segments === 3 ? 5 : 0;
+  if (EPHEMERAL_PATH.test(pathname)) score -= 35;
+  if (search !== '') score -= 10;
+  return { functionKey, relevance: Math.max(0, Math.min(100, score)) };
 }
 
 function decodeSafe(value: string) {
