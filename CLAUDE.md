@@ -66,6 +66,7 @@ Detalhes na seção 3 do plano. As que mais facilmente se quebram por engano:
 - Salvar passes, violations, incomplete e inapplicable. Conformidade = `passes / (passes + violations)`; `incomplete` fica fora do cálculo.
 - Portal que falhou = **ausência de dado**, nunca 0% nem incluído na média.
 - Métrica principal do comparativo = problemas **distintos** (por `fingerprint`); problema em ≥ 80% das páginas = de template.
+- 13 funções de página (ADR 0013). O comparativo conta só o **núcleo comum** (funções avaliadas em todas as instituições comparadas); a **cobertura** (encontradas ÷ esperadas) fica ao lado e nunca vira 0%. A coleta exige cada função do escopo confirmada ou marcada como não encontrada, com motivo.
 - Falso positivo **nunca é apagado**: exige justificativa e permanece registrado.
 - Severidade: `critical`/`serious` → Crítico; `moderate`/`minor` → Moderado.
 

@@ -234,6 +234,8 @@ institutions         (id, name, acronym, domain UNIQUE, active, created_at)
 
 page_functions       (id, key UNIQUE, label)
                      -- home, admission, student_aid_notices, library, student_support
+                     -- (+ 8 funções desde a ADR 0013: courses, academic_calendar, class_schedule,
+                     --  contact, ombudsman, information_access, accessibility_support, campuses)
 
 routes               (id, institution_id FK, url, normalized_url, function_id FK NULL,
                       source: 'sitemap'|'crawler'|'manual',
@@ -322,6 +324,8 @@ Definir e documentar em ADR **antes** de implementar os indicadores:
 conformidade_da_página = passes / (passes + violations)          -- regras aplicáveis
 conformidade_da_instituição = média das páginas confirmadas avaliadas com sucesso
 ```
+
+> **ADR 0013:** no comparativo entre instituições, a média e os problemas distintos contam só o **núcleo comum** (funções avaliadas em todas as instituições comparadas); a **cobertura** (funções encontradas ÷ esperadas) é exibida ao lado e nunca vira 0%.
 
 - `incomplete` (casos que exigem revisão humana) **não entra** no cálculo, mas é exibido.
 - Classificação na interface: **Bom ≥ 75%**, **Parcial 50–74%**, **Crítico < 50%** (limiares em constante única, fáceis de ajustar).
@@ -639,6 +643,7 @@ Registro das melhorias levantadas no brainstorm e de onde cada uma entrou no pla
 | 10 | Implantação em contêiner com disco persistente | 8.1, Fase 12 |
 | 11 | Animações suaves, sempre respeitando `prefers-reduced-motion` | Fase 10 |
 | 12 | Revisão visual do front com a skill `frontend-design` | Fase 11 |
+| 13 | 13 funções de página, "não encontrada" e comparação pelo núcleo comum com cobertura | ADR 0013 |
 
 ### 8.1 Implantação
 
