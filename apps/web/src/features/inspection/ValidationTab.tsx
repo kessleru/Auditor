@@ -5,6 +5,7 @@ import { useOutletContext } from 'react-router';
 import {
   Badge,
   Button,
+  Choice,
   FindingCard,
   Note,
   StatGroup,
@@ -53,6 +54,10 @@ function ProblemCard({
             <Badge variant={status.variant}>{status.label}</Badge> em {problem.pages}{' '}
             {problem.pages === 1 ? 'página' : 'páginas'}, {problem.occurrences}{' '}
             {problem.occurrences === 1 ? 'ocorrência' : 'ocorrências'}
+            <span className="block">
+              Seletor do elemento:{' '}
+              <code className="font-mono text-code break-all">{problem.example.selector}</code>
+            </span>
             {problem.validationNote ? (
               <span className="block">Justificativa: {problem.validationNote}</span>
             ) : null}
@@ -140,6 +145,7 @@ function ProblemCard({
 export function ValidationTab() {
   const { collectionId, institutionId } = useOutletContext<PortalContext>();
   const findings = useInspectionFindings(collectionId, institutionId);
+  const [onlyPending, setOnlyPending] = useState(false);
   return (
     <div className="flex flex-col gap-6">
       <QueryState
@@ -159,7 +165,29 @@ export function ValidationTab() {
                 { label: 'Pendentes', value: counts.pending },
               ]}
             />
+            <div className="flex flex-col gap-1">
+              <Choice
+                type="checkbox"
+                checked={onlyPending}
+                onChange={(e) => setOnlyPending(e.target.checked)}
+                label="Mostrar só os problemas pendentes"
+              />
+              <p className="text-label text-text-muted" aria-live="polite">
+                {onlyPending
+                  ? `${counts.pending} de ${counts.problems} problemas exibidos`
+                  : `${counts.problems} ${counts.problems === 1 ? 'problema exibido' : 'problemas exibidos'}`}
+              </p>
+            </div>
+            {onlyPending && counts.pending === 0 ? (
+              <p className="text-body text-text-muted">
+                Nenhum problema pendente: a validação deste portal está concluída.
+              </p>
+            ) : null}
             {groups.map((group) => {
+              const problems = onlyPending
+                ? group.problems.filter((p) => p.validation === 'pending')
+                : group.problems;
+              if (problems.length === 0) return null;
               const title =
                 group.kind === 'template'
                   ? 'Em todas as páginas (template)'
@@ -170,8 +198,7 @@ export function ValidationTab() {
                     <h2 className="flex flex-wrap items-center gap-2 text-section text-text">
                       {title}
                       <Badge variant="neutral">
-                        {group.problems.length}{' '}
-                        {group.problems.length === 1 ? 'problema' : 'problemas'}
+                        {problems.length} {problems.length === 1 ? 'problema' : 'problemas'}
                       </Badge>
                     </h2>
                     {group.page ? (
@@ -187,7 +214,7 @@ export function ValidationTab() {
                     </p>
                   ) : null}
                   <ul className="flex flex-col gap-5">
-                    {group.problems.map((p) => (
+                    {problems.map((p) => (
                       <li key={p.fingerprint}>
                         <ProblemCard
                           problem={p}

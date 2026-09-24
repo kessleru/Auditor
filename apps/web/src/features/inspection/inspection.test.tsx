@@ -139,6 +139,13 @@ describe('portal: contexto, abas e validação (3.3)', () => {
     expect(sections[0]!.textContent).toContain('Em todas as páginas (template)');
     await expectNoAxeViolations(container);
 
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Mostrar só os problemas pendentes' }),
+    );
+    expect(screen.getByText('1 de 2 problemas exibidos')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: /template/ })).toBeNull();
+    expect(screen.getByText('main img').tagName).toBe('CODE');
+
     const toggle = screen.getByRole('button', {
       name: 'Marcar como falso positivo: Imagens devem ter texto alternativo (main img)',
     });
@@ -199,6 +206,11 @@ describe('tarefas-alvo (3.1)', () => {
     const { container } = renderRoute('/inspecao/5/1/tarefas');
     await screen.findByRole('heading', { level: 2, name: 'Encontrar um canal de contato.' });
     await expectNoAxeViolations(container);
+    expect(
+      screen
+        .getByRole('link', { name: 'Abrir a página inicial de IFTM (nova janela)' })
+        .getAttribute('href'),
+    ).toBe('https://iftm.edu.br');
 
     for (let i = 0; i < 3; i++)
       await userEvent.click(screen.getByRole('button', { name: 'Registrar uma interação' }));
@@ -257,6 +269,11 @@ describe('verificação assistiva (3.2)', () => {
     });
     const { container } = renderRoute('/inspecao/5/1/verificacao');
     const keyboard = await screen.findByRole('form', { name: 'Navegação apenas por teclado' });
+    expect(
+      screen
+        .getByRole('link', { name: 'Abrir a página em verificação (nova janela)' })
+        .getAttribute('href'),
+    ).toBe('https://iftm.edu.br');
     expect(screen.getByText(/Página 1 de 2, com 0 de 5 verificações/)).toBeTruthy();
     await expectNoAxeViolations(container);
 
