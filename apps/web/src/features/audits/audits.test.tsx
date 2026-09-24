@@ -1,7 +1,7 @@
 import type { Institution, Route } from '@auditoria-rf/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
 import { publicRoutes } from '../../test/fixtures';
 import { renderRoute, stubApi } from '../../test/render';
@@ -37,6 +37,7 @@ const idleDiscovery = {
   discovery: {
     institutionId: 1,
     status: 'idle',
+    progress: null,
     startedAt: null,
     finishedAt: null,
     error: null,
@@ -142,6 +143,86 @@ describe('revisão de rotas (1.2)', () => {
     );
     // A função muda de lista e o botão some: o foco vai para o andamento, não para o topo.
     await waitFor(() => expect(document.activeElement?.textContent).toMatch(/funções revisadas/));
+  });
+
+  it('mostra o andamento da descoberta e recarrega as rotas quando ela termina', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let finished = false;
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': () =>
+          Response.json({ routes: finished ? routes : [], absences: [] }),
+        'GET /institutions/1/discovery': () =>
+          Response.json({
+            discovery: finished
+              ? { ...idleDiscovery.discovery, status: 'completed' }
+              : {
+                  ...idleDiscovery.discovery,
+                  status: 'running',
+                  progress: { phase: 'pages', visited: 12, planned: 200 },
+                },
+          }),
+      },
+    });
+    try {
+      const { container } = renderRoute(
+        '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission',
+      );
+      expect(await screen.findByText(/12 de até 200 páginas lidas/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Descobrindo…' })).toBeTruthy();
+      // O leitor de tela ouve só o andamento, sem a frase fixa do intervalo.
+      await waitFor(() =>
+        expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe(
+          'Descobrindo rotas: 12 de até 200 páginas lidas.',
+        ),
+      );
+      await expectNoAxeViolations(container);
+
+      finished = true;
+      await vi.advanceTimersByTimeAsync(3000);
+      // As rotas gravadas no fim aparecem sem recarregar a página.
+      const toReview = await screen.findByRole('region', { name: 'Para revisar (1)' });
+      expect(toReview.textContent).toContain('Sugestão: iftm.edu.br/ingresso');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('não anuncia a última descoberta só por abrir a página', async () => {
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': { routes, absences: [] },
+        'GET /institutions/1/discovery': {
+          discovery: {
+            ...idleDiscovery.discovery,
+            status: 'completed',
+            summary: {
+              source: 'crawler',
+              origin: 'https://iftm.edu.br',
+              robotsTxtFound: true,
+              sitemapFiles: 0,
+              found: 4,
+              created: 4,
+              authenticated: 1,
+              excluded: 0,
+              withSuggestion: 2,
+              blockedByRobots: 0,
+              failed: 0,
+              stoppedEarly: null,
+            },
+          },
+        },
+      },
+    });
+    const { container } = renderRoute('/auditorias/nova/rotas/1?instituicoes=1&funcoes=home');
+    expect(await screen.findByText(/Última descoberta: 4 URLs/)).toBeTruthy();
+    // O anúncio sai por setTimeout: espera além dele antes de conferir o silêncio.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe('');
   });
 
   it('sugere a candidata mais relevante e lista todas as URLs com filtro', async () => {

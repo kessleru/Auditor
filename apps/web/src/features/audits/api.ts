@@ -2,6 +2,7 @@ import {
   type CreateInstitutionInput,
   type CreateRouteInput,
   discoveryResponseSchema,
+  type DiscoveryState,
   functionAbsenceResponseSchema,
   institutionListResponseSchema,
   institutionResponseSchema,
@@ -12,6 +13,7 @@ import {
   type UpdateRouteInput,
 } from '@auditoria-rf/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { z } from 'zod';
 import { apiRequest } from '../../lib/api';
 
@@ -64,9 +66,13 @@ export const useRoutes = (institutionId: number) =>
     queryFn: () => fetchRoutes(institutionId),
   });
 
-/** Andamento da descoberta; consulta a cada 3 s enquanto está em execução. */
-export const useDiscovery = (institutionId: number) =>
-  useQuery({
+/**
+ * Andamento da descoberta; consulta a cada 3 s enquanto está em execução. As rotas só são gravadas
+ * no fim: quando ela deixa de rodar, a lista de rotas é recarregada.
+ */
+export function useDiscovery(institutionId: number) {
+  const qc = useQueryClient();
+  const query = useQuery({
     queryKey: auditKeys.discovery(institutionId),
     queryFn: async () =>
       (
@@ -76,6 +82,16 @@ export const useDiscovery = (institutionId: number) =>
       ).discovery,
     refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false),
   });
+  const status = query.data?.status;
+  const previous = useRef<DiscoveryState['status'] | undefined>(status);
+  useEffect(() => {
+    if (previous.current === 'running' && status !== 'running') {
+      void qc.invalidateQueries({ queryKey: auditKeys.routes(institutionId) });
+    }
+    previous.current = status;
+  }, [status, qc, institutionId]);
+  return query;
+}
 
 export function useStartDiscovery(institutionId: number) {
   const qc = useQueryClient();
