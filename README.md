@@ -67,7 +67,7 @@ A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um 
 | Versões de axe-core e navegador **congeladas** | atualizar muda o conjunto de regras e invalida a comparação entre coletas |
 | Uma coleta por vez por domínio, 1,5 s entre requisições | limite ético de carga sobre servidores públicos |
 
-Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 11 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
+Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 12 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
 
 ## Acessibilidade do próprio sistema
 
@@ -122,6 +122,19 @@ docs/         plano de implementação e ADRs
 ## Implantação
 
 A demonstração roda local com `docker compose up`, a partir de um banco já populado — não depende de internet nem de terceiros. Hospedagem serverless não serve: o Playwright precisa de um navegador instalado e de execuções longas, e o SQLite precisa de um arquivo em disco que sobreviva entre requisições.
+
+## Quando a rede ou um portal bloqueia a ferramenta
+
+| Situação | O que fazer |
+| --- | --- |
+| A máquina só sai para a internet por proxy (rede do campus) | defina `CRAWLER_PROXY=http://proxy:porta` no `.env`: crawler e navegador da coleta passam a usá-lo |
+| Portal com certificado sem a intermediária | nada: a descoberta completa a cadeia pelo AIA, como o navegador |
+| Portal lento ou fora do ar | a descoberta tenta de novo uma vez, respeita o `Retry-After` e para depois de 10 falhas seguidas, guardando o que achou |
+| robots.txt com erro de servidor (5xx) | a descoberta não prossegue (RFC 9309); tente mais tarde |
+| Portal responde 403 à ferramenta (firewall) | **não contornar** (trocar o user-agent feriria o método): registre como ausência de dado ou peça à TI da instituição que libere o user-agent `AuditoriaRF` |
+| Ambiente de nuvem sem acesso aos portais (ex.: sessão remota com rede restrita) | libere os domínios `.edu.br`, `.g12.br`, `cefetmg.br` e `cefet-rj.br` nas configurações de rede do ambiente, ou rode na sua máquina |
+
+Detalhes na ADR [0012](./docs/decisoes/0012-robustez-da-coleta.md).
 
 ## Limitações conhecidas
 
