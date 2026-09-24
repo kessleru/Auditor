@@ -24,8 +24,11 @@ type CreateCollection = z.output<typeof createCollectionSchema>;
 
 export interface CollectionsServiceDeps {
   repo: CollectionsRepository;
-  /** `null` quando o crawler não está configurado (sem e-mail de contato no user-agent). */
-  auditor: PageAuditor | null;
+  /**
+   * Motor de auditoria, resolvido quando é preciso: o contato do user-agent pode aparecer depois
+   * que o servidor subiu. `null` = sem e-mail de contato.
+   */
+  getAuditor: () => PageAuditor | null;
   storage: SnapshotStorage;
   locks: DomainLocks;
   events: CollectionEventBus;
@@ -42,7 +45,7 @@ const FINISHED: readonly CollectionStatus[] = ['completed', 'partial', 'cancelle
  */
 export function createCollectionsService({
   repo,
-  auditor,
+  getAuditor,
   storage,
   locks,
   events,
@@ -55,14 +58,19 @@ export function createCollectionsService({
   /** Desligando: nada novo é reivindicado e páginas interrompidas não são marcadas como falha. */
   let stopping = false;
 
+  /** O último motor usado, para fechar o navegador ao encerrar. */
+  let lastAuditor: PageAuditor | null = null;
+
   const requireAuditor = (): PageAuditor => {
+    const auditor = getAuditor();
     if (!auditor) {
       throw new AppError(
         503,
         'CRAWLER_NOT_CONFIGURED',
-        'Defina CRAWLER_CONTACT_EMAIL no .env para identificar a ferramenta aos portais.',
+        'Crie a conta do auditor (o e-mail dele identifica a ferramenta aos portais) ou defina CRAWLER_CONTACT_EMAIL no .env.',
       );
     }
+    lastAuditor = auditor;
     return auditor;
   };
 
@@ -374,13 +382,13 @@ export function createCollectionsService({
     /** Encerra aguardando as páginas em execução (CLI). */
     async shutdown() {
       await pool.idle();
-      await auditor?.close();
+      await lastAuditor?.close();
     },
 
     /** Encerra já (servidor): páginas em execução voltam para a fila na próxima inicialização. */
     async close() {
       stopping = true;
-      await auditor?.close();
+      await lastAuditor?.close();
     },
   };
 }
