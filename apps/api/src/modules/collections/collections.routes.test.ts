@@ -360,6 +360,34 @@ describe('cancelamento, nova tentativa e retomada', () => {
     expect((await service.waitForFinish(body.collection.id)).status).toBe('completed');
   });
 
+  it('navegador que não abre encerra a coleta com o motivo, sem derrubar o servidor', async () => {
+    let broken = true;
+    const auditor = {
+      ...fakeAuditor(async () => okOutcome()),
+      versions: async () => {
+        if (broken) throw new Error("browserType.launch: Executable doesn't exist at /x");
+        return { axeVersion: '4.13.0', browserVersion: 'Chromium teste', userAgent: 'UA' };
+      },
+    };
+    const { agent, service } = await setup(auditor);
+    const { body } = await create(agent, { institutionIds: [institutionA().institution.id] });
+    expect((await service.waitForFinish(body.collection.id)).status).toBe('partial');
+    const pages = service.get(body.collection.id).pages;
+    expect(pages.every((p) => p.status === 'failed')).toBe(true);
+    expect(pages[0]!.error).toBe(
+      'Não foi possível iniciar o navegador: O navegador do Playwright não abriu. Instale com: npx playwright install chromium.',
+    );
+
+    // Corrigido o navegador, "tentar de novo" reabre a coleta, que agora registra as versões.
+    broken = false;
+    await agent.post(`/api/v1/collection-pages/${pages[0]!.id}/retry`);
+    const finished = await service.waitForFinish(body.collection.id);
+    expect(finished.axeVersion).toBe('4.13.0');
+    // A trava do domínio foi liberada: uma nova coleta no mesmo portal começa normalmente.
+    const again = await create(agent, { institutionIds: [pages[0]!.institutionId] });
+    expect((await service.waitForFinish(again.body.collection.id)).status).toBe('completed');
+  });
+
   it('retoma após reinício: o que estava em execução volta para a fila', async () => {
     await createServices(db, { auditor: null, discover: null }).auth.createAuditor(testAuditor);
     const { institution, routes } = institutionA();

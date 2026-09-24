@@ -45,6 +45,21 @@ describe('createWorkerPool', () => {
     expect(errors).toEqual([2]);
   });
 
+  it('erro ao reivindicar vai para onClaimError e não escapa como rejeição', async () => {
+    const claimErrors: unknown[] = [];
+    const pool = createWorkerPool({
+      concurrency: 1,
+      claim: async () => {
+        throw new Error('banco indisponível');
+      },
+      process: async () => {},
+      onClaimError: (err) => claimErrors.push(err),
+    });
+    pool.kick();
+    await pool.idle();
+    expect(claimErrors).toHaveLength(1);
+  });
+
   it('trabalho que chega depois é reivindicado no próximo kick', async () => {
     const jobs: number[] = [];
     const done: number[] = [];

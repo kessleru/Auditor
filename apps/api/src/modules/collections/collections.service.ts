@@ -6,7 +6,7 @@ import type {
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
 import { countRules, findingsFromViolations } from '../../infra/auditor/axe-mapping.js';
-import type { PageAuditor } from '../../infra/auditor/page-auditor.js';
+import { describeFailure, type PageAuditor } from '../../infra/auditor/page-auditor.js';
 import type { CollectionEventBus } from '../../infra/events/collection-events.js';
 import type { DomainLocks } from '../../infra/locks/domain-locks.js';
 import { createWorkerPool } from '../../infra/queue/worker-pool.js';
@@ -111,7 +111,18 @@ export function createCollectionsService({
         locks.release(collection.id);
         continue;
       }
-      const versions = collection.axeVersion ? null : await requireAuditor().versions();
+      let versions: Awaited<ReturnType<PageAuditor['versions']>> | null = null;
+      if (!collection.axeVersion) {
+        try {
+          versions = await requireAuditor().versions();
+        } catch (err) {
+          // O navegador não abriu: a coleta termina com as páginas em falha e o motivo, em vez
+          // de ficar parada na fila (ou derrubar o servidor). "Tentar de novo" a reabre.
+          locks.release(collection.id);
+          failBeforeStart(collection, err);
+          continue;
+        }
+      }
       repo.updateCollection(collection.id, {
         status: 'running',
         startedAt: collection.startedAt ?? now(),
@@ -123,6 +134,26 @@ export function createCollectionsService({
       });
       owned.add(collection.id);
     }
+  };
+
+  const failBeforeStart = (collection: CollectionRow, err: unknown) => {
+    const error = `Não foi possível iniciar o navegador: ${describeFailure(err, 0)}`;
+    logger.error({ err, collectionId: collection.id }, 'coleta não iniciou');
+    repo.transaction(() => {
+      for (const page of repo.queuedPages([collection.id])) {
+        repo.updatePage(page.id, { status: 'failed', error });
+      }
+      repo.updateCollection(collection.id, {
+        status: 'partial',
+        startedAt: collection.startedAt ?? now(),
+        finishedAt: now(),
+      });
+    });
+    publish(collection.id, {
+      type: 'collection-finished',
+      status: 'partial',
+      progress: repo.progress(collection.id),
+    });
   };
 
   const claim = async (): Promise<CollectionPageWithRoute | null> => {
@@ -227,6 +258,7 @@ export function createCollectionsService({
     claim,
     process,
     onError: (err) => logger.error({ err }, 'erro na fila de coleta'),
+    onClaimError: (err) => logger.error({ err }, 'erro ao buscar a próxima página da coleta'),
   });
 
   return {
