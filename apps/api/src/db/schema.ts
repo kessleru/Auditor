@@ -88,8 +88,33 @@ export const routes = sqliteTable(
       .default(sql`(cast(unixepoch('subsec') * 1000 as integer))`),
     confirmedAt: timestamp('confirmed_at'),
     lastSeenAt: timestamp('last_seen_at'),
+    // Indícios da descoberta, só para ordenar e exibir as candidatas (ADR 0011).
+    title: text('title'),
+    linkText: text('link_text'),
+    relevance: integer('relevance'),
   },
   (t) => [unique().on(t.institutionId, t.normalizedUrl)],
+);
+
+// Função procurada e não encontrada no portal (ADR 0013): decisão do auditor, com motivo. Entra na
+// cobertura; sem ela, "não tem a página" e "não foi revisado" seriam indistinguíveis.
+export const functionAbsences = sqliteTable(
+  'function_absences',
+  {
+    id: id(),
+    institutionId: integer('institution_id')
+      .notNull()
+      .references(() => institutions.id),
+    functionId: integer('function_id')
+      .notNull()
+      .references(() => pageFunctions.id),
+    reason: text('reason').notNull(),
+    decidedBy: integer('decided_by')
+      .notNull()
+      .references(() => users.id),
+    decidedAt: createdAt(),
+  },
+  (t) => [unique().on(t.institutionId, t.functionId)],
 );
 
 export const collections = sqliteTable('collections', {

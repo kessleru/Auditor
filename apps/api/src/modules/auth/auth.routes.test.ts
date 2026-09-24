@@ -23,7 +23,9 @@ beforeEach(async () => {
   await createAuthService(createAuthRepository(db)).createAuditor(auditor);
 });
 
-function buildApp(options: { secureCookies?: boolean } = {}) {
+function buildApp(
+  options: { secureCookies?: boolean | 'auto'; trustProxy?: boolean | number | string } = {},
+) {
   return createApp({ db, secureCookies: false, clock: () => now, ...options });
 }
 
@@ -70,6 +72,26 @@ describe('POST /api/v1/auth/login', () => {
     expect(sessionCookie(res)).toMatch(/Secure/);
   });
 
+  it('em auto, marca secure só quando a requisição chegou por HTTPS (via proxy confiável)', async () => {
+    const app = buildApp({ secureCookies: 'auto', trustProxy: 'loopback' });
+    const plain = await login(app, { email: auditor.email, password: auditor.password });
+    expect(sessionCookie(plain)).not.toMatch(/Secure/);
+
+    const viaTls = await request(app)
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-Proto', 'https')
+      .send({ email: auditor.email, password: auditor.password });
+    expect(sessionCookie(viaTls)).toMatch(/Secure/);
+  });
+
+  it('sem proxy confiável, ignora X-Forwarded-Proto', async () => {
+    const res = await request(buildApp({ secureCookies: 'auto' }))
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-Proto', 'https')
+      .send({ email: auditor.email, password: auditor.password });
+    expect(sessionCookie(res)).not.toMatch(/Secure/);
+  });
+
   it('com senha errada, responde 401 sem abrir sessão', async () => {
     const res = await login(buildApp(), { email: auditor.email, password: 'senha-errada-000' });
     expect(res.status).toBe(401);
@@ -101,6 +123,19 @@ describe('POST /api/v1/auth/login', () => {
     const res = await login(app, { email: auditor.email, password: auditor.password });
     expect(res.status).toBe(429);
     expect(res.body.error.code).toBe('TOO_MANY_ATTEMPTS');
+  });
+
+  it('atrás de proxy confiável, conta as tentativas por IP de origem, não pelo do proxy', async () => {
+    const app = buildApp({ trustProxy: 'loopback' });
+    const from = (ip: string, password: string) =>
+      request(app)
+        .post('/api/v1/auth/login')
+        .set('X-Forwarded-For', ip)
+        .send({ email: auditor.email, password });
+    for (let i = 0; i < 5; i++) expect((await from('10.0.0.1', `errada-${i}`)).status).toBe(401);
+    expect((await from('10.0.0.1', auditor.password)).status).toBe(429);
+    // Outra pessoa atrás do mesmo proxy não fica bloqueada.
+    expect((await from('10.0.0.2', auditor.password)).status).toBe(200);
   });
 
   it('não conta logins bem-sucedidos no limite', async () => {

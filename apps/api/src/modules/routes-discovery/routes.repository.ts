@@ -1,7 +1,7 @@
 import type { PageFunctionKey, RouteStatus } from '@auditoria-rf/contracts';
 import { and, asc, eq } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
-import { pageFunctions, routes } from '../../db/schema.js';
+import { functionAbsences, pageFunctions, routes } from '../../db/schema.js';
 
 export type RouteRow = typeof routes.$inferSelect;
 type RouteInsert = typeof routes.$inferInsert;
@@ -40,6 +40,49 @@ export function createRoutesRepository(db: DB) {
           and(eq(routes.institutionId, institutionId), eq(routes.normalizedUrl, normalizedUrl)),
         )
         .get();
+    },
+
+    listAbsences(institutionId: number) {
+      return db
+        .select({
+          institutionId: functionAbsences.institutionId,
+          functionKey: pageFunctions.key,
+          reason: functionAbsences.reason,
+          decidedAt: functionAbsences.decidedAt,
+        })
+        .from(functionAbsences)
+        .innerJoin(pageFunctions, eq(pageFunctions.id, functionAbsences.functionId))
+        .where(eq(functionAbsences.institutionId, institutionId))
+        .orderBy(asc(functionAbsences.functionId))
+        .all()
+        .map((row) => ({ ...row, functionKey: row.functionKey as PageFunctionKey }));
+    },
+
+    upsertAbsence(values: {
+      institutionId: number;
+      functionId: number;
+      reason: string;
+      decidedBy: number;
+      decidedAt: Date;
+    }) {
+      db.insert(functionAbsences)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [functionAbsences.institutionId, functionAbsences.functionId],
+          set: { reason: values.reason, decidedBy: values.decidedBy, decidedAt: values.decidedAt },
+        })
+        .run();
+    },
+
+    deleteAbsence(institutionId: number, functionId: number) {
+      db.delete(functionAbsences)
+        .where(
+          and(
+            eq(functionAbsences.institutionId, institutionId),
+            eq(functionAbsences.functionId, functionId),
+          ),
+        )
+        .run();
     },
 
     insert(values: RouteInsert): RouteRow {

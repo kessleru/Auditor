@@ -22,13 +22,13 @@ const DICTIONARY: Record<ExportDataset, [coluna: string, tipo: string, descricao
     [
       'conformidade',
       'decimal 0–1',
-      'Média, entre as páginas avaliadas, de regras aprovadas ÷ (aprovadas + violadas). Só critérios verificáveis automaticamente. Vazio quando sem dado.',
+      'No núcleo comum (funções avaliadas em todas as instituições; coluna nucleo_comum): média, entre essas páginas, de regras aprovadas ÷ (aprovadas + violadas). É a base da comparação. Só critérios verificáveis automaticamente. Vazio quando sem dado.',
     ],
     ['classificacao', 'texto', 'bom (≥ 0,75) | parcial (≥ 0,50) | critico (< 0,50).'],
     [
       'problemas_confirmados',
       'inteiro',
-      'Problemas distintos (elemento + regra) confirmados na validação manual.',
+      'Problemas distintos (elemento + regra) confirmados na validação manual, nas páginas do núcleo comum.',
     ],
     [
       'problemas_criticos',
@@ -45,8 +45,34 @@ const DICTIONARY: Record<ExportDataset, [coluna: string, tipo: string, descricao
       'inteiro',
       'Achados ainda não revisados pelo auditor (não contam como problema).',
     ],
-    ['paginas_avaliadas', 'inteiro', 'Páginas auditadas com sucesso na coleta.'],
+    ['paginas_avaliadas', 'inteiro', 'Páginas do núcleo comum auditadas com sucesso.'],
     ['paginas_total', 'inteiro', 'Páginas previstas no escopo da coleta.'],
+    [
+      'nucleo_comum',
+      'texto',
+      'Funções comparadas (avaliadas em todas as instituições com dado), separadas por "|". Igual em todas as linhas.',
+    ],
+    [
+      'conformidade_todas_paginas',
+      'decimal 0–1',
+      'Mesma fórmula da conformidade, sobre todas as páginas avaliadas da instituição (dentro e fora do núcleo comum). Não serve para ranking.',
+    ],
+    [
+      'problemas_todas_paginas',
+      'inteiro',
+      'Problemas distintos confirmados em todas as páginas avaliadas da instituição.',
+    ],
+    [
+      'funcoes_encontradas',
+      'inteiro',
+      'Funções do escopo da coleta que o portal tem (cobertura). Vazio em coletas sem escopo explícito.',
+    ],
+    ['funcoes_esperadas', 'inteiro', 'Funções do escopo da coleta.'],
+    [
+      'funcoes_nao_encontradas',
+      'texto',
+      'Funções procuradas pelo auditor e não encontradas no portal, separadas por "|". Não entram como 0%.',
+    ],
     ['axe_versao', 'texto', 'Versão do axe-core usada na coleta.'],
     ['navegador', 'texto', 'Navegador usado na coleta.'],
   ],
@@ -71,7 +97,7 @@ export function createExportService(publicReports: PublicReportsService, repo: R
   return {
     csv(dataset: ExportDataset): string {
       const header = DICTIONARY[dataset].map(([name]) => name);
-      const institutions = publicReports.list();
+      const { institutions, core } = publicReports.snapshot();
       if (dataset === 'instituicoes') {
         return toCsv(
           header,
@@ -97,6 +123,12 @@ export function createExportService(publicReports: PublicReportsService, repo: R
               i.status === 'evaluated' ? i.pendingValidation : null,
               i.pagesEvaluated,
               i.pagesTotal,
+              core.join('|'),
+              i.overall?.conformity == null ? null : i.overall.conformity.toFixed(4),
+              i.overall?.problems ?? null,
+              i.coverage?.found ?? null,
+              i.coverage?.expected ?? null,
+              i.coverage ? i.coverage.missing.join('|') : null,
               collection?.axeVersion ?? null,
               collection?.browserVersion ?? null,
             ];

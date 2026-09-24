@@ -22,12 +22,22 @@ export const usePublicSummary = () =>
     queryFn: () => apiRequest('/public/summary', { schema: publicSummarySchema }),
   });
 
+const fetchInstitutions = () =>
+  apiRequest('/public/institutions', { schema: publicInstitutionListResponseSchema });
+
 export const usePublicInstitutions = () =>
   useQuery({
     queryKey: publicKeys.institutions,
-    queryFn: async () =>
-      (await apiRequest('/public/institutions', { schema: publicInstitutionListResponseSchema }))
-        .institutions,
+    queryFn: fetchInstitutions,
+    select: (data) => data.institutions,
+  });
+
+/** Funções avaliadas em todas as instituições: a base da comparação (ADR 0013). */
+export const usePublicCoreFunctions = () =>
+  useQuery({
+    queryKey: publicKeys.institutions,
+    queryFn: fetchInstitutions,
+    select: (data) => data.coreFunctions,
   });
 
 export const usePublicInstitution = (id: number) =>

@@ -15,6 +15,12 @@ export const routeSchema = z.object({
   discoveredAt: z.string(),
   confirmedAt: z.string().nullable(),
   lastSeenAt: z.string().nullable(),
+  /** Título da página na última descoberta (ausente em rota manual ou não acessada). */
+  title: z.string().nullable(),
+  /** Texto do link que levou à página. */
+  linkText: z.string().nullable(),
+  /** Relevância da sugestão automática (0–100): ordena as candidatas; nunca decide sozinha. */
+  relevance: z.number().int().nullable(),
 });
 export type Route = z.infer<typeof routeSchema>;
 
@@ -54,8 +60,28 @@ export type CreateRouteInput = z.input<typeof createRouteSchema>;
 /** Confirma a substituição de uma rota que mudou de endereço (seção 3.1.7). */
 export const replaceRouteSchema = z.object({ newRouteId: z.number().int().positive() });
 
+/** Função procurada e não encontrada no portal (ADR 0013): entra na cobertura da instituição. */
+export const functionAbsenceSchema = z.object({
+  institutionId: z.number().int(),
+  functionKey: z.enum(pageFunctionKeys),
+  reason: z.string(),
+  decidedAt: z.string(),
+});
+export type FunctionAbsence = z.infer<typeof functionAbsenceSchema>;
+
+// PUT /institutions/:id/functions/:functionKey/absence
+export const markFunctionAbsentSchema = z.object({
+  reason: z.string().trim().min(10, 'Diga onde procurou (ao menos 10 caracteres).').max(500),
+});
+export type MarkFunctionAbsentInput = z.input<typeof markFunctionAbsentSchema>;
+
 export const routeResponseSchema = z.object({ route: routeSchema });
-export const routeListResponseSchema = z.object({ routes: z.array(routeSchema) });
+export const routeListResponseSchema = z.object({
+  routes: z.array(routeSchema),
+  /** Funções marcadas como não encontradas na instituição. */
+  absences: z.array(functionAbsenceSchema),
+});
+export const functionAbsenceResponseSchema = z.object({ absence: functionAbsenceSchema });
 
 export const discoveryStatuses = ['idle', 'running', 'completed', 'failed'] as const;
 
@@ -70,8 +96,12 @@ export const discoverySummarySchema = z.object({
   created: z.number().int(),
   authenticated: z.number().int(),
   excluded: z.number().int(),
+  /** Rotas públicas com função sugerida (candidatas para a revisão). */
+  withSuggestion: z.number().int(),
   blockedByRobots: z.number().int(),
   failed: z.number().int(),
+  /** Parou antes de percorrer tudo: tempo máximo ou falhas seguidas (portal parou de responder). */
+  stoppedEarly: z.enum(['deadline', 'failures']).nullable(),
 });
 export type DiscoverySummary = z.infer<typeof discoverySummarySchema>;
 

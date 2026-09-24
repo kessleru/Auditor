@@ -3,6 +3,8 @@ import * as cheerio from 'cheerio';
 export interface PageLink {
   href: string;
   text: string;
+  /** Link de menu (dentro de `nav`, `header` ou `role="navigation"`): indica página de destaque. */
+  inNav: boolean;
 }
 
 export interface ParsedPage {
@@ -15,6 +17,28 @@ export interface ParsedPage {
 
 const collapse = (value: string) => value.replace(/\s+/g, ' ').trim();
 
+const NAV_SELECTOR = 'nav, header, [role="navigation" i], [role="banner" i]';
+
+/**
+ * Decodifica o HTML pela codificação declarada (cabeçalho `content-type` ou `<meta charset>`).
+ * Portais antigos ainda servem ISO-8859-1: ler como UTF-8 estragaria os acentos, e com eles as
+ * palavras-chave da sugestão ("Assistência" viraria "Assist�ncia").
+ */
+export function decodeHtml(body: Buffer, contentType = ''): string {
+  const head = body.subarray(0, 2048).toString('latin1');
+  const declared =
+    /charset\s*=\s*["']?([\w-]+)/i.exec(contentType)?.[1] ??
+    /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i.exec(head)?.[1];
+  if (declared) {
+    try {
+      return new TextDecoder(declared.toLowerCase()).decode(body);
+    } catch {
+      // Codificação desconhecida: segue como UTF-8.
+    }
+  }
+  return new TextDecoder('utf-8').decode(body);
+}
+
 export function parseHtml(html: string): ParsedPage {
   const $ = cheerio.load(html);
 
@@ -26,8 +50,9 @@ export function parseHtml(html: string): ParsedPage {
     const text =
       collapse($el.text()) ||
       collapse($el.attr('aria-label') ?? '') ||
-      collapse($el.attr('title') ?? '');
-    links.push({ href, text });
+      collapse($el.attr('title') ?? '') ||
+      collapse($el.find('img[alt]').first().attr('alt') ?? '');
+    links.push({ href, text, inNav: $el.closest(NAV_SELECTOR).length > 0 });
   });
 
   return {

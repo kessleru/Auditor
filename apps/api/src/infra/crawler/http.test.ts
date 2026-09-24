@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHttpClient, FetchFailedError } from './http.js';
+import { createHttpClient, FetchFailedError, parseRetryAfter } from './http.js';
 import { type Clock, HostThrottle } from './throttle.js';
 
 function fakeClock() {
@@ -132,15 +132,76 @@ describe('createHttpClient', () => {
     expect(calls[0]?.headers.get('user-agent')).toBe('AuditoriaRF/1.0');
   });
 
-  it('converte falha de rede em FetchFailedError', async () => {
-    const { clock, now } = fakeClock();
-    const { make } = fakeFetch({});
+  it('converte falha de rede em FetchFailedError, depois de uma nova tentativa', async () => {
+    const { clock, now, sleeps } = fakeClock();
+    const { calls, make } = fakeFetch({});
     const client = createHttpClient({
       userAgent: 'UA',
       fetch: make(now),
       throttle: new HostThrottle(clock),
+      sleep: clock.sleep,
     });
     await expect(client.get('https://fora.edu.br/')).rejects.toBeInstanceOf(FetchFailedError);
+    expect(calls).toHaveLength(2);
+    expect(sleeps).toContain(3000);
+  });
+
+  it('falha passageira de rede passa na nova tentativa', async () => {
+    const { clock, now } = fakeClock();
+    let first = true;
+    const { calls, make } = fakeFetch({
+      'https://a.edu.br/': () => {
+        if (first) {
+          first = false;
+          throw new TypeError('fetch failed');
+        }
+        return new Response('ok');
+      },
+    });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+      sleep: clock.sleep,
+    });
+    expect((await client.get('https://a.edu.br/')).status).toBe(200);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('em 503 ou 429, espera o Retry-After e tenta de novo', async () => {
+    const { clock, now, sleeps } = fakeClock();
+    let n = 0;
+    const { calls, make } = fakeFetch({
+      'https://a.edu.br/': () =>
+        n++ === 0
+          ? new Response('ocupado', { status: 503, headers: { 'retry-after': '7' } })
+          : new Response('ok'),
+    });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+      sleep: clock.sleep,
+    });
+    expect((await client.get('https://a.edu.br/')).status).toBe(200);
+    expect(sleeps).toContain(7000);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('não espera um Retry-After longo demais: devolve a resposta como veio', async () => {
+    const { clock, now } = fakeClock();
+    const { calls, make } = fakeFetch({
+      'https://a.edu.br/': () =>
+        new Response('devagar', { status: 429, headers: { 'retry-after': '3600' } }),
+    });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+      sleep: clock.sleep,
+    });
+    expect((await client.get('https://a.edu.br/')).status).toBe(429);
+    expect(calls).toHaveLength(1);
   });
 
   it('interrompe laços de redirecionamento', async () => {
@@ -154,5 +215,16 @@ describe('createHttpClient', () => {
       throttle: new HostThrottle(clock),
     });
     await expect(client.get('https://a.edu.br/x')).rejects.toThrow(/redirecionamentos demais/);
+  });
+});
+
+describe('parseRetryAfter', () => {
+  it('lê segundos e datas HTTP', () => {
+    expect(parseRetryAfter('12')).toBe(12_000);
+    expect(
+      parseRetryAfter('Thu, 24 Sep 2026 12:00:10 GMT', Date.parse('2026-09-24T12:00:00Z')),
+    ).toBe(10_000);
+    expect(parseRetryAfter(null)).toBeNull();
+    expect(parseRetryAfter('amanhã')).toBeNull();
   });
 });

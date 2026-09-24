@@ -10,6 +10,7 @@ import {
   collectionPages,
   collections,
   findings,
+  functionAbsences,
   institutions,
   pageFunctions,
   routes,
@@ -81,6 +82,39 @@ export function createCollectionsRepository(db: DB) {
         ),
       );
       return institutionIds.filter((id) => !withRoutes.has(id));
+    },
+
+    /**
+     * Funções do escopo sem decisão do auditor em cada instituição: nem rota confirmada nem
+     * marcação de "não encontrada" (ADR 0013).
+     */
+    unreviewedFunctions(
+      institutionIds: readonly number[],
+      functionKeys: readonly PageFunctionKey[],
+    ): { institutionId: number; functions: PageFunctionKey[] }[] {
+      const ids = [...institutionIds];
+      const decided = new Set([
+        ...db
+          .select({ institutionId: routes.institutionId, key: pageFunctions.key })
+          .from(routes)
+          .innerJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
+          .where(and(inArray(routes.institutionId, ids), eq(routes.status, 'confirmed')))
+          .all()
+          .map((r) => `${r.institutionId}:${r.key}`),
+        ...db
+          .select({ institutionId: functionAbsences.institutionId, key: pageFunctions.key })
+          .from(functionAbsences)
+          .innerJoin(pageFunctions, eq(pageFunctions.id, functionAbsences.functionId))
+          .where(inArray(functionAbsences.institutionId, ids))
+          .all()
+          .map((r) => `${r.institutionId}:${r.key}`),
+      ]);
+      return ids
+        .map((institutionId) => ({
+          institutionId,
+          functions: functionKeys.filter((key) => !decided.has(`${institutionId}:${key}`)),
+        }))
+        .filter((gap) => gap.functions.length > 0);
     },
 
     confirmedRoutesWithInstitution(

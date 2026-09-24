@@ -20,8 +20,11 @@ interface DiscoveryRun {
 export function createDiscoveryService(
   routesRepo: RoutesRepository,
   institutions: InstitutionsService,
-  /** `null` quando o crawler não está configurado (sem e-mail de contato). */
-  discover: DiscoverFn | null,
+  /**
+   * Resolvida a cada descoberta: o contato do user-agent pode aparecer depois que o servidor
+   * subiu (ex.: o launcher cria o auditor com a API no ar). `null` = sem contato.
+   */
+  getDiscover: () => DiscoverFn | null,
   { now = () => new Date() }: { now?: () => Date } = {},
 ) {
   const runs = new Map<number, DiscoveryRun>();
@@ -45,9 +48,21 @@ export function createDiscoveryService(
     routesRepo.transaction(() => {
       for (const route of result.routes) {
         const existing = routesRepo.findByNormalizedUrl(institutionId, route.url);
+        const suggestedId = route.suggestedFunction
+          ? (functionIds.get(route.suggestedFunction) ?? null)
+          : null;
+        // Indícios da descoberta: atualizados a cada rodada, nunca mudam decisões do auditor. A
+        // relevância é da sugestão; se a função gravada é outra, a relevância antiga fica.
+        const evidence = {
+          title: route.title ?? existing?.title ?? null,
+          linkText: route.linkText ?? existing?.linkText ?? null,
+          relevance:
+            !existing || existing.functionId === suggestedId ? route.relevance : existing.relevance,
+        };
         if (existing) {
           routesRepo.update(existing.id, {
             lastSeenAt: seenAt,
+            ...evidence,
             // Uma sugestão que agora exige login deixa de ser candidata; decisões do auditor ficam.
             ...(existing.status === 'suggested' &&
               route.status === 'authenticated' && { status: 'authenticated' }),
@@ -58,14 +73,13 @@ export function createDiscoveryService(
           institutionId,
           url: route.url,
           normalizedUrl: route.url,
-          functionId: route.suggestedFunction
-            ? (functionIds.get(route.suggestedFunction) ?? null)
-            : null,
-          source: result.source,
+          functionId: suggestedId,
+          source: route.source,
           status: route.status,
           exclusionReason: route.exclusionReason ?? null,
           discoveredAt: seenAt,
           lastSeenAt: seenAt,
+          ...evidence,
         });
         created++;
       }
@@ -80,8 +94,12 @@ export function createDiscoveryService(
       created,
       authenticated: result.routes.filter((r) => r.status === 'authenticated').length,
       excluded: result.routes.filter((r) => r.status === 'excluded').length,
+      withSuggestion: result.routes.filter(
+        (r) => r.status === 'suggested' && r.suggestedFunction !== null,
+      ).length,
       blockedByRobots: result.blockedByRobots,
       failed: result.failed,
+      stoppedEarly: result.stoppedEarly,
     };
   };
 
@@ -147,14 +165,14 @@ export function createDiscoveryService(
 
     start(institutionId: number): DiscoveryState {
       const institution = institutions.get(institutionId);
-      if (!discover) {
+      const run = getDiscover();
+      if (!run) {
         throw new AppError(
           503,
           'CRAWLER_NOT_CONFIGURED',
-          'Defina CRAWLER_CONTACT_EMAIL no .env para identificar a ferramenta aos portais.',
+          'Crie a conta do auditor (o e-mail dele identifica a ferramenta aos portais) ou defina CRAWLER_CONTACT_EMAIL no .env.',
         );
       }
-      const run = discover;
       if (!institution.active) {
         throw new AppError(409, 'INSTITUTION_INACTIVE', 'A instituição está inativa.');
       }

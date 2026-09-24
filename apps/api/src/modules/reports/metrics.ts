@@ -2,6 +2,8 @@ import {
   classifyConformity,
   type ConformityClass,
   type FindingValidation,
+  type PageFunctionKey,
+  pageFunctionKeys,
   type Severity,
   TEMPLATE_MIN_PAGES,
   TEMPLATE_THRESHOLD,
@@ -27,6 +29,8 @@ export interface PageInput {
   passesCount: number;
   violationsCount: number;
   incompleteCount: number;
+  /** Função da página no momento da coleta (`collection_pages.function_id`). */
+  functionKey?: PageFunctionKey | null;
 }
 
 export interface FindingInput {
@@ -99,14 +103,22 @@ export interface SummaryOptions {
    * auditor); `confirmed` = só o que o auditor confirmou (visão pública).
    */
   problems?: 'valid' | 'confirmed';
+  /**
+   * Só as páginas destas funções (núcleo comum, ADR 0013). Sem isto, todas as páginas contam.
+   */
+  functions?: readonly PageFunctionKey[];
 }
 
 /** Resumo de uma instituição numa coleta. Falsos positivos nunca contam como problema. */
 export function summarizeInstitution(
   pages: readonly PageInput[],
   findings: readonly FindingInput[],
-  { problems: countedProblems = 'valid' }: SummaryOptions = {},
+  { problems: countedProblems = 'valid', functions }: SummaryOptions = {},
 ): InstitutionSummary {
+  if (functions) {
+    const wanted = new Set<PageFunctionKey | null | undefined>(functions);
+    pages = pages.filter((p) => wanted.has(p.functionKey));
+  }
   const evaluated = pages.filter((p) => p.status === 'done');
   const failed = pages.filter((p) => p.status === 'failed').length;
   if (evaluated.length === 0) {
@@ -188,4 +200,50 @@ export function averageConformity(summaries: readonly InstitutionSummary[]): num
     .map((s) => (s.status === 'evaluated' ? s.conformity : null))
     .filter((c): c is number => c !== null);
   return values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+// Comparação justa entre conjuntos diferentes de páginas (ADR 0013) ---------------------------
+
+/** Funções com página avaliada com sucesso. */
+export function evaluatedFunctions(pages: readonly PageInput[]): Set<PageFunctionKey> {
+  return new Set(
+    pages
+      .filter((p) => p.status === 'done' && p.functionKey)
+      .map((p) => p.functionKey as PageFunctionKey),
+  );
+}
+
+/**
+ * Núcleo comum: funções avaliadas com sucesso em **todas** as instituições comparadas (as sem dado
+ * ficam de fora, seção 3.2.8), na ordem de `pageFunctionKeys`. O ranking compara só essas
+ * páginas: cada instituição é medida sobre o mesmo conjunto de funções, e uma com mais páginas
+ * não acumula mais problemas só por isso.
+ */
+export function commonCore(perInstitution: readonly Set<PageFunctionKey>[]): PageFunctionKey[] {
+  if (perInstitution.length === 0) return [];
+  return pageFunctionKeys.filter((key) => perInstitution.every((set) => set.has(key)));
+}
+
+export interface Coverage {
+  /** Funções do escopo da coleta com página no portal. */
+  found: number;
+  /** Funções do escopo da coleta. */
+  expected: number;
+  /** Funções procuradas e não encontradas no portal. */
+  missing: PageFunctionKey[];
+}
+
+/**
+ * Cobertura: quantas funções do escopo o portal tem. A coleta só começa com cada função
+ * confirmada ou marcada como não encontrada, então função do escopo sem página = não encontrada.
+ * `null` para coletas antigas, sem escopo explícito (a cobertura não foi medida).
+ */
+export function coverageOf(
+  pages: readonly PageInput[],
+  expected: readonly PageFunctionKey[] | null,
+): Coverage | null {
+  if (!expected) return null;
+  const withPage = new Set(pages.map((p) => p.functionKey));
+  const missing = expected.filter((key) => !withPage.has(key));
+  return { found: expected.length - missing.length, expected: expected.length, missing };
 }

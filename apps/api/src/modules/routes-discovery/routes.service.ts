@@ -1,5 +1,7 @@
 import type {
   createRouteSchema,
+  FunctionAbsence,
+  markFunctionAbsentSchema,
   PageFunctionKey,
   RouteStatus,
   replaceRouteSchema,
@@ -14,6 +16,7 @@ import type { RoutesRepository, RouteWithFunction } from './routes.repository.js
 type UpdateRoute = z.output<typeof updateRouteSchema>;
 type CreateRoute = z.output<typeof createRouteSchema>;
 type ReplaceRoute = z.output<typeof replaceRouteSchema>;
+type MarkAbsent = z.output<typeof markFunctionAbsentSchema>;
 
 export function createRoutesService(
   repo: RoutesRepository,
@@ -59,6 +62,47 @@ export function createRoutesService(
   };
 
   return {
+    /** Funções marcadas como não encontradas na instituição (ADR 0013). */
+    absences(institutionId: number): FunctionAbsence[] {
+      institutions.get(institutionId);
+      return repo
+        .listAbsences(institutionId)
+        .map((a) => ({ ...a, decidedAt: a.decidedAt.toISOString() }));
+    },
+
+    /**
+     * O auditor procurou e a instituição não tem a página da função. Recusado se a função já
+     * tem rota confirmada: é uma decisão ou outra.
+     */
+    markAbsent(
+      institutionId: number,
+      key: PageFunctionKey,
+      { reason }: MarkAbsent,
+      decidedBy: number,
+    ): FunctionAbsence {
+      institutions.get(institutionId);
+      const fnId = functionId(key);
+      const confirmed = repo
+        .listByInstitution(institutionId, 'confirmed')
+        .find((r) => r.functionId === fnId);
+      if (confirmed) {
+        throw new AppError(
+          409,
+          'FUNCTION_ALREADY_CONFIRMED',
+          `Esta função tem rota confirmada (${confirmed.url}). Troque ou exclua a rota antes.`,
+          { routeId: confirmed.id },
+        );
+      }
+      const decidedAt = now();
+      repo.upsertAbsence({ institutionId, functionId: fnId, reason, decidedBy, decidedAt });
+      return { institutionId, functionKey: key, reason, decidedAt: decidedAt.toISOString() };
+    },
+
+    clearAbsence(institutionId: number, key: PageFunctionKey) {
+      institutions.get(institutionId);
+      repo.deleteAbsence(institutionId, functionId(key));
+    },
+
     list(institutionId: number, status?: RouteStatus): RouteWithFunction[] {
       institutions.get(institutionId);
       return repo.listByInstitution(institutionId, status);
@@ -79,6 +123,8 @@ export function createRoutesService(
         const finalFunctionId =
           changes.functionId !== undefined ? changes.functionId : route.functionId;
         if (finalStatus === 'confirmed' && finalFunctionId !== null) {
+          // Rota confirmada desfaz a marcação de "não encontrada" da função.
+          repo.deleteAbsence(route.institutionId, finalFunctionId);
           releaseFunction(
             route.institutionId,
             finalFunctionId,
@@ -115,6 +161,7 @@ export function createRoutesService(
 
       return repo.transaction(() => {
         const fnId = functionId(input.functionKey);
+        repo.deleteAbsence(institutionId, fnId);
         const existing = repo.findByNormalizedUrl(institutionId, url);
         releaseFunction(institutionId, fnId, existing?.id ?? null, input.replaceConfirmed ?? false);
         const confirmedAt = now();

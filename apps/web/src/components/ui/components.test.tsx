@@ -199,7 +199,7 @@ describe('FindingCard, estados, logo e título', () => {
     );
     expect(screen.getByText('Moderado')).toBeTruthy();
     expect(screen.getByText('Inspeção')).toBeTruthy();
-    expect(screen.getByText('WCAG 2.4.4, 4.1.2 — operável')).toBeTruthy();
+    expect(screen.getByText(/WCAG 2\.4\.4, 4\.1\.2 · operável/)).toBeTruthy();
     expect(document.title).toBe('Relatório · Auditoria RF');
     await expectNoAxeViolations(container);
   });

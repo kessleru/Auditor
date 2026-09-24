@@ -28,6 +28,9 @@ const route = (id: number, path: string, overrides: Partial<Route> = {}): Route 
   discoveredAt: '2026-09-01T00:00:00.000Z',
   confirmedAt: null,
   lastSeenAt: null,
+  title: null,
+  linkText: null,
+  relevance: null,
   ...overrides,
 });
 const idleDiscovery = {
@@ -92,7 +95,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes },
+        'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': idleDiscovery,
         'PATCH /routes/2': (init: RequestInit | undefined) => {
           patched = JSON.parse(String(init?.body));
@@ -103,18 +106,28 @@ describe('revisão de rotas (1.2)', () => {
     const { container } = renderRoute(
       '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
     );
-    const table = await screen.findByRole('table', { name: 'Rotas por função avaliada — IFTM' });
-    const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map((r) => within(r).getByRole('rowheader').textContent)).toEqual([
-      'Página inicial',
+    const toReview = await screen.findByRole('region', { name: 'Para revisar (2)' });
+    const reviewed = screen.getByRole('region', { name: 'Revisadas (1)' });
+    expect(screen.getByText('1 de 3 funções revisadas')).toBeTruthy();
+    const items = within(toReview).getAllByRole('listitem');
+    expect(items.map((i) => within(i).getByRole('heading').textContent?.trim())).toEqual([
       'Ingresso',
       'Biblioteca',
     ]);
-    expect(rows[0]!.textContent).toContain('Confirmada');
-    expect(rows[1]!.textContent).toContain('Revisar sugestão');
-    expect(rows[1]!.textContent).toContain('rastreamento');
-    expect(rows[2]!.textContent).toContain('Nenhuma URL sugerida');
-    expect(screen.getByText('Áreas que exigem autenticação (1)')).toBeTruthy();
+    expect(items[0]!.textContent).toContain('Sugestão: iftm.edu.br/ingresso');
+    expect(items[1]!.textContent).toContain('A descoberta não sugeriu nenhuma URL.');
+    expect(
+      within(reviewed).getByRole('heading', { name: 'Página inicial Confirmada' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Áreas que exigem login (1)')).toBeTruthy();
+    await expectNoAxeViolations(container);
+
+    // O resto das opções fica recolhido até o auditor pedir.
+    const more = within(items[1]!).getByRole('button', { name: 'Resolver: Biblioteca' });
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(more);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(within(items[1]!).getByLabelText('Informar a URL')).toBeTruthy();
     await expectNoAxeViolations(container);
 
     await userEvent.click(
@@ -127,6 +140,79 @@ describe('revisão de rotas (1.2)', () => {
         replaceConfirmed: true,
       }),
     );
+    // A função muda de lista e o botão some: o foco vai para o andamento, não para o topo.
+    await waitFor(() => expect(document.activeElement?.textContent).toMatch(/funções revisadas/));
+  });
+
+  it('sugere a candidata mais relevante e lista todas as URLs com filtro', async () => {
+    let patched: unknown;
+    const ranked = [
+      route(1, '', { functionKey: 'home', status: 'confirmed', relevance: 100 }),
+      route(5, '/noticias/2026/03/inscricoes-processo-seletivo', {
+        functionKey: 'admission',
+        relevance: 30,
+        title: 'Inscrições abertas',
+      }),
+      route(6, '/ingresso', {
+        functionKey: 'admission',
+        relevance: 95,
+        title: 'Ingresso — IFTM',
+        source: 'crawler',
+      }),
+      route(7, '/bibliotecas', { functionKey: 'library', relevance: 80, linkText: 'Biblioteca' }),
+      route(8, '/institucional'),
+    ];
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': { routes: ranked, absences: [] },
+        'GET /institutions/1/discovery': idleDiscovery,
+        'PATCH /routes/7': (init: RequestInit | undefined) => {
+          patched = JSON.parse(String(init?.body));
+          return Response.json({ route: { ...ranked[3], status: 'confirmed' } });
+        },
+      },
+    });
+    const { container } = renderRoute(
+      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
+    );
+    const toReview = await screen.findByRole('region', { name: 'Para revisar (2)' });
+    const admission = within(toReview).getAllByRole('listitem')[0]!;
+    expect(admission.textContent).toContain('iftm.edu.br/ingresso');
+    expect(admission.textContent).toContain('Ingresso — IFTM');
+    expect(admission.textContent).toContain('Há mais 1 candidata');
+
+    await userEvent.click(screen.getByText('Todas as URLs descobertas (5)'));
+    const list = screen.getByRole('table', { name: 'URLs descobertas, por relevância' });
+    const urls = within(list)
+      .getAllByRole('rowheader')
+      .map((cell) => cell.querySelector('a')?.textContent);
+    expect(urls).toEqual([
+      'iftm.edu.br',
+      'iftm.edu.br/ingresso',
+      'iftm.edu.br/bibliotecas',
+      'iftm.edu.br/noticias/2026/03/inscricoes-processo-seletivo',
+      'iftm.edu.br/institucional',
+    ]);
+    expect(within(list).getByText('Alta (95)')).toBeTruthy();
+    await expectNoAxeViolations(container);
+
+    await userEvent.type(
+      screen.getByRole('searchbox', { name: 'Filtrar por endereço, título ou texto do link' }),
+      'biblioteca',
+    );
+    expect(screen.getByText('1 de 5 URLs')).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Usar iftm.edu.br/bibliotecas como Biblioteca' }),
+    );
+    await waitFor(() =>
+      expect(patched).toEqual({
+        status: 'confirmed',
+        functionKey: 'library',
+        replaceConfirmed: true,
+      }),
+    );
   });
 
   it('propõe substituição e só troca quando o auditor confirma', async () => {
@@ -135,7 +221,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes },
+        'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': {
           discovery: {
             ...idleDiscovery.discovery,
@@ -172,12 +258,97 @@ describe('revisão de rotas (1.2)', () => {
     await waitFor(() => expect(replaced).toEqual({ newRouteId: 3 }));
   });
 
+  it('marca função como não encontrada, com o motivo, e desfaz', async () => {
+    let body: unknown;
+    let deleted = false;
+    const absent = {
+      institutionId: 1,
+      functionKey: 'library',
+      reason: 'Procurei no menu e no mapa do site.',
+      decidedAt: '2026-09-24T10:00:00.000Z',
+    };
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': { routes, absences: [absent] },
+        'GET /institutions/1/discovery': idleDiscovery,
+        'PUT /institutions/1/functions/class_schedule/absence': (init: RequestInit | undefined) => {
+          body = JSON.parse(String(init?.body));
+          return Response.json({ absence: { ...absent, functionKey: 'class_schedule' } });
+        },
+        'DELETE /institutions/1/functions/library/absence': () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+    const { container } = renderRoute(
+      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=library,class_schedule',
+    );
+    const library = within(await screen.findByRole('region', { name: 'Revisadas (1)' })).getByRole(
+      'listitem',
+    );
+    const schedule = within(screen.getByRole('region', { name: 'Para revisar (1)' })).getByRole(
+      'listitem',
+    );
+    expect(library.textContent).toContain('Não existe no portal');
+    expect(library.textContent).toContain('Procurado em: Procurei no menu e no mapa do site.');
+    await expectNoAxeViolations(container);
+
+    await userEvent.click(
+      within(schedule).getByRole('button', { name: 'Resolver: Horários de aula' }),
+    );
+    const submit = within(schedule).getByRole('button', { name: 'Registrar que não existe' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.type(
+      within(schedule).getByLabelText(
+        'O portal não tem esta página? Diga onde procurou (ao menos 10 caracteres).',
+      ),
+      'Menu Ensino e página de cada curso.',
+    );
+    await userEvent.click(submit);
+    await waitFor(() => expect(body).toEqual({ reason: 'Menu Ensino e página de cada curso.' }));
+
+    await userEvent.click(within(library).getByRole('button', { name: 'Alterar: Biblioteca' }));
+    await userEvent.click(within(library).getByRole('button', { name: 'Desfazer' }));
+    await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it('visão geral conta como revisada a função não encontrada', async () => {
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': {
+          routes,
+          absences: [
+            {
+              institutionId: 1,
+              functionKey: 'admission',
+              reason: 'Não há página própria de ingresso.',
+              decidedAt: '2026-09-24T10:00:00.000Z',
+            },
+          ],
+        },
+      },
+    });
+    renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
+    expect(await screen.findByText('2 de 2')).toBeTruthy();
+    expect(screen.getByText('1 confirmada, 1 não encontrada')).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'Iniciar coleta' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+  });
+
   it('visão geral só libera a coleta com todas as funções confirmadas', async () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes },
+        'GET /institutions/1/routes': { routes, absences: [] },
       },
     });
     renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
@@ -185,7 +356,9 @@ describe('revisão de rotas (1.2)', () => {
     expect(
       (screen.getByRole('button', { name: 'Iniciar coleta' }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(screen.getByText('Falta confirmar rotas em: IFTM.')).toBeTruthy();
+    expect(
+      screen.getByText('Falta confirmar a rota ou marcar como não encontrada em: IFTM.'),
+    ).toBeTruthy();
   });
 
   it('inicia a coleta e vai para o acompanhamento', async () => {
@@ -194,7 +367,7 @@ describe('revisão de rotas (1.2)', () => {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
-        'GET /institutions/1/routes': { routes: confirmedAll },
+        'GET /institutions/1/routes': { routes: confirmedAll, absences: [] },
         'POST /collections': {
           collection: {
             id: 9,

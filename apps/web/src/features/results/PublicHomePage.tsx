@@ -2,9 +2,10 @@ import { Link } from 'react-router';
 import { Download } from 'lucide-react';
 import { buttonClasses, EmptyState, Note, Page, PageHeader } from '../../components/ui';
 import { formatDate } from '../../lib/format';
-import { usePublicInstitutions, usePublicSummary } from './api';
+import { usePublicCoreFunctions, usePublicInstitutions, usePublicSummary } from './api';
 import { CSV_DICTIONARY_URL, CSV_URL } from './auditorApi';
 import { ConformitySummary } from './ConformitySummary';
+import { CoreFunctionsNote } from './CoreFunctionsNote';
 import { InstitutionsTable } from './InstitutionsTable';
 import { QueryState } from './QueryState';
 
@@ -12,6 +13,7 @@ import { QueryState } from './QueryState';
 export function PublicHomePage() {
   const summary = usePublicSummary();
   const institutions = usePublicInstitutions();
+  const coreFunctions = usePublicCoreFunctions();
 
   return (
     <Page>
@@ -77,10 +79,16 @@ export function PublicHomePage() {
                   },
                 ]}
               />
-              <InstitutionsTable
-                rows={rows}
-                caption="Conformidade e problemas confirmados por instituição"
-              />
+              <div className="flex flex-col gap-2">
+                {coreFunctions.data ? (
+                  <CoreFunctionsNote coreFunctions={coreFunctions.data} />
+                ) : null}
+                <InstitutionsTable
+                  rows={rows}
+                  caption="Conformidade e problemas confirmados por instituição"
+                  collapseNotCollected
+                />
+              </div>
             </div>
           );
         }}

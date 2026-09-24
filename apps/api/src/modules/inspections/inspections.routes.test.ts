@@ -271,6 +271,13 @@ describe('tarefas-alvo (tela 3.1)', () => {
       severity: null,
     });
 
+    // Passou do limite (5 min ou 15 interações): só pode ser registrada como interrompida.
+    const overLimit = await agent
+      .post('/api/v1/task-inspections')
+      .send({ ...base, interactions: 16, result: 'completed' });
+    expect(overLimit.status).toBe(400);
+    expect(JSON.stringify(overLimit.body.error)).toContain('interrompida');
+
     const after = portalTasksSchema.parse((await agent.get(url)).body);
     expect(after.tasks[1]!.inspection?.result).toBe('completed');
     expect((await summary()).sample[0]).toMatchObject({

@@ -79,7 +79,8 @@ describe('comparativo (4.2)', () => {
   it('ordena, filtra e exporta', async () => {
     const { container } = renderRoute('/comparativo');
     const table = await screen.findByRole('table', { name: 'Comparativo entre instituições' });
-    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    expect(screen.getByText('1 instituição ainda não avaliada')).toBeTruthy();
     expect(within(table).getByText('Em andamento')).toBeTruthy();
     expect(within(table).getByText('Portal não pôde ser avaliado na coleta')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Exportar CSV' }).getAttribute('href')).toBe(

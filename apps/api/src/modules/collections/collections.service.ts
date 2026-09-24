@@ -1,12 +1,14 @@
-import type {
-  CollectionEvent,
-  CollectionScope,
-  CollectionStatus,
-  createCollectionSchema,
+import {
+  type CollectionEvent,
+  type CollectionScope,
+  type CollectionStatus,
+  type createCollectionSchema,
+  pageFunctionKeys,
+  pageFunctionLabels,
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
 import { countRules, findingsFromViolations } from '../../infra/auditor/axe-mapping.js';
-import type { PageAuditor } from '../../infra/auditor/page-auditor.js';
+import { describeFailure, type PageAuditor } from '../../infra/auditor/page-auditor.js';
 import type { CollectionEventBus } from '../../infra/events/collection-events.js';
 import type { DomainLocks } from '../../infra/locks/domain-locks.js';
 import { createWorkerPool } from '../../infra/queue/worker-pool.js';
@@ -24,8 +26,11 @@ type CreateCollection = z.output<typeof createCollectionSchema>;
 
 export interface CollectionsServiceDeps {
   repo: CollectionsRepository;
-  /** `null` quando o crawler não está configurado (sem e-mail de contato no user-agent). */
-  auditor: PageAuditor | null;
+  /**
+   * Motor de auditoria, resolvido quando é preciso: o contato do user-agent pode aparecer depois
+   * que o servidor subiu. `null` = sem e-mail de contato.
+   */
+  getAuditor: () => PageAuditor | null;
   storage: SnapshotStorage;
   locks: DomainLocks;
   events: CollectionEventBus;
@@ -42,7 +47,7 @@ const FINISHED: readonly CollectionStatus[] = ['completed', 'partial', 'cancelle
  */
 export function createCollectionsService({
   repo,
-  auditor,
+  getAuditor,
   storage,
   locks,
   events,
@@ -55,14 +60,19 @@ export function createCollectionsService({
   /** Desligando: nada novo é reivindicado e páginas interrompidas não são marcadas como falha. */
   let stopping = false;
 
+  /** O último motor usado, para fechar o navegador ao encerrar. */
+  let lastAuditor: PageAuditor | null = null;
+
   const requireAuditor = (): PageAuditor => {
+    const auditor = getAuditor();
     if (!auditor) {
       throw new AppError(
         503,
         'CRAWLER_NOT_CONFIGURED',
-        'Defina CRAWLER_CONTACT_EMAIL no .env para identificar a ferramenta aos portais.',
+        'Crie a conta do auditor (o e-mail dele identifica a ferramenta aos portais) ou defina CRAWLER_CONTACT_EMAIL no .env.',
       );
     }
+    lastAuditor = auditor;
     return auditor;
   };
 
@@ -103,7 +113,18 @@ export function createCollectionsService({
         locks.release(collection.id);
         continue;
       }
-      const versions = collection.axeVersion ? null : await requireAuditor().versions();
+      let versions: Awaited<ReturnType<PageAuditor['versions']>> | null = null;
+      if (!collection.axeVersion) {
+        try {
+          versions = await requireAuditor().versions();
+        } catch (err) {
+          // O navegador não abriu: a coleta termina com as páginas em falha e o motivo, em vez
+          // de ficar parada na fila (ou derrubar o servidor). "Tentar de novo" a reabre.
+          locks.release(collection.id);
+          failBeforeStart(collection, err);
+          continue;
+        }
+      }
       repo.updateCollection(collection.id, {
         status: 'running',
         startedAt: collection.startedAt ?? now(),
@@ -115,6 +136,26 @@ export function createCollectionsService({
       });
       owned.add(collection.id);
     }
+  };
+
+  const failBeforeStart = (collection: CollectionRow, err: unknown) => {
+    const error = `Não foi possível iniciar o navegador: ${describeFailure(err, 0)}`;
+    logger.error({ err, collectionId: collection.id }, 'coleta não iniciou');
+    repo.transaction(() => {
+      for (const page of repo.queuedPages([collection.id])) {
+        repo.updatePage(page.id, { status: 'failed', error });
+      }
+      repo.updateCollection(collection.id, {
+        status: 'partial',
+        startedAt: collection.startedAt ?? now(),
+        finishedAt: now(),
+      });
+    });
+    publish(collection.id, {
+      type: 'collection-finished',
+      status: 'partial',
+      progress: repo.progress(collection.id),
+    });
   };
 
   const claim = async (): Promise<CollectionPageWithRoute | null> => {
@@ -219,6 +260,7 @@ export function createCollectionsService({
     claim,
     process,
     onError: (err) => logger.error({ err }, 'erro na fila de coleta'),
+    onClaimError: (err) => logger.error({ err }, 'erro ao buscar a próxima página da coleta'),
   });
 
   return {
@@ -238,10 +280,24 @@ export function createCollectionsService({
         );
       }
 
-      const withoutRoutes = repo.institutionsWithoutRoutes(
-        input.institutionIds,
-        input.functions ?? null,
-      );
+      // Escopo sempre explícito: sem `functions`, todas as funções de hoje. Assim a cobertura
+      // de cada instituição (encontradas / esperadas) fica gravada com a coleta (ADR 0013).
+      const functions = input.functions ?? [...pageFunctionKeys];
+      const unreviewed = repo.unreviewedFunctions(input.institutionIds, functions);
+      if (unreviewed.length > 0) {
+        const names = unreviewed.map((gap) => {
+          const acronym = found.find((i) => i.id === gap.institutionId)?.acronym;
+          return `${acronym}: ${gap.functions.map((f) => pageFunctionLabels[f]).join(', ')}`;
+        });
+        throw new AppError(
+          422,
+          'FUNCTIONS_NOT_REVIEWED',
+          `Confirme a rota ou marque como não encontrada: ${names.join('; ')}.`,
+          { unreviewed },
+        );
+      }
+
+      const withoutRoutes = repo.institutionsWithoutRoutes(input.institutionIds, functions);
       if (withoutRoutes.length > 0) {
         const acronyms = found.filter((i) => withoutRoutes.includes(i.id)).map((i) => i.acronym);
         // Sem isso, a instituição apareceria como "sem dado" sem nunca ter sido tentada.
@@ -253,10 +309,7 @@ export function createCollectionsService({
         );
       }
 
-      const scope: CollectionScope = {
-        institutionIds: input.institutionIds,
-        functions: input.functions ?? null,
-      };
+      const scope: CollectionScope = { institutionIds: input.institutionIds, functions };
       const routes = repo.confirmedRoutes(scope.institutionIds, scope.functions);
       if (routes.length === 0) {
         throw new AppError(
@@ -374,13 +427,13 @@ export function createCollectionsService({
     /** Encerra aguardando as páginas em execução (CLI). */
     async shutdown() {
       await pool.idle();
-      await auditor?.close();
+      await lastAuditor?.close();
     },
 
     /** Encerra já (servidor): páginas em execução voltam para a fila na próxima inicialização. */
     async close() {
       stopping = true;
-      await auditor?.close();
+      await lastAuditor?.close();
     },
   };
 }

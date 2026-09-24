@@ -7,6 +7,7 @@ import { usePublicFindings, usePublicInstitution } from './api';
 import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
+import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
 
 type Filter = 'all' | 'critical' | 'template';
@@ -180,6 +181,7 @@ export function InstitutionDetailPage() {
                   },
                 ]}
               />
+              <ComparisonBasis institution={institution} />
             </div>
           ) : null}
 

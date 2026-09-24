@@ -16,6 +16,8 @@ export const iftm: PublicInstitution = {
   pendingValidation: 3,
   pagesEvaluated: 4,
   pagesTotal: 4,
+  coverage: { found: 12, expected: 13, missing: ['class_schedule'] },
+  overall: { conformity: 0.8, problems: 30, pagesEvaluated: 12 },
 };
 
 export const ifx: PublicInstitution = {
@@ -32,6 +34,7 @@ export const ifx: PublicInstitution = {
   templateProblems: null,
   pendingValidation: 0,
   pagesEvaluated: 0,
+  overall: null,
 };
 
 export const ifn: PublicInstitution = {
@@ -44,6 +47,7 @@ export const ifn: PublicInstitution = {
   collectionId: null,
   collectedAt: null,
   pagesTotal: 0,
+  coverage: null,
 };
 
 export const problems: PublicProblem[] = [
@@ -104,8 +108,12 @@ export const publicRoutes = {
     institutionsTotal: 3,
     institutionsEvaluated: 1,
     averageConformity: 0.78,
+    coreFunctions: ['home', 'admission', 'library', 'courses'],
   },
-  'GET /public/institutions': { institutions: [iftm, ifx, ifn] },
+  'GET /public/institutions': {
+    institutions: [iftm, ifx, ifn],
+    coreFunctions: ['home', 'admission', 'library', 'courses'],
+  },
   'GET /public/institutions/1': {
     institution: iftm,
     history: [
@@ -123,6 +131,7 @@ export const publicRoutes = {
     institutionsTotal: 3,
     institutionsEvaluated: 1,
     averageConformity: 0.78,
+    coreFunctions: ['home', 'admission', 'library', 'courses'],
     distinctProblems: 24,
     tasks: { done: 1, total: 2 },
     institutions: [
