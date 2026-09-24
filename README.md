@@ -49,7 +49,7 @@ cd docker && docker compose up -d    # front em :8080, API em :3333, data/ persi
 
 A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um método que não cabe numa ferramenta automática sozinha. O sistema cobre as duas metades:
 
-**Camada automatizada.** Descobre as rotas de cada portal (robots.txt → sitemap → rastreamento até 2 níveis), o auditor confirma quais URLs correspondem a cada função de página, e então cada página é aberta no Chromium e verificada pelo axe-core contra as regras WCAG 2.2 AA. Passes, violations, incomplete e inapplicable são guardados — não só as violações — junto com o HTML renderizado, a versão do axe e a do navegador.
+**Camada automatizada.** Descobre as rotas de cada portal (robots.txt → sitemap e menu da página inicial → rastreamento até 2 níveis) e ordena as candidatas de cada função por relevância; o auditor confirma quais URLs correspondem a cada função de página, e então cada página é aberta no Chromium e verificada pelo axe-core contra as regras WCAG 2.2 AA. Passes, violations, incomplete e inapplicable são guardados — não só as violações — junto com o HTML renderizado, a versão do axe e a do navegador.
 
 **Camada manual.** Cada achado automatizado é confirmado ou registrado como falso positivo, sempre com justificativa: a taxa de confirmação é um resultado da pesquisa, não um detalhe de implementação. Somam-se tarefas-alvo com o mesmo enunciado em todos os portais e a verificação com teclado, leitor de tela, ampliação a 200%, legendas e contraste.
 
@@ -67,7 +67,7 @@ A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um 
 | Versões de axe-core e navegador **congeladas** | atualizar muda o conjunto de regras e invalida a comparação entre coletas |
 | Uma coleta por vez por domínio, 1,5 s entre requisições | limite ético de carga sobre servidores públicos |
 
-Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 10 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
+Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 11 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
 
 ## Acessibilidade do próprio sistema
 
@@ -98,9 +98,10 @@ Uma ferramenta que mede acessibilidade não pode ser inacessível. O projeto se 
 | `npm test` | testes de unidade e integração |
 | `npm run test:e2e` | fluxos principais no navegador (Playwright) |
 | `npm run dogfood -- --base <url>` | audita o próprio front; sai com erro se houver achado crítico |
+| `npm run discover -- --institution=<sigla>` (ou `--all`) | descobre as rotas nos portais reais e mostra as candidatas por função |
 | `npm run collect -- --institution=<sigla>` | executa uma coleta pela linha de comando |
 | `npm run create-auditor -- --email <e-mail> --name <nome>` | cria a conta do auditor (não há cadastro público) |
-| `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais |
+| `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais (funções, tarefas-alvo e as 42 instituições da Rede Federal) |
 
 ## Estrutura
 
@@ -109,7 +110,7 @@ apps/
   api/     Express + SQLite, em camadas por módulo de domínio
            routes → controllers → services → repositories → db
            infra/ crawler, auditor (Playwright + axe), fila, travas, eventos (SSE)
-           cli/   coleta, criação de auditor, dogfooding — sobre os mesmos services
+           cli/   descoberta, coleta, criação de auditor, dogfooding — sobre os mesmos services
   web/     React + Vite, organizado por feature, com design system em components/ui
 packages/
   contracts/  schemas Zod e tipos compartilhados entre front e API
