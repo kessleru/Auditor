@@ -88,6 +88,10 @@ export const routes = sqliteTable(
       .default(sql`(cast(unixepoch('subsec') * 1000 as integer))`),
     confirmedAt: timestamp('confirmed_at'),
     lastSeenAt: timestamp('last_seen_at'),
+    // Indícios da descoberta, só para ordenar e exibir as candidatas (ADR 0011).
+    title: text('title'),
+    linkText: text('link_text'),
+    relevance: integer('relevance'),
   },
   (t) => [unique().on(t.institutionId, t.normalizedUrl)],
 );

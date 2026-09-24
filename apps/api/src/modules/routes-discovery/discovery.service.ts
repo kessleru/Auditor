@@ -45,9 +45,21 @@ export function createDiscoveryService(
     routesRepo.transaction(() => {
       for (const route of result.routes) {
         const existing = routesRepo.findByNormalizedUrl(institutionId, route.url);
+        const suggestedId = route.suggestedFunction
+          ? (functionIds.get(route.suggestedFunction) ?? null)
+          : null;
+        // Indícios da descoberta: atualizados a cada rodada, nunca mudam decisões do auditor. A
+        // relevância é da sugestão; se a função gravada é outra, a relevância antiga fica.
+        const evidence = {
+          title: route.title ?? existing?.title ?? null,
+          linkText: route.linkText ?? existing?.linkText ?? null,
+          relevance:
+            !existing || existing.functionId === suggestedId ? route.relevance : existing.relevance,
+        };
         if (existing) {
           routesRepo.update(existing.id, {
             lastSeenAt: seenAt,
+            ...evidence,
             // Uma sugestão que agora exige login deixa de ser candidata; decisões do auditor ficam.
             ...(existing.status === 'suggested' &&
               route.status === 'authenticated' && { status: 'authenticated' }),
@@ -58,14 +70,13 @@ export function createDiscoveryService(
           institutionId,
           url: route.url,
           normalizedUrl: route.url,
-          functionId: route.suggestedFunction
-            ? (functionIds.get(route.suggestedFunction) ?? null)
-            : null,
-          source: result.source,
+          functionId: suggestedId,
+          source: route.source,
           status: route.status,
           exclusionReason: route.exclusionReason ?? null,
           discoveredAt: seenAt,
           lastSeenAt: seenAt,
+          ...evidence,
         });
         created++;
       }
@@ -80,6 +91,9 @@ export function createDiscoveryService(
       created,
       authenticated: result.routes.filter((r) => r.status === 'authenticated').length,
       excluded: result.routes.filter((r) => r.status === 'excluded').length,
+      withSuggestion: result.routes.filter(
+        (r) => r.status === 'suggested' && r.suggestedFunction !== null,
+      ).length,
       blockedByRobots: result.blockedByRobots,
       failed: result.failed,
     };

@@ -110,6 +110,14 @@ describe('descoberta de rotas', () => {
     });
     expect(byUrl[`${ORIGIN}/biblioteca`]?.functionKey).toBe('library');
     expect(byUrl[`${ORIGIN}/noticias`]?.functionKey).toBeNull();
+    // Indícios da descoberta, para ordenar e mostrar as candidatas.
+    expect(byUrl[`${ORIGIN}/ingresso`]).toMatchObject({
+      title: 'Processo seletivo',
+      linkText: 'Ingresso',
+    });
+    expect(byUrl[`${ORIGIN}/ingresso`]?.relevance).toBeGreaterThan(50);
+    expect(byUrl[`${ORIGIN}/noticias`]).toMatchObject({ relevance: null, linkText: 'link' });
+    expect(discovery.summary?.withSuggestion).toBe(3);
     expect(byUrl[`${ORIGIN}/suap`]?.status).toBe('authenticated');
     // Nada é confirmado sem o auditor.
     expect(routes.every((r) => r.confirmedAt === null)).toBe(true);

@@ -15,6 +15,12 @@ export const routeSchema = z.object({
   discoveredAt: z.string(),
   confirmedAt: z.string().nullable(),
   lastSeenAt: z.string().nullable(),
+  /** Título da página na última descoberta (ausente em rota manual ou não acessada). */
+  title: z.string().nullable(),
+  /** Texto do link que levou à página. */
+  linkText: z.string().nullable(),
+  /** Relevância da sugestão automática (0–100): ordena as candidatas; nunca decide sozinha. */
+  relevance: z.number().int().nullable(),
 });
 export type Route = z.infer<typeof routeSchema>;
 
@@ -70,6 +76,8 @@ export const discoverySummarySchema = z.object({
   created: z.number().int(),
   authenticated: z.number().int(),
   excluded: z.number().int(),
+  /** Rotas públicas com função sugerida (candidatas para a revisão). */
+  withSuggestion: z.number().int(),
   blockedByRobots: z.number().int(),
   failed: z.number().int(),
 });
