@@ -42,9 +42,7 @@ export function DiscoveredRoutes({
       </summary>
       <div className="flex flex-col gap-4 px-5 pb-5">
         <p className="text-body text-text-muted">
-          Ordenadas pela relevância da sugestão: termo da função no endereço, no título ou no texto
-          do link, link de menu e caminho curto contam a favor; notícias e listagens, contra. A
-          relevância só ordena; quem decide é o auditor.
+          Da mais para a menos relevante. A relevância só ordena; quem decide é você.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <SearchField
@@ -91,17 +89,15 @@ export function DiscoveredRoutes({
               <caption className="sr-only">URLs descobertas, por relevância</caption>
               <thead className="bg-muted">
                 <tr>
-                  {['URL', 'Função sugerida', 'Relevância', 'Origem', 'Situação', 'Ação'].map(
-                    (header, index) => (
-                      <th
-                        key={header}
-                        scope="col"
-                        className={`px-4 py-3 text-label font-medium ${index === 5 ? 'text-right' : ''}`}
-                      >
-                        {header}
-                      </th>
-                    ),
-                  )}
+                  {['URL', 'Sugestão', 'Situação', 'Ação'].map((header, index) => (
+                    <th
+                      key={header}
+                      scope="col"
+                      className={`px-4 py-3 text-label font-medium ${index === 3 ? 'text-right' : ''}`}
+                    >
+                      {header}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -124,23 +120,24 @@ export function DiscoveredRoutes({
                         >
                           {displayUrl(route.url)}
                         </a>
-                        {caption ? (
-                          <span className="mt-1 block text-label text-text-muted">{caption}</span>
-                        ) : null}
+                        <span className="mt-1 block text-label text-text-muted">
+                          {caption ? `${caption} · ` : ''}via {sourceLabels[route.source]}
+                        </span>
                       </th>
                       <td className="px-4 py-3">
-                        {route.functionKey ? pageFunctionLabels[route.functionKey] : '—'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {relevance ? (
-                          <Badge variant={relevance.variant}>
-                            {relevance.label} ({route.relevance})
-                          </Badge>
+                        {route.functionKey ? (
+                          <span className="flex flex-col items-start gap-1">
+                            {pageFunctionLabels[route.functionKey]}
+                            {relevance ? (
+                              <Badge variant={relevance.variant}>
+                                {relevance.label} ({route.relevance})
+                              </Badge>
+                            ) : null}
+                          </span>
                         ) : (
-                          '—'
+                          <span className="text-text-muted">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">{sourceLabels[route.source]}</td>
                       <td className="px-4 py-3">
                         <Badge variant={statusBadges[route.status].variant}>
                           {statusBadges[route.status].label}

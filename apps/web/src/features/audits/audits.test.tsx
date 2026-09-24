@@ -106,18 +106,28 @@ describe('revisão de rotas (1.2)', () => {
     const { container } = renderRoute(
       '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
     );
-    const table = await screen.findByRole('table', { name: 'Rotas por função avaliada — IFTM' });
-    const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map((r) => within(r).getByRole('rowheader').textContent)).toEqual([
-      'Página inicial',
+    const toReview = await screen.findByRole('region', { name: 'Para revisar (2)' });
+    const reviewed = screen.getByRole('region', { name: 'Revisadas (1)' });
+    expect(screen.getByText('1 de 3 funções revisadas')).toBeTruthy();
+    const items = within(toReview).getAllByRole('listitem');
+    expect(items.map((i) => within(i).getByRole('heading').textContent?.trim())).toEqual([
       'Ingresso',
       'Biblioteca',
     ]);
-    expect(rows[0]!.textContent).toContain('Confirmada');
-    expect(rows[1]!.textContent).toContain('Revisar sugestão');
-    expect(rows[1]!.textContent).toContain('rastreamento');
-    expect(rows[2]!.textContent).toContain('Nenhuma URL sugerida');
-    expect(screen.getByText('Áreas que exigem autenticação (1)')).toBeTruthy();
+    expect(items[0]!.textContent).toContain('Sugestão: iftm.edu.br/ingresso');
+    expect(items[1]!.textContent).toContain('A descoberta não sugeriu nenhuma URL.');
+    expect(
+      within(reviewed).getByRole('heading', { name: 'Página inicial Confirmada' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Áreas que exigem login (1)')).toBeTruthy();
+    await expectNoAxeViolations(container);
+
+    // O resto das opções fica recolhido até o auditor pedir.
+    const more = within(items[1]!).getByRole('button', { name: 'Resolver: Biblioteca' });
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(more);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(within(items[1]!).getByLabelText('Informar a URL')).toBeTruthy();
     await expectNoAxeViolations(container);
 
     await userEvent.click(
@@ -165,11 +175,11 @@ describe('revisão de rotas (1.2)', () => {
     const { container } = renderRoute(
       '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
     );
-    const table = await screen.findByRole('table', { name: 'Rotas por função avaliada — IFTM' });
-    const admission = within(table).getAllByRole('row')[2]!;
+    const toReview = await screen.findByRole('region', { name: 'Para revisar (2)' });
+    const admission = within(toReview).getAllByRole('listitem')[0]!;
     expect(admission.textContent).toContain('iftm.edu.br/ingresso');
     expect(admission.textContent).toContain('Ingresso — IFTM');
-    expect(admission.textContent).toContain('Mais 1 candidata');
+    expect(admission.textContent).toContain('Há mais 1 candidata');
 
     await userEvent.click(screen.getByText('Todas as URLs descobertas (5)'));
     const list = screen.getByRole('table', { name: 'URLs descobertas, por relevância' });
@@ -274,29 +284,30 @@ describe('revisão de rotas (1.2)', () => {
     const { container } = renderRoute(
       '/auditorias/nova/rotas/1?instituicoes=1&funcoes=library,class_schedule',
     );
-    const table = await screen.findByRole('table', { name: 'Rotas por função avaliada — IFTM' });
-    const [library, schedule] = within(table).getAllByRole('row').slice(1);
-    expect(library!.textContent).toContain('Não encontrada no portal');
-    expect(library!.textContent).toContain('Motivo: Procurei no menu e no mapa do site.');
+    const library = within(await screen.findByRole('region', { name: 'Revisadas (1)' })).getByRole(
+      'listitem',
+    );
+    const schedule = within(screen.getByRole('region', { name: 'Para revisar (1)' })).getByRole(
+      'listitem',
+    );
+    expect(library.textContent).toContain('Não existe no portal');
+    expect(library.textContent).toContain('Procurado em: Procurei no menu e no mapa do site.');
     await expectNoAxeViolations(container);
 
     await userEvent.click(
-      within(schedule!).getByRole('button', {
-        name: 'Marcar Horários de aula como não encontrada',
-      }),
+      within(schedule).getByRole('button', { name: 'Resolver: Horários de aula' }),
     );
-    const submit = within(schedule!).getByRole('button', { name: 'Registrar que não existe' });
+    const submit = within(schedule).getByRole('button', { name: 'Registrar que não existe' });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
     await userEvent.type(
-      within(schedule!).getByLabelText('Onde você procurou? (Horários de aula)'),
+      within(schedule).getByLabelText('O portal não tem esta página? Diga onde procurou.'),
       'Menu Ensino e página de cada curso.',
     );
     await userEvent.click(submit);
     await waitFor(() => expect(body).toEqual({ reason: 'Menu Ensino e página de cada curso.' }));
 
-    await userEvent.click(
-      within(library!).getByRole('button', { name: 'Desfazer: Biblioteca não encontrada' }),
-    );
+    await userEvent.click(within(library).getByRole('button', { name: 'Alterar: Biblioteca' }));
+    await userEvent.click(within(library).getByRole('button', { name: 'Desfazer' }));
     await waitFor(() => expect(deleted).toBe(true));
   });
 
