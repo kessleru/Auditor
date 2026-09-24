@@ -20,8 +20,11 @@ interface DiscoveryRun {
 export function createDiscoveryService(
   routesRepo: RoutesRepository,
   institutions: InstitutionsService,
-  /** `null` quando o crawler não está configurado (sem e-mail de contato). */
-  discover: DiscoverFn | null,
+  /**
+   * Resolvida a cada descoberta: o contato do user-agent pode aparecer depois que o servidor
+   * subiu (ex.: o launcher cria o auditor com a API no ar). `null` = sem contato.
+   */
+  getDiscover: () => DiscoverFn | null,
   { now = () => new Date() }: { now?: () => Date } = {},
 ) {
   const runs = new Map<number, DiscoveryRun>();
@@ -161,14 +164,14 @@ export function createDiscoveryService(
 
     start(institutionId: number): DiscoveryState {
       const institution = institutions.get(institutionId);
-      if (!discover) {
+      const run = getDiscover();
+      if (!run) {
         throw new AppError(
           503,
           'CRAWLER_NOT_CONFIGURED',
-          'Defina CRAWLER_CONTACT_EMAIL no .env para identificar a ferramenta aos portais.',
+          'Crie a conta do auditor (o e-mail dele identifica a ferramenta aos portais) ou defina CRAWLER_CONTACT_EMAIL no .env.',
         );
       }
-      const run = discover;
       if (!institution.active) {
         throw new AppError(409, 'INSTITUTION_INACTIVE', 'A instituição está inativa.');
       }

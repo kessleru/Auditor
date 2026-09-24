@@ -40,45 +40,76 @@ export interface ServiceOptions {
   concurrency?: number;
 }
 
-const userAgent = () =>
-  env.CRAWLER_CONTACT_EMAIL ? buildUserAgent(env.CRAWLER_CONTACT_EMAIL) : null;
+/** User-agent da ferramenta: contato do .env ou, sem ele, o e-mail do primeiro auditor. */
+export function crawlerUserAgent(
+  configured: string | undefined,
+  auditors: readonly { email: string }[],
+): string | null {
+  const contact = configured ?? auditors[0]?.email;
+  return contact ? buildUserAgent(contact) : null;
+}
 
-function defaultDiscover(): DiscoverFn | null {
-  const ua = userAgent();
-  if (!ua) return null;
-  const client = createHttpClient({ userAgent: ua });
-  return (domain, checkUrls) =>
+/**
+ * Guarda o recurso construído para o user-agent atual e só reconstrói se o contato mudar (o
+ * anterior é descartado com `dispose`).
+ */
+function perUserAgent<T>(
+  userAgent: () => string | null,
+  build: (userAgent: string) => T,
+  dispose?: (value: T) => void,
+): () => T | null {
+  let cache: { userAgent: string; value: T } | null = null;
+  return () => {
+    const ua = userAgent();
+    if (!ua) return null;
+    if (cache?.userAgent !== ua) {
+      if (cache && dispose) dispose(cache.value);
+      cache = { userAgent: ua, value: build(ua) };
+    }
+    return cache.value;
+  };
+}
+
+const buildDiscover =
+  (ua: string): DiscoverFn =>
+  (domain, checkUrls) =>
     discoverRoutes({
       domain,
-      client,
+      client: createHttpClient({ userAgent: ua }),
       robotsAgent: ROBOTS_AGENT,
       maxUrls: env.CRAWLER_MAX_URLS,
       checkUrls,
     });
-}
-
-function defaultAuditor(): PageAuditor | null {
-  const ua = userAgent();
-  return ua ? createPlaywrightAuditor({ userAgent: ua }) : null;
-}
 
 /** Composição dos services. A API (`createApp`) e a CLI usam exatamente esta função. */
 export function createServices(db: DB, options: ServiceOptions = {}) {
   const timing = options.clock && { now: options.clock };
 
   const auth = createAuthService(createAuthRepository(db), timing);
+  // Contato do user-agent (seção 3.1.3): o do .env ou, sem ele, o e-mail do primeiro auditor, o
+  // pesquisador responsável. Resolvido a cada uso: o auditor pode ser criado com a API no ar.
+  const userAgent = () => crawlerUserAgent(env.CRAWLER_CONTACT_EMAIL, auth.listAuditors());
   const institutions = createInstitutionsService(createInstitutionsRepository(db));
   const routesRepository = createRoutesRepository(db);
   const routes = createRoutesService(routesRepository, institutions, timing);
   const discovery = createDiscoveryService(
     routesRepository,
     institutions,
-    options.discover === undefined ? defaultDiscover() : options.discover,
+    options.discover === undefined
+      ? perUserAgent(userAgent, buildDiscover)
+      : () => options.discover ?? null,
     timing,
   );
   const collections = createCollectionsService({
     repo: createCollectionsRepository(db),
-    auditor: options.auditor === undefined ? defaultAuditor() : options.auditor,
+    getAuditor:
+      options.auditor === undefined
+        ? perUserAgent(
+            userAgent,
+            (ua) => createPlaywrightAuditor({ userAgent: ua }),
+            (old) => void old.close(),
+          )
+        : () => options.auditor ?? null,
     storage: createSnapshotStorage(options.snapshotsDir ?? env.SNAPSHOTS_DIR),
     locks: new DomainLocks(),
     events: new CollectionEventBus(),
