@@ -49,9 +49,10 @@ describe('migrations', () => {
         'assistive_checks',
         'sessions',
         'inspection_sample',
+        'function_absences',
       ]),
     );
-    expect(tables).toHaveLength(12);
+    expect(tables).toHaveLength(13);
   });
 
   it('podem ser reaplicadas sem erro', () => {

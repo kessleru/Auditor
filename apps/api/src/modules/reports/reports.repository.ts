@@ -1,6 +1,14 @@
+import type { CollectionScope, PageFunctionKey } from '@auditoria-rf/contracts';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
-import { collectionPages, collections, findings, institutions, routes } from '../../db/schema.js';
+import {
+  collectionPages,
+  collections,
+  findings,
+  institutions,
+  pageFunctions,
+  routes,
+} from '../../db/schema.js';
 
 const FINISHED = ['completed', 'partial'] as const;
 
@@ -15,12 +23,15 @@ export function createReportsRepository(db: DB) {
           violationsCount: collectionPages.violationsCount,
           incompleteCount: collectionPages.incompleteCount,
           institutionId: routes.institutionId,
+          functionKey: pageFunctions.key,
         })
         .from(collectionPages)
         .innerJoin(routes, eq(routes.id, collectionPages.routeId))
+        .leftJoin(pageFunctions, eq(pageFunctions.id, collectionPages.functionId))
         .where(eq(collectionPages.collectionId, collectionId))
         .orderBy(asc(collectionPages.id))
-        .all();
+        .all()
+        .map((p) => ({ ...p, functionKey: p.functionKey as PageFunctionKey | null }));
     },
 
     findingsOfCollection(collectionId: number) {
@@ -47,6 +58,7 @@ export function createReportsRepository(db: DB) {
           finishedAt: collections.finishedAt,
           axeVersion: collections.axeVersion,
           browserVersion: collections.browserVersion,
+          scopeJson: collections.scopeJson,
         })
         .from(collections)
         .where(
@@ -56,7 +68,12 @@ export function createReportsRepository(db: DB) {
           ),
         )
         .orderBy(asc(collections.finishedAt), asc(collections.id))
-        .all();
+        .all()
+        .map(({ scopeJson, ...row }) => ({
+          ...row,
+          /** Funções esperadas; `null` em coleta antiga, sem escopo explícito. */
+          functions: (scopeJson as CollectionScope).functions,
+        }));
     },
 
     lastFinishedCollection() {

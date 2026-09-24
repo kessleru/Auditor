@@ -11,7 +11,8 @@ export function createPublicController(service: PublicReportsService, exporter: 
     res.json(service.summary());
   };
   const institutions: RequestHandler = (_req, res) => {
-    res.json({ institutions: service.list() });
+    const { institutions: rows, core } = service.snapshot();
+    res.json({ institutions: rows, coreFunctions: core });
   };
   const institution: RequestHandler = (req, res) => {
     res.json(service.detail(parseId(req.params.id)));

@@ -34,6 +34,11 @@ describe('visão pública (0.2)', () => {
     expect(screen.getByText('Última coleta').nextElementSibling?.textContent).toBe('12/09/2026');
     expect(screen.getByText('Portais avaliados').nextElementSibling?.textContent).toBe('1 de 3');
     expect(screen.getByRole('link', { name: 'Entenda a metodologia' })).toBeTruthy();
+    expect(
+      screen.getByText(/Comparação justa: conformidade e problemas contam só as 4 funções/),
+    ).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Páginas encontradas' })).toBeTruthy();
+    expect(screen.getAllByText('sem: Horários de aula').length).toBeGreaterThan(0);
     await expectNoAxeViolations(container);
   });
 
@@ -101,6 +106,10 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     expect(cards).toHaveLength(2);
     expect(within(cards[0]!).getByText('Template')).toBeTruthy();
     expect(within(cards[0]!).getByText('em 4 páginas, 4 ocorrências')).toBeTruthy();
+    const basis = screen.getByRole('region', { name: 'Base da comparação' });
+    expect(basis.textContent).toContain('12 de 13 funções procuradas');
+    expect(basis.textContent).toContain('Não encontradas: Horários de aula');
+    expect(basis.textContent).toContain('80% de conformidade, 30 problemas em 12 páginas');
     await expectNoAxeViolations(container);
   });
 

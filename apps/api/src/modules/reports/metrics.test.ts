@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   averageConformity,
+  commonCore,
+  coverageOf,
+  evaluatedFunctions,
   type FindingInput,
   type PageInput,
   pageConformity,
@@ -174,5 +177,50 @@ describe('validação dos achados (ADR 0003, adendo)', () => {
     expect(pub.criticalProblems).toBe(1);
     expect(pub.pendingValidation).toBe(1);
     expect(all.problems.map((p) => p.fingerprint).sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('comparação justa (ADR 0013)', () => {
+  const fnPage = (
+    id: number,
+    functionKey: PageInput['functionKey'],
+    passes: number,
+    violations: number,
+    status: PageInput['status'] = 'done',
+  ): PageInput => ({ ...page(id, passes, violations, status), functionKey });
+
+  it('núcleo comum = funções avaliadas em todas as instituições', () => {
+    const a = evaluatedFunctions([
+      fnPage(1, 'home', 1, 0),
+      fnPage(2, 'library', 1, 0),
+      fnPage(3, 'courses', 1, 0),
+    ]);
+    const b = evaluatedFunctions([
+      fnPage(4, 'home', 1, 0),
+      fnPage(5, 'courses', 1, 0),
+      fnPage(6, 'library', 1, 0, 'failed'), // página que falhou não entra
+    ]);
+    expect(commonCore([a, b])).toEqual(['home', 'courses']);
+    expect(commonCore([])).toEqual([]);
+  });
+
+  it('restringe o resumo às funções do núcleo', () => {
+    const pages = [fnPage(1, 'home', 3, 1), fnPage(2, 'library', 1, 3)];
+    const findings = [finding(1, 'a'), finding(2, 'b'), finding(2, 'c')];
+    const core = summarizeInstitution(pages, findings, { functions: ['home'] });
+    const all = summarizeInstitution(pages, findings);
+    if (core.status !== 'evaluated' || all.status !== 'evaluated') throw new Error();
+    expect(core).toMatchObject({ conformity: 0.75, distinctProblems: 1, pagesEvaluated: 1 });
+    expect(all).toMatchObject({ conformity: 0.5, distinctProblems: 3, pagesEvaluated: 2 });
+  });
+
+  it('cobertura = funções do escopo com página; coleta antiga não tem cobertura', () => {
+    const pages = [fnPage(1, 'home', 1, 0), fnPage(2, 'library', 1, 0, 'failed')];
+    expect(coverageOf(pages, ['home', 'library', 'class_schedule'])).toEqual({
+      found: 2,
+      expected: 3,
+      missing: ['class_schedule'],
+    });
+    expect(coverageOf(pages, null)).toBeNull();
   });
 });

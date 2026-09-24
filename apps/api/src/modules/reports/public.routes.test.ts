@@ -12,7 +12,15 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
 import type { DB } from '../../db/client.js';
-import { collectionPages, collections, findings, institutions, users } from '../../db/schema.js';
+import {
+  collectionPages,
+  collections,
+  findings,
+  institutions,
+  routes,
+  users,
+} from '../../db/schema.js';
+import { seedReferenceData } from '../../db/seeds/seed.js';
 import { loggedInAgent } from '../../test/auth.js';
 import { seedInstitutionWithRoutes } from '../../test/collections.js';
 import { createTestDatabase } from '../../test/db.js';
@@ -26,12 +34,13 @@ function finishedCollection(
   institutionIds: number[],
   finishedAt: string,
   status: 'completed' | 'partial' | 'cancelled' = 'completed',
+  functions: string[] | null = null,
 ) {
   return db
     .insert(collections)
     .values({
       status,
-      scopeJson: { institutionIds, functions: null },
+      scopeJson: { institutionIds, functions },
       createdBy: 1,
       axeVersion: '4.13.0',
       browserVersion: 'Chromium 153',
@@ -48,9 +57,18 @@ function page(
   violations: number,
   status: 'done' | 'failed' = 'done',
 ) {
+  // A página herda a função da rota, como na coleta de verdade.
+  const functionId = db.select().from(routes).where(eq(routes.id, routeId)).get()?.functionId;
   return db
     .insert(collectionPages)
-    .values({ collectionId, routeId, status, passesCount: passes, violationsCount: violations })
+    .values({
+      collectionId,
+      routeId,
+      functionId,
+      status,
+      passesCount: passes,
+      violationsCount: violations,
+    })
     .returning()
     .get();
 }
@@ -86,23 +104,27 @@ let ifc: ReturnType<typeof seedInstitutionWithRoutes>;
 
 beforeEach(() => {
   db = createTestDatabase();
+  seedReferenceData(db); // funções de página e tarefas-alvo
   db.insert(users).values({ email: 'a@if.edu.br', name: 'A', passwordHash: 'x' }).run();
   app = createApp({ db, auditor: null, discover: null });
 
   ifa = seedInstitutionWithRoutes(db, {
     domain: 'if-a.edu.br',
     acronym: 'IFA',
-    urls: [{ url: 'https://if-a.edu.br' }, { url: 'https://if-a.edu.br/b' }],
+    urls: [
+      { url: 'https://if-a.edu.br', functionKey: 'home' },
+      { url: 'https://if-a.edu.br/b', functionKey: 'library' },
+    ],
   });
   ifb = seedInstitutionWithRoutes(db, {
     domain: 'if-b.edu.br',
     acronym: 'IFB',
-    urls: [{ url: 'https://if-b.edu.br' }],
+    urls: [{ url: 'https://if-b.edu.br', functionKey: 'home' }],
   });
   ifc = seedInstitutionWithRoutes(db, {
     domain: 'if-c.edu.br',
     acronym: 'IFC',
-    urls: [{ url: 'https://if-c.edu.br' }],
+    urls: [{ url: 'https://if-c.edu.br', functionKey: 'home' }],
   });
   seedInstitutionWithRoutes(db, { domain: 'if-d.edu.br', acronym: 'IFD', urls: [] }); // nunca coletado
 
@@ -177,6 +199,45 @@ describe('API pública', () => {
       institutionsEvaluated: 1,
     });
     expect(summary.averageConformity).toBeCloseTo(0.9);
+  });
+
+  it('compara no núcleo comum e mostra a cobertura (ADR 0013)', async () => {
+    // IFC ganha uma coleta com escopo explícito: página inicial encontrada, biblioteca não.
+    const withScope = finishedCollection(
+      [ifc.institution.id],
+      '2026-09-21T12:00:00Z',
+      'completed',
+      ['home', 'library'],
+    );
+    const pc = page(withScope.id, ifc.routes[0]!.id, 6, 4);
+    finding(pc.id, 'image-alt', 'main img', 'confirmed');
+
+    const { institutions: rows, coreFunctions } = publicInstitutionListResponseSchema.parse(
+      (await request(app).get('/api/v1/public/institutions')).body,
+    );
+    // Só a página inicial foi avaliada nas duas: é o que se compara.
+    expect(coreFunctions).toEqual(['home']);
+    const byAcronym = Object.fromEntries(rows.map((r) => [r.acronym, r]));
+    // IFA: no núcleo (página inicial) 80%, 1 problema; em todas as páginas, 90% (o falso positivo
+    // da página 2 conta como passe) e 1 problema.
+    expect(byAcronym.IFA).toMatchObject({ problems: 1, pagesEvaluated: 1, coverage: null });
+    expect(byAcronym.IFA!.conformity).toBeCloseTo(0.8);
+    expect(byAcronym.IFA!.overall).toMatchObject({ problems: 1, pagesEvaluated: 2 });
+    expect(byAcronym.IFA!.overall!.conformity).toBeCloseTo(0.9);
+    // IFC: 60% no núcleo; cobertura 1 de 2, biblioteca não encontrada (não vira 0%).
+    expect(byAcronym.IFC).toMatchObject({
+      problems: 1,
+      coverage: { found: 1, expected: 2, missing: ['library'] },
+    });
+    expect(byAcronym.IFC!.conformity).toBeCloseTo(0.6);
+    // Ranking pelo núcleo comum.
+    expect(rows.slice(0, 2).map((r) => r.acronym)).toEqual(['IFA', 'IFC']);
+
+    const summary = publicSummarySchema.parse(
+      (await request(app).get('/api/v1/public/summary')).body,
+    );
+    expect(summary.coreFunctions).toEqual(['home']);
+    expect(summary.averageConformity).toBeCloseTo(0.7);
   });
 
   it('detalhe com histórico de coletas', async () => {

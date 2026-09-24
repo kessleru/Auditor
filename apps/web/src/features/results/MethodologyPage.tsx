@@ -1,4 +1,4 @@
-import { TASK_LIMITS } from '@auditoria-rf/contracts';
+import { pageFunctionKeys, pageFunctionLabels, TASK_LIMITS } from '@auditoria-rf/contracts';
 import type { ReactNode } from 'react';
 import { Page, PageHeader } from '../../components/ui';
 import { formatDate } from '../../lib/format';
@@ -7,6 +7,8 @@ import { useMethodology } from './api';
 const sections = [
   { id: 'mede', title: 'O que a nota de conformidade mede' },
   { id: 'nao-mede', title: 'O que a nota não mede' },
+  { id: 'paginas', title: 'Quais páginas são avaliadas' },
+  { id: 'comparacao', title: 'Como a comparação é feita' },
   { id: 'problemas', title: 'Problemas distintos, ocorrências e template' },
   { id: 'manual', title: 'Camada manual' },
   { id: 'falhas', title: 'Portais que falharam' },
@@ -69,9 +71,10 @@ export function MethodologyPage() {
         </p>
         <p>
           Uma regra com qualquer elemento reprovado conta como violada. A nota da instituição é a
-          média das suas páginas avaliadas. Casos que o axe marca como “revisão necessária” ficam
-          fora da conta. Se o auditor confirmar que todos os elementos reprovados de uma regra eram
-          falsos positivos, a regra volta a contar como aprovada.
+          média das suas páginas avaliadas nas funções do núcleo comum (veja “Como a comparação é
+          feita”). Casos que o axe marca como “revisão necessária” ficam fora da conta. Se o auditor
+          confirmar que todos os elementos reprovados de uma regra eram falsos positivos, a regra
+          volta a contar como aprovada.
         </p>
         <p>
           Classificação: <strong className="font-medium">Bom</strong> a partir de {good};{' '}
@@ -97,6 +100,37 @@ export function MethodologyPage() {
             usuários.
           </li>
         </ul>
+      </Section>
+
+      <Section id="paginas" title="Quais páginas são avaliadas">
+        <p>
+          Em cada portal, o pesquisador procura a página de {pageFunctionKeys.length} funções
+          essenciais para estudantes:{' '}
+          {pageFunctionKeys.map((key) => pageFunctionLabels[key]).join(', ')}.
+        </p>
+        <p>
+          A descoberta automática só sugere endereços; cada página é confirmada pelo pesquisador.
+          Quando o portal não tem a página de uma função, isso é registrado com o motivo (onde ela
+          foi procurada) e aparece como cobertura: por exemplo, “11 de 13” páginas encontradas.
+        </p>
+      </Section>
+
+      <Section id="comparacao" title="Como a comparação é feita">
+        <p>
+          Nem todo portal tem todas as páginas. Se cada instituição fosse medida sobre as páginas
+          que tem, a comparação misturaria conjuntos diferentes, e quem tem mais páginas acumularia
+          mais problemas só por isso.
+        </p>
+        <p>
+          Por isso o ranking usa o <strong>núcleo comum</strong>: as funções avaliadas em todas as
+          instituições comparadas. Conformidade, problemas, críticos e de template da tabela contam
+          só essas páginas, e cada instituição é medida sobre o mesmo conjunto.
+        </p>
+        <p>
+          A página que o portal não tem não vira 0%: ela aparece na cobertura, ao lado da nota. Os
+          números de todas as páginas avaliadas de cada instituição ficam no relatório dela, como
+          informação complementar.
+        </p>
       </Section>
 
       <Section id="problemas" title="Problemas distintos, ocorrências e template">

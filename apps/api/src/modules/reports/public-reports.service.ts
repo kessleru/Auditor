@@ -1,6 +1,7 @@
 import {
   CONFORMITY_THRESHOLDS,
   type Methodology,
+  type PageFunctionKey,
   type PublicInstitution,
   type PublicInstitutionDetail,
   type PublicProblem,
@@ -11,7 +12,7 @@ import {
 import { AXE_TAGS } from '../../infra/auditor/page-auditor.js';
 import { ruleTexts } from '../../infra/auditor/rule-texts.js';
 import { NotFoundError } from '../../shared/errors.js';
-import { summarizeInstitution } from './metrics.js';
+import { commonCore, coverageOf, evaluatedFunctions, summarizeInstitution } from './metrics.js';
 import type { ReportsRepository } from './reports.repository.js';
 
 const mean = (values: (number | null)[]) => {
@@ -36,86 +37,116 @@ export function createPublicReportsService(
     problems?: 'confirmed' | 'valid';
   },
 ) {
-  const summarize = (collectionId: number, institutionId: number) => {
+  const summarize = (
+    collectionId: number,
+    institutionId: number,
+    functions?: readonly PageFunctionKey[],
+  ) => {
     const pages = repo
       .pagesOfCollection(collectionId)
       .filter((p) => p.institutionId === institutionId);
     const findings = repo.findingDetailsOf(collectionId, institutionId);
     return {
-      summary: summarizeInstitution(pages, findings, { problems: countedProblems }),
+      pages,
+      summary: summarizeInstitution(pages, findings, {
+        problems: countedProblems,
+        ...(functions && { functions }),
+      }),
       findings,
     };
   };
 
-  const view = (institution: InstitutionRow): PublicInstitution => {
+  /** Coleta terminada mais recente de cada instituição ativa, com as páginas e o resumo geral. */
+  const latestOf = (institution: InstitutionRow) => {
+    const latest = repo.finishedCollectionsOf(institution.id).at(-1);
+    if (!latest) return { institution, latest: null, evaluated: new Set<PageFunctionKey>() };
+    const { pages, summary } = summarize(latest.id, institution.id);
+    return { institution, latest, pages, summary, evaluated: evaluatedFunctions(pages) };
+  };
+
+  const view = (
+    entry: ReturnType<typeof latestOf>,
+    core: readonly PageFunctionKey[],
+  ): PublicInstitution => {
+    const { institution } = entry;
     const base = {
       id: institution.id,
       name: institution.name,
       acronym: institution.acronym,
       domain: institution.domain,
     };
-    const latest = repo.finishedCollectionsOf(institution.id).at(-1);
-    if (!latest) {
+    const empty = {
+      conformity: null,
+      classification: null,
+      problems: null,
+      criticalProblems: null,
+      templateProblems: null,
+      pendingValidation: 0,
+      pagesEvaluated: 0,
+      overall: null,
+    };
+    if (!entry.latest || !entry.pages || !entry.summary) {
       return {
         ...base,
+        ...empty,
         status: 'not_collected',
         collectionId: null,
         collectedAt: null,
-        conformity: null,
-        classification: null,
-        problems: null,
-        criticalProblems: null,
-        templateProblems: null,
-        pendingValidation: 0,
-        pagesEvaluated: 0,
         pagesTotal: 0,
+        coverage: null,
       };
     }
-    const { summary } = summarize(latest.id, institution.id);
     const common = {
       ...base,
-      collectionId: latest.id,
-      collectedAt: latest.finishedAt?.toISOString() ?? null,
-      pagesTotal: summary.pagesTotal,
+      collectionId: entry.latest.id,
+      collectedAt: entry.latest.finishedAt?.toISOString() ?? null,
+      pagesTotal: entry.summary.pagesTotal,
+      coverage: coverageOf(entry.pages, entry.latest.functions),
     };
-    if (summary.status === 'no_data') {
-      return {
-        ...common,
-        status: 'no_data',
-        conformity: null,
-        classification: null,
-        problems: null,
-        criticalProblems: null,
-        templateProblems: null,
-        pendingValidation: 0,
-        pagesEvaluated: 0,
-      };
+    if (entry.summary.status === 'no_data') {
+      return { ...common, ...empty, status: 'no_data' };
     }
+    // Números do ranking: só as páginas das funções do núcleo comum (ADR 0013).
+    const { summary: inCore } = summarize(entry.latest.id, institution.id, core);
+    const ranked = inCore.status === 'evaluated' ? inCore : null;
     return {
       ...common,
       status: 'evaluated',
-      conformity: summary.conformity,
-      classification: summary.classification,
-      problems: summary.distinctProblems,
-      criticalProblems: summary.criticalProblems,
-      templateProblems: summary.templateProblems,
-      pendingValidation: summary.pendingValidation,
-      pagesEvaluated: summary.pagesEvaluated,
+      conformity: ranked?.conformity ?? null,
+      classification: ranked?.classification ?? null,
+      problems: ranked?.distinctProblems ?? 0,
+      criticalProblems: ranked?.criticalProblems ?? 0,
+      templateProblems: ranked?.templateProblems ?? 0,
+      pendingValidation: entry.summary.pendingValidation,
+      pagesEvaluated: ranked?.pagesEvaluated ?? 0,
+      overall: {
+        conformity: entry.summary.conformity,
+        problems: entry.summary.distinctProblems,
+        pagesEvaluated: entry.summary.pagesEvaluated,
+      },
     };
   };
 
   const rank = { evaluated: 0, no_data: 1, not_collected: 2 } as const;
 
-  const list = (): PublicInstitution[] =>
-    repo
-      .activeInstitutions()
-      .map(view)
+  /** Todas as instituições ativas, medidas sobre o núcleo comum das avaliadas. */
+  const snapshot = () => {
+    const entries = repo.activeInstitutions().map(latestOf);
+    const core = commonCore(
+      entries.filter((e) => e.summary?.status === 'evaluated').map((e) => e.evaluated),
+    );
+    const institutions = entries
+      .map((e) => view(e, core))
       .sort(
         (a, b) =>
           rank[a.status] - rank[b.status] ||
           (b.conformity ?? -1) - (a.conformity ?? -1) ||
           a.acronym.localeCompare(b.acronym),
       );
+    return { institutions, core };
+  };
+
+  const list = (): PublicInstitution[] => snapshot().institutions;
 
   const getInstitution = (id: number) => {
     const institution = repo.findInstitution(id);
@@ -125,9 +156,10 @@ export function createPublicReportsService(
 
   return {
     list,
+    snapshot,
 
     summary(): PublicSummary {
-      const rows = list();
+      const { institutions: rows, core } = snapshot();
       const dates = rows
         .map((r) => r.collectedAt)
         .filter((d): d is string => d !== null)
@@ -139,6 +171,7 @@ export function createPublicReportsService(
         institutionsEvaluated: evaluated.length,
         // Média só entre instituições avaliadas: sem dado fica fora (seção 3.2.8).
         averageConformity: mean(evaluated.map((r) => r.conformity)),
+        coreFunctions: core,
       };
     },
 
@@ -155,7 +188,9 @@ export function createPublicReportsService(
           },
         ];
       });
-      return { institution: view(institution), history };
+      const row = snapshot().institutions.find((r) => r.id === institution.id);
+      if (!row) throw new NotFoundError('Instituição não encontrada.');
+      return { institution: row, history };
     },
 
     /** Problemas distintos confirmados da coleta mais recente, com um exemplo de cada. */
