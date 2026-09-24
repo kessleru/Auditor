@@ -99,6 +99,7 @@ export function createDiscoveryService(
       ).length,
       blockedByRobots: result.blockedByRobots,
       failed: result.failed,
+      stoppedEarly: result.stoppedEarly,
     };
   };
 

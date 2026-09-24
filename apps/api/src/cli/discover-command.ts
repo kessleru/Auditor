@@ -67,6 +67,14 @@ export async function runDiscover(
         ` · robots.txt ${s.robotsTxtFound ? 'encontrado' : 'ausente'}`,
     );
 
+    if (s.stoppedEarly) {
+      print(
+        s.stoppedEarly === 'failures'
+          ? 'Parou antes do fim: o portal deixou de responder (falhas seguidas).'
+          : 'Parou no tempo máximo; as rotas encontradas até ali foram guardadas.',
+      );
+    }
+
     const routes = services.routes.list(institution.id);
     for (const key of pageFunctionKeys as readonly PageFunctionKey[]) {
       const confirmed = routes.find((r) => r.status === 'confirmed' && r.functionKey === key);
