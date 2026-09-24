@@ -402,6 +402,58 @@ describe('links da página inicial, subdomínios e prioridade', () => {
   });
 });
 
+describe('limites de tempo e de falhas', () => {
+  it('para depois de falhas seguidas demais, sem insistir no portal', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => `/p${i}`);
+    const pages: Record<string, FakeResource> = {
+      [`${ORIGIN}/`]: { body: html('Início', links(...many)) },
+    };
+    for (const path of many) pages[`${ORIGIN}${path}`] = { status: 403, body: 'bloqueado' };
+    const site = crawlerSite(pages);
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      maxConsecutiveFailures: 5,
+    });
+    expect(result.stoppedEarly).toBe('failures');
+    expect(site.pageRequests()).toHaveLength(1 + 5);
+    expect(byUrl(result.routes)).toEqual([ORIGIN]);
+  });
+
+  it('para no tempo máximo, guardando o que já encontrou', async () => {
+    let clock = 0;
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início', links('/a', '/b', '/c')) },
+      [`${ORIGIN}/a`]: { body: html('A') },
+      [`${ORIGIN}/b`]: { body: html('B') },
+      [`${ORIGIN}/c`]: { body: html('C') },
+    });
+    const slow = {
+      get: async (url: string) => {
+        clock += 60_000;
+        return site.client.get(url);
+      },
+    };
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: slow,
+      robotsAgent: agent,
+      // robots, página inicial e 3 tentativas de sitemap = 5 min; sobra tempo para uma visita.
+      maxDurationMs: 330_000,
+      now: () => clock,
+    });
+    expect(result.stoppedEarly).toBe('deadline');
+    expect(result.routes.length).toBeGreaterThan(1);
+    expect(result.routes.length).toBeLessThan(4);
+  });
+
+  it('percorrendo tudo, não marca parada antecipada', async () => {
+    const site = crawlerSite({ [`${ORIGIN}/`]: { body: html('Início') } });
+    expect((await run(site.client)).stoppedEarly).toBeNull();
+  });
+});
+
 describe('área autenticada', () => {
   it('marca redirecionamento para login e página com senha, sem seguir seus links', async () => {
     const site = crawlerSite({

@@ -441,7 +441,13 @@ export function RouteReviewPage() {
                   summary.source === 'sitemap'
                     ? `sitemap (${summary.sitemapFiles} arquivo(s)) e links da página inicial`
                     : 'rastreamento até 2 níveis'
-                }. robots.txt ${summary.robotsTxtFound ? 'encontrado' : 'ausente'}.`
+                }. robots.txt ${summary.robotsTxtFound ? 'encontrado' : 'ausente'}.${
+                  summary.stoppedEarly === 'failures'
+                    ? ' A descoberta parou antes do fim: o portal deixou de responder (muitas falhas seguidas). Tente de novo mais tarde.'
+                    : summary.stoppedEarly === 'deadline'
+                      ? ' A descoberta parou no tempo máximo; as rotas encontradas até ali foram guardadas.'
+                      : ''
+                }`
               : institution?.domain}
         </p>
       </div>

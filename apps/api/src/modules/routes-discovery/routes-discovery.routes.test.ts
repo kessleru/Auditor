@@ -175,6 +175,7 @@ describe('descoberta de rotas', () => {
       routes: [],
       blockedByRobots: 0,
       failed: 0,
+      stoppedEarly: null,
       checks: [],
     });
     expect((await waitForDiscovery(agent)).status).toBe('completed');

@@ -80,6 +80,8 @@ export const discoverySummarySchema = z.object({
   withSuggestion: z.number().int(),
   blockedByRobots: z.number().int(),
   failed: z.number().int(),
+  /** Parou antes de percorrer tudo: tempo máximo ou falhas seguidas (portal parou de responder). */
+  stoppedEarly: z.enum(['deadline', 'failures']).nullable(),
 });
 export type DiscoverySummary = z.infer<typeof discoverySummarySchema>;
 

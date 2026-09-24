@@ -59,6 +59,12 @@ export interface DiscoveryResult {
   blockedByRobots: number;
   /** URLs que falharam, deram erro HTTP ou não eram HTML. */
   failed: number;
+  /**
+   * A descoberta parou antes de percorrer tudo: `deadline` (passou do tempo máximo) ou
+   * `failures` (falhas seguidas demais: o portal parou de responder ou passou a bloquear).
+   * As rotas encontradas até ali ficam valendo.
+   */
+  stoppedEarly: 'deadline' | 'failures' | null;
   /** Verificação das rotas já confirmadas (seção 3.1.7). */
   checks: RouteCheck[];
 }
@@ -83,7 +89,15 @@ export interface DiscoveryOptions {
   maxDepth?: number;
   /** Rotas confirmadas a verificar (possível substituição, seção 3.1.7). */
   checkUrls?: string[];
+  /** Tempo máximo percorrendo páginas (padrão 20 min). */
+  maxDurationMs?: number;
+  /** Falhas seguidas que encerram a descoberta (padrão 10). */
+  maxConsecutiveFailures?: number;
+  now?: () => number;
 }
+
+export const DEFAULT_MAX_DURATION_MS = 20 * 60 * 1000;
+export const DEFAULT_MAX_CONSECUTIVE_FAILURES = 10;
 
 export class DiscoveryError extends Error {
   constructor(message: string) {
@@ -111,7 +125,11 @@ export async function discoverRoutes({
   maxUrls = DEFAULT_MAX_URLS,
   maxDepth = DEFAULT_MAX_DEPTH,
   checkUrls = [],
+  maxDurationMs = DEFAULT_MAX_DURATION_MS,
+  maxConsecutiveFailures = DEFAULT_MAX_CONSECUTIVE_FAILURES,
+  now = Date.now,
 }: DiscoveryOptions): Promise<DiscoveryResult> {
+  const startedAt = now();
   if (isDevHost(domain)) throw new DiscoveryError(DEV_HOST_REASON);
 
   // robots.txt antes de qualquer página; o redirecionamento dele já revela a origem canônica.
@@ -256,11 +274,22 @@ export async function discoverRoutes({
     );
   };
 
+  let consecutiveFailures = 0;
+  let stoppedEarly: DiscoveryResult['stoppedEarly'] = null;
+  /** Parar de visitar? Portal que parou de responder não recebe mais requisições. */
+  const shouldStop = () => {
+    if (consecutiveFailures >= maxConsecutiveFailures) stoppedEarly = 'failures';
+    else if (now() - startedAt >= maxDurationMs) stoppedEarly = 'deadline';
+    return stoppedEarly !== null;
+  };
+
   const record = (outcome: PageOutcome) => {
     if (outcome.kind === 'skipped') {
       state.failed++;
+      consecutiveFailures++;
       return;
     }
+    consecutiveFailures = 0;
     if (state.routes.has(outcome.url)) return;
     const info = linkInfo.get(outcome.url);
     const { functionKey, relevance } = suggestionRelevance({
@@ -315,7 +344,10 @@ export async function discoverRoutes({
       .map((url, index) => ({ url, index, score: priority(url) }))
       .sort((a, b) => b.score - a.score || a.index - b.index)
       .slice(0, maxUrls - 1);
-    for (const { url } of ranked) record(await visit(url));
+    for (const { url } of ranked) {
+      if (shouldStop()) break;
+      record(await visit(url));
+    }
   } else {
     // 2) Sem sitemap: crawler em largura a partir da página inicial. Dentro de cada nível, as
     // URLs mais relevantes primeiro, para o teto não cortar justamente as páginas das funções.
@@ -335,7 +367,7 @@ export async function discoverRoutes({
       return queue.splice(best, 1)[0] as (typeof queue)[number];
     };
 
-    while (queue.length > 0 && visits < maxUrls) {
+    while (queue.length > 0 && visits < maxUrls && !shouldStop()) {
       const item = next();
       visits++;
       const outcome = await visit(item.url);
@@ -363,6 +395,7 @@ export async function discoverRoutes({
     sitemapFiles: sitemap.files,
     routes: [...state.routes.values()],
     blockedByRobots: state.blockedByRobots.size,
+    stoppedEarly,
     failed: state.failed,
   };
 }
