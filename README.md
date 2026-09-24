@@ -49,7 +49,7 @@ cd docker && docker compose up -d    # front em :8080, API em :3333, data/ persi
 
 A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um método que não cabe numa ferramenta automática sozinha. O sistema cobre as duas metades:
 
-**Camada automatizada.** Descobre as rotas de cada portal (robots.txt → sitemap e menu da página inicial → rastreamento até 2 níveis) e ordena as candidatas de cada função por relevância; o auditor confirma quais URLs correspondem a cada função de página, e então cada página é aberta no Chromium e verificada pelo axe-core contra as regras WCAG 2.2 AA. Passes, violations, incomplete e inapplicable são guardados — não só as violações — junto com o HTML renderizado, a versão do axe e a do navegador.
+**Camada automatizada.** Descobre as rotas de cada portal (robots.txt → sitemap e menu da página inicial → rastreamento até 2 níveis) e ordena as candidatas de cada função por relevância; o auditor confirma quais URLs correspondem a cada uma das 13 funções de página (ou registra que o portal não tem a página), e então cada página é aberta no Chromium e verificada pelo axe-core contra as regras WCAG 2.2 AA. Passes, violations, incomplete e inapplicable são guardados — não só as violações — junto com o HTML renderizado, a versão do axe e a do navegador.
 
 **Camada manual.** Cada achado automatizado é confirmado ou registrado como falso positivo, sempre com justificativa: a taxa de confirmação é um resultado da pesquisa, não um detalhe de implementação. Somam-se tarefas-alvo com o mesmo enunciado em todos os portais e a verificação com teclado, leitor de tela, ampliação a 200%, legendas e contraste.
 
@@ -62,12 +62,13 @@ A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um 
 | Conformidade = `passes / (passes + violations)` | mede regras aplicáveis, não uma contagem crua de erros |
 | Portal que falhou é **ausência de dado** | tratar como 0% inventaria um número e distorceria a média |
 | A métrica principal é **problemas distintos** | senão um portal com mais páginas pareceria pior só por ter mais páginas |
+| 13 funções essenciais por portal, comparadas pelo **núcleo comum** | cada instituição é medida sobre as mesmas funções; a página que o portal não tem entra na **cobertura** (ex.: 12 de 13), nunca como 0% |
 | Problema em ≥ 80% das páginas é **de template** | corrigir uma vez resolve o portal inteiro: é a recomendação de maior retorno |
 | Falso positivo **nunca é apagado** | a taxa de confirmação mede o quanto a ferramenta serve sem revisão humana |
 | Versões de axe-core e navegador **congeladas** | atualizar muda o conjunto de regras e invalida a comparação entre coletas |
 | Uma coleta por vez por domínio, 1,5 s entre requisições | limite ético de carga sobre servidores públicos |
 
-Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 12 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
+Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 13 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
 
 ## Acessibilidade do próprio sistema
 
