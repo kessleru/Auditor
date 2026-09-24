@@ -132,6 +132,77 @@ describe('revisão de rotas (1.2)', () => {
     );
   });
 
+  it('sugere a candidata mais relevante e lista todas as URLs com filtro', async () => {
+    let patched: unknown;
+    const ranked = [
+      route(1, '', { functionKey: 'home', status: 'confirmed', relevance: 100 }),
+      route(5, '/noticias/2026/03/inscricoes-processo-seletivo', {
+        functionKey: 'admission',
+        relevance: 30,
+        title: 'Inscrições abertas',
+      }),
+      route(6, '/ingresso', {
+        functionKey: 'admission',
+        relevance: 95,
+        title: 'Ingresso — IFTM',
+        source: 'crawler',
+      }),
+      route(7, '/bibliotecas', { functionKey: 'library', relevance: 80, linkText: 'Biblioteca' }),
+      route(8, '/institucional'),
+    ];
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': { routes: ranked },
+        'GET /institutions/1/discovery': idleDiscovery,
+        'PATCH /routes/7': (init: RequestInit | undefined) => {
+          patched = JSON.parse(String(init?.body));
+          return Response.json({ route: { ...ranked[3], status: 'confirmed' } });
+        },
+      },
+    });
+    const { container } = renderRoute(
+      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
+    );
+    const table = await screen.findByRole('table', { name: 'Rotas por função avaliada — IFTM' });
+    const admission = within(table).getAllByRole('row')[2]!;
+    expect(admission.textContent).toContain('iftm.edu.br/ingresso');
+    expect(admission.textContent).toContain('Ingresso — IFTM');
+    expect(admission.textContent).toContain('Mais 1 candidata');
+
+    await userEvent.click(screen.getByText('Todas as URLs descobertas (5)'));
+    const list = screen.getByRole('table', { name: 'URLs descobertas, por relevância' });
+    const urls = within(list)
+      .getAllByRole('rowheader')
+      .map((cell) => cell.querySelector('a')?.textContent);
+    expect(urls).toEqual([
+      'iftm.edu.br',
+      'iftm.edu.br/ingresso',
+      'iftm.edu.br/bibliotecas',
+      'iftm.edu.br/noticias/2026/03/inscricoes-processo-seletivo',
+      'iftm.edu.br/institucional',
+    ]);
+    expect(within(list).getByText('Alta (95)')).toBeTruthy();
+    await expectNoAxeViolations(container);
+
+    await userEvent.type(
+      screen.getByRole('searchbox', { name: 'Filtrar por endereço, título ou texto do link' }),
+      'biblioteca',
+    );
+    expect(screen.getByText('1 de 5 URLs')).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Usar iftm.edu.br/bibliotecas como Biblioteca' }),
+    );
+    await waitFor(() =>
+      expect(patched).toEqual({
+        status: 'confirmed',
+        functionKey: 'library',
+        replaceConfirmed: true,
+      }),
+    );
+  });
+
   it('propõe substituição e só troca quando o auditor confirma', async () => {
     let replaced: unknown;
     stubApi(auditor, {
