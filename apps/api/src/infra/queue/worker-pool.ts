@@ -7,6 +7,7 @@ export interface WorkerPoolOptions<Job> {
   claim: () => Promise<Job | null>;
   process: (job: Job) => Promise<void>;
   onError?: (err: unknown, job: Job) => void;
+  onClaimError?: (err: unknown) => void;
 }
 
 export function createWorkerPool<Job>({
@@ -14,6 +15,7 @@ export function createWorkerPool<Job>({
   claim,
   process,
   onError,
+  onClaimError,
 }: WorkerPoolOptions<Job>) {
   let active = 0;
   let filling: Promise<void> | null = null;
@@ -28,7 +30,14 @@ export function createWorkerPool<Job>({
     do {
       refillRequested = false;
       while (active < concurrency) {
-        const job = await claim();
+        let job: Job | null;
+        try {
+          job = await claim();
+        } catch (err) {
+          // Um erro ao reivindicar não pode escapar: rejeição sem tratamento derruba o processo.
+          onClaimError?.(err);
+          break;
+        }
         if (job === null) break;
         active++;
         void process(job)
