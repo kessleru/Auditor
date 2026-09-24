@@ -2,6 +2,7 @@ import { type PageFunctionKey, pageFunctionLabels } from '@auditoria-rf/contract
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '../client.js';
 import { institutions, pageFunctions, targetTasks } from '../schema.js';
+import { federalNetwork } from './federal-network.js';
 
 // Enunciados fixos: o mesmo texto em todas as instituições garante a comparabilidade (seção 3.4).
 const targetTaskSeeds: { functionKey: PageFunctionKey; title: string; description: string }[] = [
@@ -34,13 +35,7 @@ const targetTaskSeeds: { functionKey: PageFunctionKey; title: string; descriptio
   },
 ];
 
-const exampleInstitution = {
-  name: 'Instituto Federal do Triângulo Mineiro',
-  acronym: 'IFTM',
-  domain: 'iftm.edu.br',
-};
-
-/** Popula os dados de referência; pode ser executado várias vezes sem duplicar registros. */
+/** Popula os dados de referência (funções, tarefas-alvo e a Rede Federal); pode ser executado várias vezes sem duplicar registros. */
 export function seed(db: DB) {
   db.transaction((tx) => {
     tx.insert(pageFunctions)
@@ -72,9 +67,19 @@ export function seed(db: DB) {
       }
     }
 
-    tx.insert(institutions)
-      .values(exampleInstitution)
-      .onConflictDoNothing({ target: institutions.domain })
-      .run();
+    // Uma instituição já cadastrada (mesmo domínio ou mesma sigla) nunca é duplicada nem alterada.
+    const existing = tx
+      .select({ acronym: institutions.acronym, domain: institutions.domain })
+      .from(institutions)
+      .all();
+    const missing = federalNetwork.filter(
+      (i) => !existing.some((e) => e.domain === i.domain || e.acronym === i.acronym),
+    );
+    if (missing.length > 0) {
+      tx.insert(institutions)
+        .values([...missing])
+        .onConflictDoNothing({ target: institutions.domain })
+        .run();
+    }
   });
 }
