@@ -17,8 +17,11 @@ export function DiscoveredRoutes({
   routes,
   functions,
   institutionId,
+  onDecided,
 }: {
   routes: Route[];
+  /** O botão "Usar como" some depois de usado: o foco vai para o andamento da revisão. */
+  onDecided?: () => void;
   /** Funções do escopo: só para elas há o atalho "Usar como". */
   functions: PageFunctionKey[];
   institutionId: number;
@@ -151,12 +154,15 @@ export function DiscoveredRoutes({
                             disabled={update.isPending}
                             aria-label={`Usar ${displayUrl(route.url)} como ${pageFunctionLabels[route.functionKey]}`}
                             onClick={() =>
-                              update.mutate({
-                                id: route.id,
-                                status: 'confirmed',
-                                functionKey: route.functionKey as PageFunctionKey,
-                                replaceConfirmed: true,
-                              })
+                              update.mutate(
+                                {
+                                  id: route.id,
+                                  status: 'confirmed',
+                                  functionKey: route.functionKey as PageFunctionKey,
+                                  replaceConfirmed: true,
+                                },
+                                { onSuccess: () => onDecided?.() },
+                              )
                             }
                           >
                             Usar como {pageFunctionLabels[route.functionKey]}

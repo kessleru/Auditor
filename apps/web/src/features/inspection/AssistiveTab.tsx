@@ -5,7 +5,7 @@ import {
   pageFunctionLabels,
   type Severity,
 } from '@auditoria-rf/contracts';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router';
 import { Badge, type BadgeVariant, Button, Choice, EmptyState, Note } from '../../components/ui';
 import { ApiError } from '../../lib/api';
@@ -20,6 +20,8 @@ const stateLabels: Record<AssistiveCheckState, { label: string; variant: BadgeVa
   pending: { label: 'Pendente', variant: 'neutral' },
 };
 
+const AUTOSAVE_DELAY_MS = 700;
+
 function CheckItem({ pageId, check }: { pageId: number; check: AssistiveCheck }) {
   const { collectionId, institutionId } = useOutletContext<PortalContext>();
   const save = useSaveAssistiveCheck(collectionId, institutionId);
@@ -32,12 +34,22 @@ function CheckItem({ pageId, check }: { pageId: number; check: AssistiveCheck })
   const noteFormId = useId();
   const barrier = state === 'barrier';
 
-  /** Conforme e "não se aplica" salvam ao escolher; barreira espera severidade e descrição. */
+  const pendingSave = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(pendingSave.current ?? undefined), []);
+
+  /**
+   * Conforme e "não se aplica" salvam ao escolher; barreira espera severidade e descrição. A
+   * espera curta faz as setas do teclado, que mudam a opção ao passar por ela, salvarem só a
+   * escolha final.
+   */
   const choose = (next: AssistiveCheckState) => {
     setState(next);
-    if (next !== 'barrier') {
-      save.mutate({ pageId, kind: check.kind, state: next, severity: null, note });
-    }
+    clearTimeout(pendingSave.current ?? undefined);
+    if (next === 'barrier') return;
+    pendingSave.current = setTimeout(
+      () => save.mutate({ pageId, kind: check.kind, state: next, severity: null, note }),
+      AUTOSAVE_DELAY_MS,
+    );
   };
 
   const submit = (e: FormEvent) => {
