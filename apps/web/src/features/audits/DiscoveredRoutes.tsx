@@ -27,7 +27,6 @@ export function DiscoveredRoutes({
   const [query, setQuery] = useState('');
   const [fn, setFn] = useState<FunctionFilter>('');
   const filterId = useId();
-  const headingId = useId();
 
   const all = routes.filter((r) => r.status !== 'authenticated').sort(byRelevance);
   const shown = all.filter(
@@ -41,10 +40,7 @@ export function DiscoveredRoutes({
       <summary className="cursor-pointer p-5 text-card text-text">
         Todas as URLs descobertas ({all.length})
       </summary>
-      <section aria-labelledby={headingId} className="flex flex-col gap-4 px-5 pb-5">
-        <h2 id={headingId} className="sr-only">
-          Todas as URLs descobertas
-        </h2>
+      <div className="flex flex-col gap-4 px-5 pb-5">
         <p className="text-body text-text-muted">
           Ordenadas pela relevância da sugestão: termo da função no endereço, no título ou no texto
           do link, link de menu e caminho curto contam a favor; notícias e listagens, contra. A
@@ -135,7 +131,7 @@ export function DiscoveredRoutes({
                       <td className="px-4 py-3">
                         {route.functionKey ? pageFunctionLabels[route.functionKey] : '—'}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {relevance ? (
                           <Badge variant={relevance.variant}>
                             {relevance.label} ({route.relevance})
@@ -179,7 +175,7 @@ export function DiscoveredRoutes({
         ) : (
           <p className="text-body text-text-muted">Nenhuma URL com esse filtro.</p>
         )}
-      </section>
+      </div>
     </details>
   );
 }
