@@ -7,7 +7,7 @@ import { createDatabase } from './client.js';
 import { runMigrations } from './migrate.js';
 import { institutions, pageFunctions, routes, targetTasks } from './schema.js';
 import { federalNetwork } from './seeds/federal-network.js';
-import { seed } from './seeds/seed.js';
+import { seed, seedReferenceData } from './seeds/seed.js';
 import { createTestDatabase } from '../test/db.js';
 
 const tempDirs: string[] = [];
@@ -86,7 +86,9 @@ describe('seed', () => {
       .all()
       .map((r) => r.key);
     expect(keys.sort()).toEqual([...pageFunctionKeys].sort());
-    expect(db.select().from(targetTasks).all()).toHaveLength(5);
+    expect(keys).toHaveLength(13);
+    // Uma tarefa por função, menos contato (a tarefa de contato é da página inicial).
+    expect(db.select().from(targetTasks).all()).toHaveLength(12);
 
     const [iftm, ...rest] = db.select().from(institutions).all();
     expect(iftm).toMatchObject({ id: 1, acronym: 'IFTM', domain: 'iftm.edu.br', active: true });
@@ -105,9 +107,17 @@ describe('seed', () => {
     seed(db);
     seed(db);
 
-    expect(db.select().from(pageFunctions).all()).toHaveLength(5);
-    expect(db.select().from(targetTasks).all()).toHaveLength(5);
+    expect(db.select().from(pageFunctions).all()).toHaveLength(13);
+    expect(db.select().from(targetTasks).all()).toHaveLength(12);
     expect(db.select().from(institutions).all()).toHaveLength(federalNetwork.length);
+  });
+
+  it('dados de referência sozinhos não cadastram instituições', () => {
+    const db = freshDatabase();
+    seedReferenceData(db);
+    seedReferenceData(db);
+    expect(db.select().from(pageFunctions).all()).toHaveLength(13);
+    expect(db.select().from(institutions).all()).toHaveLength(0);
   });
 
   it('não duplica instituição já cadastrada com outro domínio ou outra sigla', () => {
