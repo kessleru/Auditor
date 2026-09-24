@@ -25,6 +25,13 @@ const MAX_SITEMAP_FILES = 50;
 const MAX_SITEMAP_INDEX_DEPTH = 2;
 const MAX_CRAWL_DELAY_MS = 30_000;
 
+/** Explicação das respostas mais comuns de portais que recusam a ferramenta. */
+const HTTP_HINTS: Record<number, string> = {
+  403: ' (acesso negado: o portal ou um firewall pode estar bloqueando robôs ou a rede de origem)',
+  429: ' (requisições demais: tente de novo mais tarde)',
+  503: ' (serviço indisponível: o portal pode estar fora do ar ou em manutenção)',
+};
+
 export interface DiscoveredRoute {
   url: string;
   status: 'suggested' | 'authenticated' | 'excluded';
@@ -122,7 +129,9 @@ export async function discoverRoutes({
     throw new DiscoveryError(err instanceof Error ? err.message : String(err));
   }
   if (homeResponse.status >= 400) {
-    throw new DiscoveryError(`A página inicial respondeu HTTP ${homeResponse.status}.`);
+    throw new DiscoveryError(
+      `A página inicial respondeu HTTP ${homeResponse.status}${HTTP_HINTS[homeResponse.status] ?? ''}.`,
+    );
   }
   const homeOrigin = new URL(homeResponse.url).origin;
   if (isDevHost(new URL(homeOrigin).host)) throw new DiscoveryError(DEV_HOST_REASON);
