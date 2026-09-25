@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ComponentProps } from 'react';
+import type { ButtonHTMLAttributes, ComponentProps, Ref } from 'react';
 import { Link } from 'react-router';
 import { cn } from './cn';
 
@@ -17,6 +17,8 @@ export function buttonClasses(variant: ButtonVariant = 'primary', className?: st
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  /** Para devolver o foco ao botão (React 19 recebe `ref` como prop comum). */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 /** Ícone dentro do botão: sempre `aria-hidden`, com texto visível ao lado (seção 4.2). */
