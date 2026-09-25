@@ -37,21 +37,14 @@ export function createPublicReportsService(
     problems?: 'confirmed' | 'valid';
   },
 ) {
-  const summarize = (
-    collectionId: number,
-    institutionId: number,
-    functions?: readonly PageFunctionKey[],
-  ) => {
+  const summarize = (collectionId: number, institutionId: number) => {
     const pages = repo
       .pagesOfCollection(collectionId)
       .filter((p) => p.institutionId === institutionId);
     const findings = repo.findingDetailsOf(collectionId, institutionId);
     return {
       pages,
-      summary: summarizeInstitution(pages, findings, {
-        problems: countedProblems,
-        ...(functions && { functions }),
-      }),
+      summary: summarizeInstitution(pages, findings, { problems: countedProblems }),
       findings,
     };
   };
@@ -60,8 +53,8 @@ export function createPublicReportsService(
   const latestOf = (institution: InstitutionRow) => {
     const latest = repo.finishedCollectionsOf(institution.id).at(-1);
     if (!latest) return { institution, latest: null, evaluated: new Set<PageFunctionKey>() };
-    const { pages, summary } = summarize(latest.id, institution.id);
-    return { institution, latest, pages, summary, evaluated: evaluatedFunctions(pages) };
+    const { pages, summary, findings } = summarize(latest.id, institution.id);
+    return { institution, latest, pages, findings, summary, evaluated: evaluatedFunctions(pages) };
   };
 
   const view = (
@@ -85,7 +78,7 @@ export function createPublicReportsService(
       pagesEvaluated: 0,
       overall: null,
     };
-    if (!entry.latest || !entry.pages || !entry.summary) {
+    if (!entry.latest || !entry.pages || !entry.findings || !entry.summary) {
       return {
         ...base,
         ...empty,
@@ -107,7 +100,11 @@ export function createPublicReportsService(
       return { ...common, ...empty, status: 'no_data' };
     }
     // Números do ranking: só as páginas das funções do núcleo comum (ADR 0013).
-    const { summary: inCore } = summarize(entry.latest.id, institution.id, core);
+    // Recalcula sobre o que já foi lido, sem consultar o banco de novo.
+    const inCore = summarizeInstitution(entry.pages, entry.findings, {
+      problems: countedProblems,
+      functions: core,
+    });
     const ranked = inCore.status === 'evaluated' ? inCore : null;
     return {
       ...common,
