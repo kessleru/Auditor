@@ -52,6 +52,16 @@ describe('PublicLayout', () => {
     await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(document.title).toBe('Sobre a metodologia · Auditoria RF');
   });
+
+  it('link com âncora leva o foco ao título da seção, não ao topo da página', async () => {
+    renderRoute('/');
+    await userEvent.click(await screen.findByRole('link', { name: 'Como a comparação é feita' }));
+    const section = await screen.findByRole('heading', {
+      level: 2,
+      name: 'Como a comparação é feita',
+    });
+    await waitFor(() => expect(document.activeElement).toBe(section));
+  });
 });
 
 describe('AuditorLayout', () => {
