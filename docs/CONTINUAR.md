@@ -33,7 +33,9 @@ plano) **não mudam sem o autor**: estão listadas em "Decisões do autor".
 | — | ADR 0015 (demonstração) escrita; ADR 0014 ampliada |
 | — | Achados da revisão: 7 regras do axe sem tradução no locale (ex.: `target-size`) ganharam título em português; tabela que rola em tela estreita vira região focável (WCAG 2.1.1); "sem dado" sem página que falhou não é mais "bloqueio"; lint ignora `playwright-report` e `e2e/.auth` |
 
-Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 416, web 95, contracts 39).
+| — | Revisão do PR (9 achados, todos corrigidos): acerto da sugestão usa o host real do portal (a origem pode ser `portal.<domínio>`); navegador que cai conta como falha da ferramenta; `${data}` do locale não aparece mais cru; inconclusivas não são relidas a cada validação; tabela reavalia a rolagem quando os dados alargam; CLI mostra "menos de 0,1 s" como a tela; tamanho do alvo nunca vira "."; classificação das falhas e regra de template em `contracts` (sem `infra/` fora dos services) |
+
+Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 422, web 98, contracts 41).
 
 ## Falta: dados da demonstração (parte B do pedido anterior)
 
