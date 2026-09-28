@@ -29,9 +29,9 @@ type InstitutionRow = NonNullable<ReturnType<ReportsRepository['findInstitution'
 
 /**
  * Motivo mais comum entre as páginas que falharam (empate: na ordem de `noDataReasons`, do
- * bloqueio para o resto).
+ * bloqueio para o resto). Sem página que falhou, `other`.
  */
-function mainNoDataReason(
+export function mainNoDataReason(
   pages: readonly { status: string; error: string | null; httpStatus: number | null }[],
 ): NoDataReason {
   const counts = new Map<NoDataReason, number>();
@@ -40,8 +40,9 @@ function mainNoDataReason(
     const reason = noDataReasonOf(classifyFailure(page.error, page.httpStatus), page.httpStatus);
     counts.set(reason, (counts.get(reason) ?? 0) + 1);
   }
-  return noDataReasons.reduce((best, reason) =>
-    (counts.get(reason) ?? 0) > (counts.get(best) ?? 0) ? reason : best,
+  return noDataReasons.reduce<NoDataReason>(
+    (best, reason) => ((counts.get(reason) ?? 0) > (counts.get(best) ?? 0) ? reason : best),
+    'other',
   );
 }
 
