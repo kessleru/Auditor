@@ -351,6 +351,56 @@ describe('trava por domínio', () => {
   });
 });
 
+describe('teste-reteste', () => {
+  it('audita as rotas confirmadas várias vezes e mede a concordância, sem gravar nada', async () => {
+    let ingresso = 0;
+    // O banner do ingresso é um carrossel: a imagem sem alt só aparece na primeira rodada.
+    const auditor = fakeAuditor(async (url) =>
+      url.endsWith('/ingresso') && ingresso++ === 0
+        ? okOutcome([{ rule: 'image-alt', targets: ['.slide-1 img'] }])
+        : okOutcome(),
+    );
+    const { service } = await setup(auditor);
+    const { institution } = institutionA();
+
+    const result = await service.retest(institution.id, 2);
+    expect(auditor.audited).toHaveLength(6);
+    expect(auditor.domains.every((d) => d === 'if-a.edu.br')).toBe(true);
+    expect(result.summary).toEqual({
+      pages: 3,
+      compared: 3,
+      stable: 2,
+      meanRuleAgreement: 2 / 3,
+      meanFindingAgreement: 2 / 3,
+    });
+    const page = result.pages.find((p) => p.url.endsWith('/ingresso'));
+    expect(page).toMatchObject({
+      functionKey: 'admission',
+      stable: false,
+      unstableRules: ['image-alt'],
+    });
+    // Nada vai para o banco: nem coleta nem achado.
+    expect(db.select().from(collections).all()).toEqual([]);
+    expect(db.select().from(findings).all()).toEqual([]);
+  });
+
+  it('não roda com uma coleta em execução no mesmo domínio', async () => {
+    const gate = deferred<AuditOutcome>();
+    const auditor = fakeAuditor(() => gate.promise);
+    const { agent, service } = await setup(auditor);
+    const { institution } = institutionA();
+    await create(agent, { institutionIds: [institution.id] });
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(service.retest(institution.id)).rejects.toMatchObject({
+      status: 409,
+      code: 'DOMAIN_BUSY',
+    });
+    gate.resolve(okOutcome());
+    await service.idle();
+  });
+});
+
 describe('cancelamento, nova tentativa e retomada', () => {
   it('cancela: a página em execução termina e nenhuma outra começa', async () => {
     const gate = deferred<void>();

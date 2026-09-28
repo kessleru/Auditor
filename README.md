@@ -109,6 +109,7 @@ Uma ferramenta que mede acessibilidade não pode ser inacessível. O projeto se 
 | `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais (funções, tarefas-alvo, as 42 instituições da Rede Federal e a demonstração) |
 | `npm run demo:export -- --collections=<ids>` | empacota coletas em `apps/api/demo/` como demonstração |
 | `npm run backup` (ou `-- --out <pasta>`) | copia o banco (cópia online, consistente com a API no ar) e os snapshots para `backups/auditoria-<data>`; guarde fora da máquina |
+| `npm run retest -- --institution=<sigla> [--rounds=2]` | teste-reteste: audita as rotas confirmadas mais de uma vez e mede a concordância entre as rodadas (nada é gravado) |
 | `npm run fingerprint:report -- --collection=<id>` | mede o agrupamento dos problemas (regra + seletor) contra outras chaves: problemas partidos por `nth-child` e elementos diferentes juntados por um seletor genérico |
 | `npm run evidence:backfill` (ou `-- --collection=<id>`) | refaz a evidência de contraste e de tamanho do alvo das coletas antigas, a partir do resultado do axe salvo |
 

@@ -28,6 +28,7 @@
     "evidence:backfill": "npm run evidence:backfill -w @auditoria-rf/api --",
     "backup": "npm run backup -w @auditoria-rf/api --",
     "fingerprint:report": "npm run fingerprint:report -w @auditoria-rf/api --",
+    "retest": "npm run retest -w @auditoria-rf/api --",
     "test:e2e": "npm run test:e2e -w @auditoria-rf/web"
   },
   "devDependencies": {

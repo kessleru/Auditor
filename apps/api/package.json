@@ -19,7 +19,8 @@
     "demo:export": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/demo-export.ts",
     "evidence:backfill": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/evidence-backfill.ts",
     "backup": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/backup.ts",
-    "fingerprint:report": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/fingerprint-report.ts"
+    "fingerprint:report": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/fingerprint-report.ts",
+    "retest": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/retest.ts"
   },
   "dependencies": {
     "@auditoria-rf/contracts": "0.0.0",
