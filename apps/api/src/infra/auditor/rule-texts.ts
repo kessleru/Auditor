@@ -30,15 +30,24 @@ export function incompleteReason(node: {
   for (const check of [...node.any, ...node.all, ...node.none]) {
     const messages = ptBR.checks[check.id]?.incomplete;
     if (!messages) continue;
-    const data = (check.data ?? {}) as Record<string, unknown>;
+    const raw = check.data;
+    const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const key = typeof data['messageKey'] === 'string' ? data['messageKey'] : 'default';
     const template =
       typeof messages === 'string' ? messages : (messages[key] ?? messages['default']);
     if (!template) continue;
-    // Troca ${data.x} pelo valor medido; o que não houver fica sem o trecho.
-    return template.replace(/\$\{data\.(\w+)\}/g, (_, name: string) =>
-      data[name] === undefined ? '' : String(data[name]),
-    );
+    // Troca ${data.x} (e ${data}, quando o dado é um valor só) pelo que foi medido; o que não
+    // houver fica sem o trecho.
+    const text = (value: unknown): string =>
+      Array.isArray(value)
+        ? value.map(text).filter(Boolean).join(', ')
+        : value === undefined || value === null || typeof value === 'object'
+          ? ''
+          : String(value);
+    return template
+      .replace(/\$\{data\.(\w+)\}/g, (_, name: string) => text(data[name]))
+      .replace(/\$\{data\}/g, () => text(raw))
+      .trim();
   }
   const english = [...node.any, ...node.all, ...node.none].find((c) => c.message)?.message;
   return english ?? 'O axe não conseguiu decidir sozinho.';
