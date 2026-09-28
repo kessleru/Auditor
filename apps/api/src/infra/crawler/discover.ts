@@ -250,6 +250,7 @@ export async function discoverRoutes({
   };
 
   const noteLink = (url: string, link: PageLink | undefined, depth: number) => {
+    priorities.delete(url);
     const known = linkInfo.get(url);
     const text = known?.text ?? (link?.text || undefined);
     linkInfo.set(url, {
@@ -294,17 +295,25 @@ export async function discoverRoutes({
     return [...new Set(found)];
   };
 
-  /** Relevância pelo que se sabe antes de visitar (URL e links): decide a ordem das visitas. */
+  /**
+   * Relevância pelo que se sabe antes de visitar (URL e links): decide a ordem das visitas.
+   * Calculada uma vez por URL e refeita só quando um novo link muda o que se sabe dela: a fila
+   * do rastreamento tem milhares de URLs e é consultada a cada visita.
+   */
+  const priorities = new Map<string, number>();
   const priority = (url: string) => {
+    const cached = priorities.get(url);
+    if (cached !== undefined) return cached;
     const info = linkInfo.get(url);
-    return (
+    const score =
       suggestionRelevance({
         url,
         linkText: info?.text,
         inNav: info?.inNav ?? false,
         depth: info?.depth ?? DEFAULT_MAX_DEPTH,
-      }).relevance ?? -1
-    );
+      }).relevance ?? -1;
+    priorities.set(url, score);
+    return score;
   };
 
   let consecutiveFailures = 0;
