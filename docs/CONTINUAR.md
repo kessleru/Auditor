@@ -142,3 +142,50 @@ Ordem = prioridade sugerida.
 19. **[M] `docs/CONTINUAR.md`** é temporário: apagar quando a branch virar PR.
 20. **[M] README**: citar a demonstração (`DEMO_DATA`, `npm run demo:export`) e a prévia visual.
 21. **[M] Plano**: registrar ADRs 0014–0016 na tabela da seção 8.
+
+### Mais — qualidade da auditoria
+
+22. **[D] Só desktop (1280×800)**: nada é auditado em largura de celular; o reflow (1.4.10) fica só
+    na verificação manual de zoom. Avaliar uma segunda passada em 390 px.
+23. **[D] Regras `best-practice` fora** (ex.: `region`, `heading-order`, `landmark-one-main`): não
+    são WCAG, mas ajudam a explicar a usabilidade. Registrar à parte, fora da conformidade?
+24. **[D] Conteúdo carregado ao rolar** não é avaliado (o axe roda no DOM do carregamento). Rolar
+    até o fim antes do axe muda o método.
+25. **[M] Teste-reteste**: auditar a mesma página duas vezes e comparar (carrossel e anúncio mudam o
+    resultado). Dá um número de confiabilidade para o TCC.
+26. **[M] Acerto da sugestão de função**: comparar sugestão × rota confirmada (os dados já estão no
+    banco) — indicador da descoberta para o TCC.
+27. **[M] Falso positivo por regra**: a taxa já é registrada; mostrar por regra no relatório do
+    auditor e no CSV.
+28. **[M] Tempo de carregamento** de cada página (já medido pelo navegador): guardar e exibir; é
+    dado de usabilidade e explica os tempos esgotados.
+29. **[M] Evidência de outras regras**, além do contraste, a partir do `data` do axe:
+    `target-size` (tamanho e distância medidos), `image-alt` (endereço da imagem), `link-name`
+    (destino do link), `label` (tipo do campo).
+30. **[M] Snapshot só em HTML**: sem CSS e imagens, não reproduz a página. Avaliar guardar também
+    uma captura da página inteira (atenção ao tamanho).
+31. **[P] Recursos da página fora do intervalo de 1,5 s**: o intervalo vale para a navegação, mas o
+    navegador baixa CSS, JS e imagens de uma vez. Registrar em "limitações" (é o que um cidadão faz).
+32. **[P] Versão para robô**: portais podem servir outra página (ou bloquear) para o user-agent
+    `AuditoriaRF`; o resultado pode diferir do que o cidadão vê. Registrar em "limitações".
+
+### Mais — segurança, dados e implantação
+
+33. **[D] LGPD nas fotos**: um recorte pode mostrar nome ou foto de pessoa (notícia, servidor). Hoje
+    a foto de achado confirmado é pública. Avaliar deixar a foto só para o auditor ou borrar rostos.
+34. **[M] Backup**: o plano (8.1) pede cópia periódica do SQLite e dos snapshots; não há script
+    (`npm run backup`), e o launcher não faz.
+35. **[M] Sessões expiradas**: conferir se são apagadas do banco (senão a tabela só cresce).
+36. **[M] Limite de requisições na API pública** (CSV e listagens) além do login.
+37. **[M] CI**: conferir se há workflow rodando lint, typecheck, testes e o dogfood (Fase 12 pede o
+    dogfood falhando o build em violação crítica).
+
+### Mais — front e fluxo do auditor
+
+38. **[M] Validação lenta**: 100+ problemas por portal, um a um. Filtros por regra e severidade na
+    aba de validação; validação em lote só com justificativa por problema (cuidado metodológico).
+39. **[M] Autor da coleta** visível na lista de coletas (deixa claro o que é "Demonstração").
+40. **[M] Página `/metodologia`**: explicar a foto e a evidência (ADR 0014), o bloqueio antirrobô
+    como causa de ausência de dado (ADR 0016) e as verificações inconclusivas.
+41. **[M] E2E** cobrindo a prévia visual (foto e amostra de contraste) e a revisão de rotas com
+    descoberta bloqueada.
