@@ -17,7 +17,8 @@
     "discover": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/discover.ts",
     "dogfood": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/dogfood.ts",
     "demo:export": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/demo-export.ts",
-    "evidence:backfill": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/evidence-backfill.ts"
+    "evidence:backfill": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/evidence-backfill.ts",
+    "backup": "tsx --conditions=development --env-file-if-exists=../../.env src/cli/backup.ts"
   },
   "dependencies": {
     "@auditoria-rf/contracts": "0.0.0",
