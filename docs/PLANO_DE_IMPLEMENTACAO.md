@@ -644,6 +644,9 @@ Registro das melhorias levantadas no brainstorm e de onde cada uma entrou no pla
 | 11 | Animações suaves, sempre respeitando `prefers-reduced-motion` | Fase 10 |
 | 12 | Revisão visual do front com a skill `frontend-design` | Fase 11 |
 | 13 | 13 funções de página, "não encontrada" e comparação pelo núcleo comum com cobertura | ADR 0013 |
+| 14 | Foto do elemento reprovado e evidência medida pelo axe (contraste) nos achados | ADR 0014 |
+| 15 | Coletas de demonstração empacotadas no repositório e importadas pelo seed | ADR 0015, 8.1 |
+| 16 | Portal atrás de proteção contra robôs: falha explicada, nunca auditar outro site | ADR 0016 |
 
 ### 8.1 Implantação
 
