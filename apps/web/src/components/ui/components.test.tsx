@@ -257,6 +257,82 @@ describe('FindingPreview', () => {
     expect(screen.getByText(/Razão 2,85:1/).textContent?.replace(/\s+/g, ' ')).toBe(
       'Razão 2,85:1 — mínimo 4,5:1 texto #999999 sobre fundo #ffffff, fonte de 12 px.',
     );
+    // A foto também abre em tamanho real, com o aviso de nova aba no nome.
+    const open = screen.getByRole('link', { name: /abrir a foto em tamanho real/ });
+    expect(open.getAttribute('href')).toBe('/api/v1/findings/3/screenshot');
+    expect(open.getAttribute('rel')).toContain('noopener');
+    await expectNoAxeViolations(container);
+  });
+
+  it('usa a fonte medida no portal, com a do sistema de reserva', () => {
+    render(
+      <FindingPreview
+        example={{
+          ...base,
+          evidence: {
+            kind: 'contrast',
+            fgColor: '#777777',
+            bgColor: '#ffffff',
+            contrastRatio: 4.48,
+            expectedContrastRatio: 4.5,
+            fontSizePx: 14,
+            bold: true,
+            fontFamily: '"Open Sans", Arial, sans-serif',
+          },
+        }}
+      />,
+    );
+    const sample = screen.getByRole('img', { name: /Amostra do texto/ });
+    expect(sample.querySelector('text')?.getAttribute('font-family')).toBe(
+      '"Open Sans", system-ui, sans-serif',
+    );
+    expect(screen.getByText(/Razão 4,48:1/).textContent?.replace(/\s+/g, ' ')).toContain(
+      'fonte Open Sans de 14 px em negrito.',
+    );
+  });
+
+  it.each([
+    [
+      {
+        kind: 'target-size',
+        widthPx: 18.5,
+        heightPx: 18,
+        minSizePx: 24,
+        closestOffsetPx: 10,
+        minOffsetPx: 24,
+      },
+      'Alvo de 18,5 × 18 px — mínimo 24 × 24 px; vizinho mais próximo a 10 px — mínimo 24 px.',
+    ],
+    [
+      {
+        kind: 'target-size',
+        widthPx: null,
+        heightPx: null,
+        minSizePx: 24,
+        closestOffsetPx: 3.5,
+        minOffsetPx: 24,
+      },
+      'Vizinho mais próximo a 3,5 px — mínimo 24 px.',
+    ],
+    [
+      { kind: 'image', src: 'https://iftm.edu.br/logo.png' },
+      'Endereço da imagem: https://iftm.edu.br/logo.png',
+    ],
+    [
+      { kind: 'link', href: 'https://iftm.edu.br/ingresso' },
+      'Destino do link: https://iftm.edu.br/ingresso',
+    ],
+    [{ kind: 'field', fieldType: 'search' }, 'Tipo do campo: busca (search)'],
+    [{ kind: 'field', fieldType: 'week' }, 'Tipo do campo: week'],
+  ] as const)('evidência em texto: %j', async (evidence, text) => {
+    const { container } = render(
+      <main>
+        <FindingPreview example={{ ...base, evidence }} />
+      </main>,
+    );
+    expect(container.querySelector('figure p')?.textContent).toBe(text);
+    // Endereços do portal ficam como texto, nunca como link.
+    expect(screen.queryByRole('link')).toBeNull();
     await expectNoAxeViolations(container);
   });
 
