@@ -8,6 +8,7 @@ import {
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
 import { countRules, findingsFromViolations } from '../../infra/auditor/axe-mapping.js';
+import { pageConformity } from '../reports/metrics.js';
 import { describeFailure, type PageAuditor } from '../../infra/auditor/page-auditor.js';
 import type { CollectionEventBus } from '../../infra/events/collection-events.js';
 import type { DomainLocks } from '../../infra/locks/domain-locks.js';
@@ -16,6 +17,7 @@ import type { SnapshotStorage } from '../../infra/storage/snapshot-storage.js';
 import { AppError, NotFoundError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import { toCollectionPage } from './collections.presenter.js';
+import { compareRuns, type RetestRun, summarizeRetest } from './retest.js';
 import type {
   CollectionPageWithRoute,
   CollectionRow,
@@ -393,6 +395,73 @@ export function createCollectionsService({
       maybeFinish(id);
       pool.kick();
       return { collection: getCollection(id), progress };
+    },
+
+    /**
+     * Teste-reteste: audita as rotas confirmadas da instituição `rounds` vezes, com o mesmo motor,
+     * o mesmo intervalo por host e a mesma trava por domínio da coleta, e compara as rodadas. Nada
+     * é gravado: é um indicador de confiabilidade para as limitações do estudo.
+     */
+    async retest(institutionId: number, rounds = 2) {
+      const auditor = requireAuditor();
+      const [institution] = repo.institutionsByIds([institutionId]);
+      if (!institution) throw new NotFoundError('Instituição não encontrada.');
+      const routes = repo.confirmedRoutes([institutionId], [...pageFunctionKeys]);
+      if (routes.length === 0) {
+        throw new AppError(422, 'NO_CONFIRMED_ROUTES', 'A instituição não tem rota confirmada.');
+      }
+      // Dono negativo: nunca coincide com o id de uma coleta.
+      const owner = -institutionId;
+      const busy =
+        !locks.tryAcquire([institution.domain], owner) ||
+        repo
+          .listCollectionsByStatus(['running'])
+          .some((c) => domainsOf(c.scope).includes(institution.domain));
+      if (busy) {
+        locks.release(owner);
+        throw new AppError(
+          409,
+          'DOMAIN_BUSY',
+          `Há uma coleta em execução em ${institution.domain}: espere ela terminar.`,
+        );
+      }
+      try {
+        const runs = new Map<number, RetestRun[]>(routes.map((r) => [r.id, []]));
+        for (let round = 0; round < rounds; round++) {
+          for (const route of routes) {
+            const outcome = await auditor.audit(route.url, { domain: institution.domain });
+            (runs.get(route.id) as RetestRun[]).push(
+              outcome.ok
+                ? {
+                    ok: true,
+                    violatedRules: [...new Set(outcome.results.violations.map((v) => v.id))],
+                    findings: findingsFromViolations(outcome.results.violations, institutionId).map(
+                      (f) => `${f.ruleId}\n${f.selector}`,
+                    ),
+                    conformity: pageConformity(countRules(outcome.results)),
+                  }
+                : { ok: false, error: outcome.error },
+            );
+          }
+        }
+        const pages = routes.map((route) => {
+          const pageRuns = runs.get(route.id) as RetestRun[];
+          return {
+            url: route.url,
+            functionKey: route.functionKey,
+            runs: pageRuns,
+            ...compareRuns(pageRuns),
+          };
+        });
+        return {
+          institution: { id: institution.id, acronym: institution.acronym },
+          rounds,
+          pages,
+          summary: summarizeRetest(pages),
+        };
+      } finally {
+        locks.release(owner);
+      }
     },
 
     /** Recoloca na fila uma página que falhou; reabre a coleta se ela já tinha terminado. */

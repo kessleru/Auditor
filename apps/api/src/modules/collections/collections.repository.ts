@@ -151,12 +151,18 @@ export function createCollectionsRepository(db: DB) {
       ];
       if (functionKeys) conditions.push(inArray(pageFunctions.key, [...functionKeys]));
       return db
-        .select({ id: routes.id, functionId: routes.functionId })
+        .select({
+          id: routes.id,
+          functionId: routes.functionId,
+          url: routes.url,
+          functionKey: pageFunctions.key,
+        })
         .from(routes)
         .leftJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
         .where(and(...conditions))
         .orderBy(asc(routes.institutionId), asc(routes.id))
-        .all();
+        .all()
+        .map((r) => ({ ...r, functionKey: r.functionKey as PageFunctionKey | null }));
     },
 
     insertCollection(values: { scope: CollectionScope; createdBy: number }): CollectionRow {
