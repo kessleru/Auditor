@@ -198,6 +198,16 @@ describe('evidenceOf', () => {
       closestOffsetPx: 10.2,
       minOffsetPx: 24,
     });
+    // Só a distância medida: a mínima é a da regra (24 px), como o tamanho.
+    const onlyOffset = {
+      any: [{ id: 'target-offset', data: { closestOffset: 10 } }],
+      all: [],
+      none: [],
+    } as never;
+    expect(evidenceOf('target-size', onlyOffset)).toMatchObject({
+      closestOffsetPx: 10,
+      minOffsetPx: 24,
+    });
     // Alvo encoberto: o axe não mede o tamanho nem a distância.
     const obscured = {
       any: [{ id: 'target-size', data: { messageKey: 'obscured' } }],
