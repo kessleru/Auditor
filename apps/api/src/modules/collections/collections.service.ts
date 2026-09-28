@@ -61,6 +61,8 @@ export function createCollectionsService({
   const busyHosts = new Set<string>();
   /** Desligando: nada novo é reivindicado e páginas interrompidas não são marcadas como falha. */
   let stopping = false;
+  /** Dono da trava de cada reteste: negativo, para nunca coincidir com o id de uma coleta. */
+  let nextRetestOwner = -1;
 
   /** O último motor usado, para fechar o navegador ao encerrar. */
   let lastAuditor: PageAuditor | null = null;
@@ -410,8 +412,9 @@ export function createCollectionsService({
       if (routes.length === 0) {
         throw new AppError(422, 'NO_CONFIRMED_ROUTES', 'A instituição não tem rota confirmada.');
       }
-      // Dono negativo: nunca coincide com o id de uma coleta.
-      const owner = -institutionId;
+      // Um dono por chamada: a trava é reentrante para o mesmo dono, e dois retestes da mesma
+      // instituição não podem rodar juntos.
+      const owner = nextRetestOwner--;
       const busy =
         !locks.tryAcquire([institution.domain], owner) ||
         repo
@@ -461,6 +464,8 @@ export function createCollectionsService({
         };
       } finally {
         locks.release(owner);
+        // Coleta que esperava por este domínio começa agora.
+        pool.kick();
       }
     },
 
