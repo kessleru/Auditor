@@ -176,7 +176,8 @@ function targetSizeEvidenceOf(node: NodeResult): FindingEvidence | null {
     heightPx,
     minSizePx: numberFrom(size['minSize']) ?? 24,
     closestOffsetPx,
-    minOffsetPx: numberFrom(offset['minOffset']),
+    // Sem o valor no data, a mínima é a da própria regra (24 px), como no tamanho.
+    minOffsetPx: numberFrom(offset['minOffset']) ?? (closestOffsetPx === null ? null : 24),
   };
 }
 

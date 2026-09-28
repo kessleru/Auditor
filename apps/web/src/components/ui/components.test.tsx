@@ -410,6 +410,17 @@ describe('FindingPreview', () => {
     ],
     [{ kind: 'field', fieldType: 'search' }, 'Tipo do campo: busca (search)'],
     [{ kind: 'field', fieldType: 'week' }, 'Tipo do campo: week'],
+    [
+      {
+        kind: 'target-size',
+        widthPx: null,
+        heightPx: null,
+        minSizePx: 24,
+        closestOffsetPx: 10,
+        minOffsetPx: null,
+      },
+      'Vizinho mais próximo a 10 px.',
+    ],
   ] as const)('evidência em texto: %j', async (evidence, text) => {
     const { container } = render(
       <main>
@@ -420,6 +431,26 @@ describe('FindingPreview', () => {
     // Endereços do portal ficam como texto, nunca como link.
     expect(screen.queryByRole('link')).toBeNull();
     await expectNoAxeViolations(container);
+  });
+
+  it('tamanho do alvo sem nenhuma medida não vira um parágrafo vazio', () => {
+    const { container } = render(
+      <FindingPreview
+        example={{
+          ...base,
+          screenshotUrl: '/api/v1/findings/3/screenshot',
+          evidence: {
+            kind: 'target-size',
+            widthPx: null,
+            heightPx: null,
+            minSizePx: 24,
+            closestOffsetPx: null,
+            minOffsetPx: null,
+          },
+        }}
+      />,
+    );
+    expect(container.querySelector('figure p')).toBeNull();
   });
 
   it('sem foto nem evidência não mostra nada; foto que não carrega some', () => {

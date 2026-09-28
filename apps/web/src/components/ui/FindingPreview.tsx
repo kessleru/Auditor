@@ -92,18 +92,22 @@ function ContrastSample({ evidence, text }: { evidence: ContrastEvidence; text: 
   );
 }
 
-function targetSizeText(evidence: TargetSizeEvidence): string {
+/** Medidas do alvo em texto; `null` se o axe não mediu nada (sem parágrafo vazio). */
+function targetSizeText(evidence: TargetSizeEvidence): string | null {
   const parts: string[] = [];
   if (evidence.widthPx !== null && evidence.heightPx !== null) {
     parts.push(
       `Alvo de ${ratio.format(evidence.widthPx)} × ${px(evidence.heightPx)} — mínimo ${ratio.format(evidence.minSizePx)} × ${px(evidence.minSizePx)}`,
     );
   }
-  if (evidence.closestOffsetPx !== null && evidence.minOffsetPx !== null) {
+  if (evidence.closestOffsetPx !== null) {
     parts.push(
-      `vizinho mais próximo a ${px(evidence.closestOffsetPx)} — mínimo ${px(evidence.minOffsetPx)}`,
+      `vizinho mais próximo a ${px(evidence.closestOffsetPx)}${
+        evidence.minOffsetPx === null ? '' : ` — mínimo ${px(evidence.minOffsetPx)}`
+      }`,
     );
   }
+  if (parts.length === 0) return null;
   const text = parts.join('; ');
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
@@ -111,7 +115,8 @@ function targetSizeText(evidence: TargetSizeEvidence): string {
 /** Evidência em texto das regras sem amostra visual: o que foi medido ou lido do elemento. */
 function EvidenceText({ evidence }: { evidence: Exclude<FindingEvidence, ContrastEvidence> }) {
   if (evidence.kind === 'target-size') {
-    return <p className="text-label text-text">{targetSizeText(evidence)}</p>;
+    const text = targetSizeText(evidence);
+    return text ? <p className="text-label text-text">{text}</p> : null;
   }
   const [label, value] =
     evidence.kind === 'image'
