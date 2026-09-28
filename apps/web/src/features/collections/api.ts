@@ -104,7 +104,8 @@ export function applyCollectionEvent(qc: QueryClient, id: number, event: Collect
 /**
  * Progresso por SSE (`EventSource`), atualizando o cache a cada evento. O navegador reconecta
  * sozinho; ao reconectar, a coleta é recarregada para não perder eventos. Depois de 3 falhas
- * seguidas, desiste do SSE e passa a consultar a cada 5 s (seção 7, Fase 7).
+ * seguidas, ou quando o navegador desiste de reconectar, passa a consultar a cada 5 s (seção 7,
+ * Fase 7).
  */
 export function useCollectionEvents(id: number, active: boolean) {
   const qc = useQueryClient();
@@ -133,7 +134,9 @@ export function useCollectionEvents(id: number, active: boolean) {
     };
     source.onerror = () => {
       failures += 1;
-      if (failures >= SSE_MAX_FAILURES) {
+      // Resposta HTTP de erro (ex.: 502 do proxy com a API reiniciando): o navegador fecha a
+      // conexão e não tenta de novo, então esperar 3 falhas deixaria a tela parada.
+      if (failures >= SSE_MAX_FAILURES || source.readyState === EventSource.CLOSED) {
         source.close();
         setPolling(true);
       }

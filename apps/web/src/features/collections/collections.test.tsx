@@ -114,6 +114,22 @@ describe('acompanhamento da coleta (2.1)', () => {
     expect(await screen.findByText(/Atualizando a cada 5 segundos/)).toBeTruthy();
   });
 
+  it('SSE recusado pelo servidor (ex.: 502 do proxy) passa logo a consultar a cada 5 s', async () => {
+    detail = {
+      collection: collection('running', { queued: 2 }),
+      institutions,
+      pages: [page(1), page(2)],
+    };
+    stub();
+    renderRoute('/coletas/7');
+    await screen.findByRole('heading', { level: 1, name: 'Auditoria em execução' });
+    const source = FakeEventSource.instances.at(-1)!;
+    // O navegador não reconecta depois de uma resposta de erro: esperar 3 falhas travaria a tela.
+    act(() => source.failPermanently());
+    expect(source.closed).toBe(true);
+    expect(await screen.findByText(/Atualizando a cada 5 segundos/)).toBeTruthy();
+  });
+
   it('cancelamento pede confirmação', async () => {
     detail = {
       collection: collection('running', { queued: 2 }),
