@@ -1,0 +1,1 @@
+ALTER TABLE `collection_pages` ADD `load_time_ms` integer;

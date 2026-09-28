@@ -54,6 +54,33 @@ export type CollectionStatus = (typeof collectionStatuses)[number];
 export const collectionPageStatuses = ['queued', 'running', 'done', 'failed'] as const;
 export type CollectionPageStatus = (typeof collectionPageStatuses)[number];
 
+/**
+ * Motivo de uma página que não pôde ser auditada, agrupado para o relatório de confiabilidade da
+ * coleta (limitações do estudo). `timeout` é a página que não terminou de carregar no tempo da
+ * coleta; `network`, o servidor inacessível (DNS, conexão, certificado); `off_domain`, o
+ * redirecionamento para fora do domínio (ADR 0016); `tool`, falha da própria ferramenta.
+ */
+export const pageFailureKinds = [
+  'timeout',
+  'http',
+  'off_domain',
+  'network',
+  'not_html',
+  'tool',
+  'other',
+] as const;
+export type PageFailureKind = (typeof pageFailureKinds)[number];
+
+export const pageFailureKindLabels: Record<PageFailureKind, string> = {
+  timeout: 'Tempo esgotado',
+  http: 'Erro HTTP',
+  off_domain: 'Fora do domínio (proteção contra robôs)',
+  network: 'Servidor inacessível',
+  not_html: 'Não é página HTML',
+  tool: 'Falha da ferramenta',
+  other: 'Outro motivo',
+};
+
 export const wcagPrinciples = ['perceivable', 'operable', 'understandable', 'robust'] as const;
 export type WcagPrinciple = (typeof wcagPrinciples)[number];
 

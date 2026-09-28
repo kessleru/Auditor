@@ -188,6 +188,8 @@ describe('execução da coleta', () => {
       violationsCount: 1,
       incompleteCount: 1,
       inapplicableCount: 1,
+      loadTimeMs: 1234,
+      failureKind: null,
     });
 
     const rows = db
@@ -237,6 +239,11 @@ describe('execução da coleta', () => {
       ['ingresso', 'failed', 'net::ERR_CONNECTION_RESET'],
       ['biblioteca', 'failed', 'Erro interno: navegador caiu'],
     ]);
+    // Motivo agrupado, para o relatório de confiabilidade da coleta.
+    const detail = collectionDetailResponseSchema.parse(
+      (await agent.get(`/api/v1/collections/${body.collection.id}`)).body,
+    );
+    expect(detail.pages.map((p) => p.failureKind)).toEqual([null, 'network', 'tool']);
   });
 
   it('nunca audita duas páginas do mesmo host ao mesmo tempo', async () => {
