@@ -1,4 +1,8 @@
-import type { CollectionPage as CollectedPage } from '@auditoria-rf/contracts';
+import {
+  type CollectionPage as CollectedPage,
+  pageFailureKindLabels,
+  summarizeReliability,
+} from '@auditoria-rf/contracts';
 import { RefreshCw } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -14,6 +18,7 @@ import {
   Stepper,
 } from '../../components/ui';
 import { ApiError } from '../../lib/api';
+import { formatSeconds } from '../../lib/format';
 import { useThrottledAnnouncement } from '../../lib/useThrottledAnnouncement';
 import { QueryState } from '../results/QueryState';
 import {
@@ -74,6 +79,7 @@ export function CollectionPage() {
   const retry = useRetryPage(id);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const failuresId = useId();
+  const reliabilityId = useId();
 
   const progress = detail.data?.collection.progress;
   const doneCount = progress ? progress.done + progress.failed : 0;
@@ -108,6 +114,7 @@ export function CollectionPage() {
               )
             : 0;
           const failures = pages.filter((p) => p.status === 'failed');
+          const reliability = summarizeReliability(pages);
           const acronymOf = (institutionId: number) =>
             institutions.find((i) => i.id === institutionId)?.acronym ?? `#${institutionId}`;
           const title =
@@ -200,6 +207,53 @@ export function CollectionPage() {
                   );
                 })}
               </ul>
+
+              {finished && (reliability.loadTime || reliability.failures.length > 0) ? (
+                <section
+                  aria-labelledby={reliabilityId}
+                  className="flex flex-col gap-3 rounded-lg bg-surface p-5 shadow-card"
+                >
+                  <h2 id={reliabilityId} className="text-card text-text">
+                    Confiabilidade da coleta
+                  </h2>
+                  <dl className="flex flex-col gap-3">
+                    {reliability.loadTime ? (
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-label text-text-muted">
+                          Carregamento das páginas avaliadas
+                        </dt>
+                        <dd className="text-body text-text">
+                          mediana {formatSeconds(reliability.loadTime.medianMs)} · máximo{' '}
+                          {formatSeconds(reliability.loadTime.maxMs)} (
+                          {reliability.loadTime.measured === 1
+                            ? '1 página medida'
+                            : `${reliability.loadTime.measured} páginas medidas`}
+                          )
+                        </dd>
+                      </div>
+                    ) : null}
+                    {reliability.failures.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-label text-text-muted">Falhas por motivo</dt>
+                        <dd>
+                          <ul className="flex flex-col gap-1 text-body text-text">
+                            {reliability.failures.map(({ kind, count }) => (
+                              <li key={kind}>
+                                {pageFailureKindLabels[kind]}:{' '}
+                                {count === 1 ? '1 página' : `${count} páginas`}
+                              </li>
+                            ))}
+                          </ul>
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <p className="text-label text-text-muted">
+                    Registro para as limitações do estudo. O tempo é medido pelo navegador até o
+                    evento de carregamento da página.
+                  </p>
+                </section>
+              ) : null}
 
               {failures.length > 0 ? (
                 <section aria-labelledby={failuresId} className="flex flex-col gap-3">

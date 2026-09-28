@@ -26,6 +26,11 @@ export function formatMonth(iso: string): string {
   return `${MONTHS[Number(parts.month) - 1]}/${parts.year}`;
 }
 
+/** 2345 (ms) → "2,3 s". */
+export function formatSeconds(ms: number): string {
+  return `${(ms / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
+}
+
 /** 1234 → "1.234". */
 export function formatNumber(value: number): string {
   return value.toLocaleString('pt-BR');
