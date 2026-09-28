@@ -1,0 +1,16 @@
+# O contexto do build é a raiz do repositório (docker-compose.yml): sem isto, a imagem da API
+# levaria o banco local (com o hash da senha do auditor e as sessões) de apps/api/data, além de
+# node_modules e builds antigos da máquina de quem monta.
+**/node_modules
+**/dist
+**/data
+data
+.env
+.env.*
+!.env.example
+.git
+**/*.log
+coverage
+test-results
+playwright-report
+launcher
