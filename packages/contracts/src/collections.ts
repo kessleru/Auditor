@@ -81,6 +81,8 @@ export const collectionInstitutionSchema = z.object({
 
 export const collectionListItemSchema = collectionSchema.extend({
   institutions: z.array(collectionInstitutionSchema),
+  /** Nome de quem criou a coleta (ex.: a conta "Demonstração", ADR 0015). */
+  createdByName: z.string(),
 });
 export type CollectionListItem = z.infer<typeof collectionListItemSchema>;
 

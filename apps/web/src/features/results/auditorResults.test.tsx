@@ -21,6 +21,7 @@ beforeEach(() => {
             browserVersion: 'Chromium 153',
             userAgent: 'UA',
             createdBy: 1,
+            createdByName: 'Auditora',
             createdAt: '2026-09-12T12:00:00.000Z',
             startedAt: '2026-09-12T12:00:00.000Z',
             finishedAt: '2026-09-12T15:00:00.000Z',
