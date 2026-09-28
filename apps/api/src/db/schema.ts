@@ -1,6 +1,7 @@
 import {
   assistiveCheckKinds,
   assistiveCheckStates,
+  auditDraftSteps,
   axeImpacts,
   collectionPageStatuses,
   collectionStatuses,
@@ -144,6 +145,21 @@ export const discoveryRuns = sqliteTable(
     index('discovery_runs_status_idx').on(t.status),
   ],
 );
+
+// Auditoria em montagem (ADR 0017): escopo e etapa do fluxo 1.1 → 1.2, um por auditor, até a
+// coleta começar ou o auditor descartar.
+export const auditDrafts = sqliteTable('audit_drafts', {
+  id: id(),
+  createdBy: integer('created_by')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  scopeJson: text('scope_json', { mode: 'json' }).notNull(),
+  step: text('step', { enum: auditDraftSteps }).notNull().default('scope'),
+  institutionId: integer('institution_id').references(() => institutions.id),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at').notNull(),
+});
 
 export const collections = sqliteTable('collections', {
   id: id(),

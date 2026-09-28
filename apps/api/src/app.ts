@@ -7,6 +7,8 @@ import type { DB } from './db/client.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { requireAuditor as requireAuditorFor } from './middlewares/requireAuditor.js';
+import { createAuditDraftsController } from './modules/audit-drafts/audit-drafts.controller.js';
+import { createAuditDraftsRoutes } from './modules/audit-drafts/audit-drafts.routes.js';
 import { createAuthController } from './modules/auth/auth.controller.js';
 import { createAuthRoutes } from './modules/auth/auth.routes.js';
 import { readSessionToken, type SecureCookies } from './modules/auth/session-cookie.js';
@@ -74,6 +76,12 @@ export function createApp({
   api.use(
     createCollectionsRoutes(
       createCollectionsController(s.collections, { heartbeatMs: sseHeartbeatMs }),
+      requireAuditor,
+    ),
+  );
+  api.use(
+    createAuditDraftsRoutes(
+      createAuditDraftsController(s.auditDrafts, s.collections),
       requireAuditor,
     ),
   );

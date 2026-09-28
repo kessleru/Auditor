@@ -51,9 +51,10 @@ describe('migrations', () => {
         'inspection_sample',
         'function_absences',
         'discovery_runs',
+        'audit_drafts',
       ]),
     );
-    expect(tables).toHaveLength(14);
+    expect(tables).toHaveLength(15);
   });
 
   it('podem ser reaplicadas sem erro', () => {

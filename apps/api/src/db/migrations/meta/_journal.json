@@ -57,6 +57,13 @@
       "when": 1790608259977,
       "tag": "0007_fila_da_descoberta",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790608431206,
+      "tag": "0008_auditoria_em_montagem",
+      "breakpoints": true
     }
   ]
 }
