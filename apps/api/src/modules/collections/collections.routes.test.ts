@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -148,6 +148,9 @@ describe('execução da coleta', () => {
         url.endsWith('/ingresso')
           ? [{ rule: 'image-alt', targets: ['img.logo', 'img.banner'] }]
           : [],
+        url.endsWith('/ingresso')
+          ? [{ ruleId: 'image-alt', selector: 'img.logo', image: Buffer.from('jpeg') }]
+          : [],
       ),
     );
     const { agent, service } = await setup(auditor);
@@ -197,6 +200,11 @@ describe('execução da coleta', () => {
       severity: 'critical',
       validation: 'pending',
     });
+    // A foto do elemento fica ao lado do snapshot; sem foto, o achado fica sem caminho.
+    const logo = rows.find((f) => f.selector === 'img.logo');
+    expect(logo?.screenshotPath).toBe(`${body.collection.id}/${ingresso!.id}/${logo!.id}.jpg`);
+    expect(readFileSync(join(snapshots.dir, logo!.screenshotPath!)).toString()).toBe('jpeg');
+    expect(rows.find((f) => f.selector === 'img.banner')?.screenshotPath).toBeNull();
 
     const page = db
       .select()
