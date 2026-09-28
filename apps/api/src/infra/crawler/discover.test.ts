@@ -677,4 +677,19 @@ describe('verificação das rotas confirmadas (3.1.7)', () => {
       ['unreachable', null, null],
     ]);
   });
+
+  it('301 que só acrescenta a barra final não é rota movida', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início') },
+      [`${ORIGIN}/ingresso`]: { redirect: '/ingresso/', status: 301 },
+      [`${ORIGIN}/ingresso/`]: { body: html('Ingresso') },
+    });
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      checkUrls: [`${ORIGIN}/ingresso`],
+    });
+    expect(result.checks.map((c) => c.result)).toEqual(['ok']);
+  });
 });
