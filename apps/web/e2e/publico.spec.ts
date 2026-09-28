@@ -71,3 +71,26 @@ test('o teclado alcança o conteúdo pelo link de pular', async ({ page }) => {
   await pular.press('Enter');
   await expect(page.locator('main#conteudo')).toBeFocused();
 });
+
+test('o relatório mostra como o problema aparece no portal', async ({ page, request }) => {
+  // Precisa de um problema confirmado com foto (a demonstração ou uma coleta validada).
+  const { institutions } = (await (await request.get('/api/v1/public/institutions')).json()) as {
+    institutions: { id: number; status: string; problems: number | null }[];
+  };
+  const comProblema = institutions.find((i) => i.status === 'evaluated' && (i.problems ?? 0) > 0);
+  test.skip(!comProblema, 'nenhum problema confirmado no banco (importe a demonstração)');
+
+  await page.goto(`/instituicoes/${comProblema!.id}`);
+  const foto = page.getByRole('img', { name: /Foto do elemento no portal/ }).first();
+  await expect(foto).toBeVisible();
+  // A foto carrega de verdade (não é só o alt de uma imagem quebrada).
+  await expect
+    .poll(() => foto.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+
+  const tamanhoReal = page.getByRole('link', { name: /abrir a foto em tamanho real/ }).first();
+  const endereco = await tamanhoReal.getAttribute('href');
+  const resposta = await request.get(endereco!);
+  expect(resposta.status()).toBe(200);
+  expect(resposta.headers()['content-type']).toBe('image/jpeg');
+});
