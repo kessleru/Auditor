@@ -4,7 +4,18 @@ import { expect, test } from '@playwright/test';
 
 test('a visão pública abre com o resumo e leva ao relatório de uma instituição', async ({
   page,
+  request,
 }) => {
+  // Precisa de ao menos uma instituição avaliada (a demonstração ou uma coleta): num banco vazio,
+  // como o da integração contínua, não há relatório para abrir.
+  const resumo = (await (await request.get('/api/v1/public/summary')).json()) as {
+    institutionsEvaluated: number;
+  };
+  test.skip(
+    resumo.institutionsEvaluated === 0,
+    'nenhuma instituição avaliada no banco (importe a demonstração ou faça uma coleta)',
+  );
+
   await page.goto('/');
   await expect(
     page.getByRole('heading', { level: 1, name: 'Acessibilidade dos portais da Rede Federal' }),
