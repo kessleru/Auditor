@@ -1,9 +1,11 @@
 import {
   assistiveCheckKinds,
   assistiveCheckStates,
+  auditDraftSteps,
   axeImpacts,
   collectionPageStatuses,
   collectionStatuses,
+  discoveryRunStatuses,
   type FindingEvidence,
   findingValidations,
   heuristics,
@@ -117,6 +119,47 @@ export const functionAbsences = sqliteTable(
   },
   (t) => [unique().on(t.institutionId, t.functionId)],
 );
+
+// Fila da descoberta de rotas (ADR 0017): uma linha por rodada. Andamento, resumo e possíveis
+// substituições ficam aqui, e não só em memória, para sobreviver a um reinício da API.
+export const discoveryRuns = sqliteTable(
+  'discovery_runs',
+  {
+    id: id(),
+    institutionId: integer('institution_id')
+      .notNull()
+      .references(() => institutions.id),
+    status: text('status', { enum: discoveryRunStatuses }).notNull().default('queued'),
+    // `null` na CLI, que roda sem sessão.
+    requestedBy: integer('requested_by').references(() => users.id),
+    progressJson: text('progress_json', { mode: 'json' }),
+    summaryJson: text('summary_json', { mode: 'json' }),
+    replacementsJson: text('replacements_json', { mode: 'json' }),
+    error: text('error'),
+    createdAt: createdAt(),
+    startedAt: timestamp('started_at'),
+    finishedAt: timestamp('finished_at'),
+  },
+  (t) => [
+    index('discovery_runs_institution_idx').on(t.institutionId),
+    index('discovery_runs_status_idx').on(t.status),
+  ],
+);
+
+// Auditoria em montagem (ADR 0017): escopo e etapa do fluxo 1.1 → 1.2, um por auditor, até a
+// coleta começar ou o auditor descartar.
+export const auditDrafts = sqliteTable('audit_drafts', {
+  id: id(),
+  createdBy: integer('created_by')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  scopeJson: text('scope_json', { mode: 'json' }).notNull(),
+  step: text('step', { enum: auditDraftSteps }).notNull().default('scope'),
+  institutionId: integer('institution_id').references(() => institutions.id),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at').notNull(),
+});
 
 export const collections = sqliteTable('collections', {
   id: id(),

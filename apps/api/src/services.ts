@@ -12,6 +12,8 @@ import { DomainLocks } from './infra/locks/domain-locks.js';
 import { createFindingsRepository } from './modules/findings/findings.repository.js';
 import { createFindingsService } from './modules/findings/findings.service.js';
 import { createSnapshotStorage } from './infra/storage/snapshot-storage.js';
+import { createAuditDraftsRepository } from './modules/audit-drafts/audit-drafts.repository.js';
+import { createAuditDraftsService } from './modules/audit-drafts/audit-drafts.service.js';
 import { createAuthRepository } from './modules/auth/auth.repository.js';
 import { createAuthService } from './modules/auth/auth.service.js';
 import { createCollectionsRepository } from './modules/collections/collections.repository.js';
@@ -30,6 +32,7 @@ import {
   createDiscoveryService,
   type DiscoverFn,
 } from './modules/routes-discovery/discovery.service.js';
+import { createDiscoveryRunsRepository } from './modules/routes-discovery/discovery-runs.repository.js';
 import { createRoutesRepository } from './modules/routes-discovery/routes.repository.js';
 import { createRoutesService } from './modules/routes-discovery/routes.service.js';
 
@@ -41,6 +44,8 @@ export interface ServiceOptions {
   auditor?: PageAuditor | null;
   snapshotsDir?: string;
   concurrency?: number;
+  /** Descobertas de rotas ao mesmo tempo (instituições diferentes). */
+  discoveryConcurrency?: number;
 }
 
 /** User-agent da ferramenta: contato do .env ou, sem ele, o e-mail do primeiro auditor. */
@@ -99,11 +104,15 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
   const routes = createRoutesService(routesRepository, institutions, timing);
   const discovery = createDiscoveryService(
     routesRepository,
+    createDiscoveryRunsRepository(db),
     institutions,
     options.discover === undefined
       ? perUserAgent(userAgent, buildDiscover)
       : () => options.discover ?? null,
-    timing,
+    {
+      ...timing,
+      concurrency: options.discoveryConcurrency ?? env.DISCOVERY_CONCURRENCY,
+    },
   );
   const collections = createCollectionsService({
     repo: createCollectionsRepository(db),
@@ -121,6 +130,11 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     concurrency: options.concurrency ?? env.COLLECTION_CONCURRENCY,
     ...timing,
   });
+  const auditDrafts = createAuditDraftsService(
+    createAuditDraftsRepository(db),
+    { institutions, discovery, collections },
+    timing,
+  );
   const reportsRepository = createReportsRepository(db);
   const reports = createReportsService(reportsRepository);
   const publicReports = createPublicReportsService(reportsRepository, {
@@ -145,6 +159,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     routes,
     discovery,
     collections,
+    auditDrafts,
     reports,
     publicReports,
     inspections,

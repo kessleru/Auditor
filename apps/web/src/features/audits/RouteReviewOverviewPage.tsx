@@ -1,6 +1,7 @@
-import { pageFunctionLabels } from '@auditoria-rf/contracts';
+import { type AuditDraft, isDiscoveryActive, pageFunctionLabels } from '@auditoria-rf/contracts';
 import { useQueries } from '@tanstack/react-query';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useRef } from 'react';
+import { Link, useNavigate } from 'react-router';
 import {
   Badge,
   Button,
@@ -13,19 +14,55 @@ import {
   Stepper,
 } from '../../components/ui';
 import { ApiError } from '../../lib/api';
-import { useCreateCollection } from '../collections/api';
+import { useThrottledAnnouncement } from '../../lib/useThrottledAnnouncement';
 import { QueryState } from '../results/QueryState';
-import { auditKeys, fetchRoutes, useInstitutions } from './api';
-import { isScopeValid, parseScope, scopeSearch } from './scope';
+import {
+  auditKeys,
+  fetchRoutes,
+  useAuditDraft,
+  useDiscoveries,
+  useInstitutions,
+  useRememberDraftPosition,
+  useStartAuditDraft,
+  useStartDiscoveries,
+} from './api';
+import { DiscardDraft, discoveryCounts, discoveryShortText } from './draftParts';
 
-/** Tela 1.2 (visão geral): andamento da revisão de rotas de cada instituição do escopo. */
+/** Tela 1.2 (visão geral): revisão de rotas e descoberta de cada instituição do escopo salvo. */
 export function RouteReviewOverviewPage() {
-  const [searchParams] = useSearchParams();
-  const scope = parseScope(searchParams);
-  const search = scopeSearch(scope);
+  const draft = useAuditDraft();
+  return (
+    <QueryState
+      query={draft}
+      loadingText="Carregando a auditoria em montagem…"
+      errorTitle="Não foi possível carregar a auditoria em montagem"
+    >
+      {(saved) =>
+        saved && saved.scope.institutionIds.length > 0 && saved.scope.functions.length > 0 ? (
+          <Overview draft={saved} />
+        ) : (
+          <Page>
+            <PageHeader title="Revisão de rotas" />
+            <EmptyState
+              title="Nenhuma auditoria em montagem"
+              description="Escolha as instituições e as páginas avaliadas antes de revisar as rotas."
+              action={<ButtonLink to="/auditorias/nova">Definir o escopo</ButtonLink>}
+            />
+          </Page>
+        )
+      }
+    </QueryState>
+  );
+}
+
+function Overview({ draft }: { draft: AuditDraft }) {
+  const { scope } = draft;
   const institutions = useInstitutions();
-  const createCollection = useCreateCollection();
+  const discoveries = useDiscoveries(scope.institutionIds);
+  const startDiscoveries = useStartDiscoveries(scope.institutionIds);
+  const startCollection = useStartAuditDraft();
   const navigate = useNavigate();
+  useRememberDraftPosition(draft, { step: 'routes', institutionId: null });
 
   const routeQueries = useQueries({
     queries: scope.institutionIds.map((id) => ({
@@ -34,18 +71,27 @@ export function RouteReviewOverviewPage() {
     })),
   });
 
-  if (!isScopeValid(scope)) {
-    return (
-      <Page>
-        <PageHeader title="Revisão de rotas" />
-        <EmptyState
-          title="Escopo incompleto"
-          description="Escolha as instituições e as páginas avaliadas antes de revisar as rotas."
-          action={<ButtonLink to="/auditorias/nova">Definir o escopo</ButtonLink>}
-        />
-      </Page>
-    );
-  }
+  const states = discoveries.data ?? [];
+  const counts = discoveryCounts(states);
+  const active = counts.queued + counts.running;
+  // Sem descoberta ainda ou com a última falha: dá para pedir de novo, em lote.
+  const pendingDiscovery = states
+    .filter((s) => s.status === 'idle' || s.status === 'failed')
+    .map((s) => s.institutionId);
+  const discoverySummary =
+    states.length === 0
+      ? null
+      : active > 0
+        ? `Descoberta em segundo plano: ${counts.running} em andamento, ${counts.queued} na fila, ${counts.completed} ${counts.completed === 1 ? 'concluída' : 'concluídas'}. Dá para revisar as já descobertas ou sair desta tela; o progresso fica salvo.`
+        : `Descoberta: ${counts.completed} ${counts.completed === 1 ? 'concluída' : 'concluídas'}${counts.failed > 0 ? `, ${counts.failed} com falha` : ''}${counts.idle > 0 ? `, ${counts.idle} não ${counts.idle === 1 ? 'feita' : 'feitas'}` : ''}.`;
+  // O leitor de tela ouve as mudanças da fila, curtas, no máximo a cada 10 s.
+  const announcement = useThrottledAnnouncement(
+    active > 0
+      ? `Descoberta: ${counts.running} em andamento, ${counts.queued} na fila, ${counts.completed} ${counts.completed === 1 ? 'concluída' : 'concluídas'}.`
+      : '',
+  );
+  // O botão do lote some quando as instituições entram na fila: o foco vai para o resumo.
+  const summaryRef = useRef<HTMLParagraphElement>(null);
 
   return (
     <Page>
@@ -56,6 +102,38 @@ export function RouteReviewOverviewPage() {
           .map((f) => pageFunctionLabels[f])
           .join(', ')}.`}
       />
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+
+      {discoverySummary ? (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface p-5 shadow-card">
+          <p ref={summaryRef} tabIndex={-1} className="min-w-0 flex-1 basis-64 text-body text-text">
+            {discoverySummary}
+          </p>
+          {pendingDiscovery.length > 0 ? (
+            <Button
+              variant="secondary"
+              disabled={startDiscoveries.isPending}
+              onClick={() =>
+                startDiscoveries.mutate(pendingDiscovery, {
+                  onSuccess: () => requestAnimationFrame(() => summaryRef.current?.focus()),
+                })
+              }
+            >
+              Descobrir rotas de {pendingDiscovery.length}{' '}
+              {pendingDiscovery.length === 1 ? 'instituição' : 'instituições'}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {startDiscoveries.error ? (
+        <p role="alert" className="text-label text-critical-text">
+          {startDiscoveries.error instanceof ApiError
+            ? startDiscoveries.error.message
+            : 'Não foi possível pôr as descobertas na fila.'}
+        </p>
+      ) : null}
 
       <QueryState
         query={institutions}
@@ -76,6 +154,7 @@ export function RouteReviewOverviewPage() {
             return {
               id,
               institution,
+              discovery: states.find((s) => s.institutionId === id),
               confirmed,
               absent,
               reviewed: confirmed + absent,
@@ -86,10 +165,9 @@ export function RouteReviewOverviewPage() {
           const ready = rows.length > 0 && pending.length === 0 && rows.every((r) => !r.loading);
 
           const start = () =>
-            createCollection.mutate(
-              { institutionIds: scope.institutionIds, functions: scope.functions },
-              { onSuccess: ({ collection }) => void navigate(`/coletas/${collection.id}`) },
-            );
+            startCollection.mutate(undefined, {
+              onSuccess: ({ collection }) => void navigate(`/coletas/${collection.id}`),
+            });
 
           return (
             <>
@@ -113,6 +191,33 @@ export function RouteReviewOverviewPage() {
                         </span>
                       </span>
                     ),
+                  },
+                  {
+                    key: 'discovery',
+                    header: 'Descoberta',
+                    cell: (row) =>
+                      row.discovery ? (
+                        <span className="flex flex-col items-start gap-1">
+                          <Badge
+                            variant={
+                              row.discovery.status === 'failed'
+                                ? 'critical'
+                                : isDiscoveryActive(row.discovery.status)
+                                  ? 'moderate'
+                                  : 'neutral'
+                            }
+                          >
+                            {discoveryShortText(row.discovery)}
+                          </Badge>
+                          {row.discovery.status === 'failed' && row.discovery.error ? (
+                            <span className="text-label text-text-muted">
+                              {row.discovery.error}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span className="text-text-muted">Carregando…</span>
+                      ),
                   },
                   {
                     key: 'status',
@@ -140,7 +245,7 @@ export function RouteReviewOverviewPage() {
                     align: 'end',
                     cell: (row) => (
                       <Link
-                        to={`/auditorias/nova/rotas/${row.id}${search}`}
+                        to={`/auditorias/nova/rotas/${row.id}`}
                         aria-label={`Revisar rotas do ${row.institution?.acronym ?? row.id}`}
                         className="text-accent-text underline underline-offset-2 hover:decoration-2"
                       >
@@ -151,13 +256,13 @@ export function RouteReviewOverviewPage() {
                 ]}
               />
 
-              {createCollection.error ? (
+              {startCollection.error ? (
                 <div role="alert">
                   <ErrorState
                     title="Não foi possível iniciar a coleta"
                     description={
-                      createCollection.error instanceof ApiError
-                        ? createCollection.error.message
+                      startCollection.error instanceof ApiError
+                        ? startCollection.error.message
                         : 'Tente de novo em instantes.'
                     }
                   />
@@ -172,13 +277,15 @@ export function RouteReviewOverviewPage() {
               ) : null}
 
               <div className="flex flex-wrap gap-3">
-                <Button onClick={start} disabled={!ready || createCollection.isPending}>
-                  {createCollection.isPending ? 'Iniciando…' : 'Iniciar coleta'}
+                <Button onClick={start} disabled={!ready || startCollection.isPending}>
+                  {startCollection.isPending ? 'Iniciando…' : 'Iniciar coleta'}
                 </Button>
-                <ButtonLink to={`/auditorias/nova${search}`} variant="secondary">
+                <ButtonLink to="/auditorias/nova/escopo" variant="secondary">
                   Voltar ao escopo
                 </ButtonLink>
               </div>
+
+              <DiscardDraft onDiscarded={() => void navigate('/auditorias/nova')} />
             </>
           );
         }}

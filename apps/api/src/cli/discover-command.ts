@@ -51,8 +51,7 @@ export async function runDiscover(
   let failed = 0;
   for (const institution of targets) {
     print(`\n== ${institution.acronym} (${institution.domain})`);
-    services.discovery.start(institution.id);
-    const state = await services.discovery.waitFor(institution.id);
+    const state = await services.discovery.runNow(institution.id);
     if (state.status !== 'completed' || !state.summary) {
       failed++;
       print(`Falhou: ${state.error ?? 'erro desconhecido'}`);

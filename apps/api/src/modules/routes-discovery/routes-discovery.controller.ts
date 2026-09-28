@@ -1,9 +1,11 @@
 import {
   createRouteSchema,
+  discoveryListQuerySchema,
   markFunctionAbsentSchema,
   pageFunctionKeys,
   replaceRouteSchema,
   routeListQuerySchema,
+  startDiscoveriesSchema,
   updateRouteSchema,
 } from '@auditoria-rf/contracts';
 import type { RequestHandler } from 'express';
@@ -18,11 +20,25 @@ export function createRoutesDiscoveryController(
   routes: RoutesService,
 ) {
   const startDiscovery: RequestHandler = (req, res) => {
-    res.status(202).json({ discovery: discovery.start(parseId(req.params.id)) });
+    res
+      .status(202)
+      .json({ discovery: discovery.start(parseId(req.params.id), req.auditor?.id ?? null) });
   };
 
   const getDiscovery: RequestHandler = (req, res) => {
     res.json({ discovery: discovery.get(parseId(req.params.id)) });
+  };
+
+  const listDiscoveries: RequestHandler = (req, res) => {
+    const { institutionIds } = discoveryListQuerySchema.parse(req.query);
+    res.json({ discoveries: discovery.list(institutionIds) });
+  };
+
+  const startDiscoveries: RequestHandler = (req, res) => {
+    const { institutionIds } = startDiscoveriesSchema.parse(req.body);
+    res
+      .status(202)
+      .json({ discoveries: discovery.startMany(institutionIds, req.auditor?.id ?? null) });
   };
 
   const listRoutes: RequestHandler = (req, res) => {
@@ -74,6 +90,8 @@ export function createRoutesDiscoveryController(
   return {
     startDiscovery,
     getDiscovery,
+    listDiscoveries,
+    startDiscoveries,
     listRoutes,
     updateRoute,
     createRoute,

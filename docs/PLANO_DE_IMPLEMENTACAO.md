@@ -647,6 +647,7 @@ Registro das melhorias levantadas no brainstorm e de onde cada uma entrou no pla
 | 14 | Foto do elemento reprovado e evidência medida pelo axe (contraste) nos achados | ADR 0014 |
 | 15 | Coletas de demonstração empacotadas no repositório e importadas pelo seed | ADR 0015, 8.1 |
 | 16 | Portal atrás de proteção contra robôs: falha explicada, nunca auditar outro site | ADR 0016 |
+| 17 | Descoberta de rotas em fila persistida (segundo plano, retomada) e auditoria em montagem salva na etapa em que parou | ADR 0017 |
 
 ### 8.1 Implantação
 

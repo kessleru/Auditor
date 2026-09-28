@@ -50,9 +50,11 @@ describe('migrations', () => {
         'sessions',
         'inspection_sample',
         'function_absences',
+        'discovery_runs',
+        'audit_drafts',
       ]),
     );
-    expect(tables).toHaveLength(13);
+    expect(tables).toHaveLength(15);
   });
 
   it('podem ser reaplicadas sem erro', () => {

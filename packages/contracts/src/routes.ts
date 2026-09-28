@@ -83,7 +83,20 @@ export const routeListResponseSchema = z.object({
 });
 export const functionAbsenceResponseSchema = z.object({ absence: functionAbsenceSchema });
 
-export const discoveryStatuses = ['idle', 'running', 'completed', 'failed'] as const;
+/**
+ * Situação de uma descoberta na fila (ADR 0017): `queued` espera vaga, `running` está lendo o
+ * portal. A fila fica no banco e é retomada quando a API reinicia.
+ */
+export const discoveryRunStatuses = ['queued', 'running', 'completed', 'failed'] as const;
+export type DiscoveryRunStatus = (typeof discoveryRunStatuses)[number];
+
+/** `idle` = a instituição nunca teve descoberta. */
+export const discoveryStatuses = ['idle', ...discoveryRunStatuses] as const;
+export type DiscoveryStatus = (typeof discoveryStatuses)[number];
+
+/** A descoberta ainda não terminou (na fila ou lendo o portal). */
+export const isDiscoveryActive = (status: DiscoveryStatus) =>
+  status === 'queued' || status === 'running';
 
 export const discoverySummarySchema = z.object({
   source: z.enum(['sitemap', 'crawler']),
@@ -136,6 +149,8 @@ export const discoveryStateSchema = z.object({
   status: z.enum(discoveryStatuses),
   /** Andamento enquanto `status = 'running'`; `null` fora disso. */
   progress: discoveryProgressSchema.nullable(),
+  /** Quando entrou na fila; `null` sem descoberta. */
+  queuedAt: z.string().nullable(),
   startedAt: z.string().nullable(),
   finishedAt: z.string().nullable(),
   error: z.string().nullable(),
@@ -146,3 +161,33 @@ export const discoveryStateSchema = z.object({
 export type DiscoveryState = z.infer<typeof discoveryStateSchema>;
 
 export const discoveryResponseSchema = z.object({ discovery: discoveryStateSchema });
+export const discoveryListResponseSchema = z.object({
+  discoveries: z.array(discoveryStateSchema),
+});
+
+const institutionIdList = z
+  .array(z.number().int().positive())
+  .max(100)
+  .transform((ids) => [...new Set(ids)]);
+
+/** Descoberta em lote (várias instituições entram na fila de uma vez). */
+export const startDiscoveriesSchema = z.object({
+  institutionIds: institutionIdList.refine(
+    (ids) => ids.length > 0,
+    'Escolha ao menos uma instituição.',
+  ),
+});
+export type StartDiscoveriesInput = z.input<typeof startDiscoveriesSchema>;
+
+/** `?institutionIds=1,2,3`: situação da descoberta de cada uma. */
+export const discoveryListQuerySchema = z.object({
+  institutionIds: z
+    .string()
+    .transform((value) =>
+      value
+        .split(',')
+        .filter((part) => part.trim() !== '')
+        .map(Number),
+    )
+    .pipe(institutionIdList),
+});

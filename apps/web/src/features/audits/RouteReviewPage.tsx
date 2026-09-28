@@ -1,11 +1,12 @@
 import {
-  type DiscoveryProgress,
+  isDiscoveryActive,
   type PageFunctionKey,
+  pageFunctionKeys,
   pageFunctionLabels,
   type RouteReplacement,
 } from '@auditoria-rf/contracts';
 import { type ReactNode, useId, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import {
   Button,
   ButtonLink,
@@ -18,16 +19,18 @@ import { ApiError } from '../../lib/api';
 import { useThrottledAnnouncement } from '../../lib/useThrottledAnnouncement';
 import { QueryState } from '../results/QueryState';
 import {
+  useAuditDraft,
   useDiscovery,
   useInstitutions,
+  useRememberDraftPosition,
   useReplaceRoute,
   useRoutes,
   useStartDiscovery,
 } from './api';
 import { DiscoveredRoutes } from './DiscoveredRoutes';
+import { progressText } from './draftParts';
 import { FunctionReviewItem } from './FunctionReviewItem';
 import { displayUrl } from './routeLabels';
-import { parseScope, scopeSearch } from './scope';
 
 const errorMessage = (error: unknown) =>
   error instanceof ApiError
@@ -106,20 +109,6 @@ function Replacements({
   );
 }
 
-/** Etapa da descoberta em andamento, com as páginas lidas quando já se sabe o teto. */
-function progressText(progress: DiscoveryProgress | null): string {
-  switch (progress?.phase) {
-    case 'sitemap':
-      return 'Descobrindo rotas: lendo o sitemap…';
-    case 'pages':
-      return `Descobrindo rotas: ${progress.visited} de até ${progress.planned ?? '?'} páginas lidas.`;
-    case 'checks':
-      return 'Descobrindo rotas: conferindo as rotas já confirmadas…';
-    default:
-      return 'Descobrindo rotas: lendo o robots.txt e a página inicial…';
-  }
-}
-
 /** Grupo de funções ("Para revisar" ou "Revisadas"), numa lista com divisórias. */
 function FunctionGroup({
   title,
@@ -148,31 +137,37 @@ function FunctionGroup({
 export function RouteReviewPage() {
   const params = useParams();
   const institutionId = Number(params.institutionId);
-  const [searchParams] = useSearchParams();
-  const scope = parseScope(searchParams);
-  const functions =
-    scope.functions.length > 0
-      ? scope.functions
-      : (Object.keys(pageFunctionLabels) as PageFunctionKey[]);
-  const search = scopeSearch({ ...scope, functions });
+  // Dentro da auditoria em montagem, valem as funções do escopo salvo e a posição fica salva
+  // (ADR 0017); fora dela (vindo da gestão de instituições), todas as funções.
+  const draft = useAuditDraft();
+  const scope =
+    draft.data && draft.data.scope.institutionIds.includes(institutionId) ? draft.data.scope : null;
+  useRememberDraftPosition(scope ? draft.data : null, { step: 'routes', institutionId });
+  const functions: PageFunctionKey[] =
+    scope && scope.functions.length > 0 ? scope.functions : [...pageFunctionKeys];
   const institutions = useInstitutions();
   const routes = useRoutes(institutionId);
   const discovery = useDiscovery(institutionId);
   const start = useStartDiscovery(institutionId);
   const institution = institutions.data?.find((i) => i.id === institutionId);
   const acronym = institution?.acronym ?? '';
-  const position = scope.institutionIds.indexOf(institutionId);
-  const nextId = position >= 0 ? scope.institutionIds[position + 1] : undefined;
+  const position = scope ? scope.institutionIds.indexOf(institutionId) : -1;
+  const nextId = scope && position >= 0 ? scope.institutionIds[position + 1] : undefined;
   const nextAcronym = institutions.data?.find((i) => i.id === nextId)?.acronym;
-  const running = discovery.data?.status === 'running';
+  // Na fila ou lendo o portal: a descoberta roda em segundo plano, mesmo fora desta tela.
+  const running = discovery.data ? isDiscoveryActive(discovery.data.status) : false;
   const summary = discovery.data?.summary;
   const progressRef = useRef<HTMLParagraphElement>(null);
   // A função decidida sai de uma lista e entra na outra: o botão que tinha o foco some.
   const focusProgress = () => requestAnimationFrame(() => progressRef.current?.focus());
 
-  const runningText = running ? progressText(discovery.data?.progress ?? null) : null;
+  const runningText = running
+    ? discovery.data?.status === 'queued'
+      ? 'Descoberta na fila: começa quando outra instituição terminar.'
+      : progressText(discovery.data?.progress ?? null)
+    : null;
   const discoveryText = runningText
-    ? `${runningText} Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos.`
+    ? `${runningText} Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos, e dá para sair desta tela.`
     : summary
       ? `Última descoberta: ${summary.found} URLs, ${summary.withSuggestion} com função sugerida.${
           summary.stoppedEarly === 'failures'
@@ -195,31 +190,44 @@ export function RouteReviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Stepper current={1} />
+      {scope ? <Stepper current={1} /> : null}
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
       <nav aria-label="Trilha de navegação">
         <ol className="flex flex-wrap items-center gap-2 text-label">
-          <li>
-            <Link
-              to={`/auditorias/nova${search}`}
-              className="text-accent-text underline underline-offset-2 hover:decoration-2"
-            >
-              Nova auditoria
-            </Link>
-          </li>
-          <li aria-hidden="true" className="text-text-muted">
-            ›
-          </li>
-          <li>
-            <Link
-              to={`/auditorias/nova/rotas${search}`}
-              className="text-accent-text underline underline-offset-2 hover:decoration-2"
-            >
-              Revisão de rotas
-            </Link>
-          </li>
+          {scope ? (
+            <>
+              <li>
+                <Link
+                  to="/auditorias/nova/escopo"
+                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                >
+                  Nova auditoria
+                </Link>
+              </li>
+              <li aria-hidden="true" className="text-text-muted">
+                ›
+              </li>
+              <li>
+                <Link
+                  to="/auditorias/nova/rotas"
+                  className="text-accent-text underline underline-offset-2 hover:decoration-2"
+                >
+                  Revisão de rotas
+                </Link>
+              </li>
+            </>
+          ) : (
+            <li>
+              <Link
+                to="/gestao/instituicoes"
+                className="text-accent-text underline underline-offset-2 hover:decoration-2"
+              >
+                Instituições
+              </Link>
+            </li>
+          )}
           <li aria-hidden="true" className="text-text-muted">
             ›
           </li>
@@ -312,7 +320,11 @@ export function RouteReviewPage() {
                   onClick={() => start.mutate()}
                   disabled={running || start.isPending}
                 >
-                  {running ? 'Descobrindo…' : 'Descobrir de novo'}
+                  {running
+                    ? discovery.data?.status === 'queued'
+                      ? 'Na fila…'
+                      : 'Descobrindo…'
+                    : 'Descobrir de novo'}
                 </Button>
               </div>
 
@@ -351,14 +363,14 @@ export function RouteReviewPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {nextId !== undefined ? (
-                  <ButtonLink to={`/auditorias/nova/rotas/${nextId}${search}`}>
+                {!scope ? (
+                  <ButtonLink to="/gestao/instituicoes">Voltar às instituições</ButtonLink>
+                ) : nextId !== undefined ? (
+                  <ButtonLink to={`/auditorias/nova/rotas/${nextId}`}>
                     Próxima instituição{nextAcronym ? `: ${nextAcronym}` : ''}
                   </ButtonLink>
                 ) : (
-                  <ButtonLink to={`/auditorias/nova/rotas${search}`}>
-                    Voltar à visão geral
-                  </ButtonLink>
+                  <ButtonLink to="/auditorias/nova/rotas">Voltar à visão geral</ButtonLink>
                 )}
                 {toReview.length > 0 ? (
                   <p className="text-label text-text-muted">
