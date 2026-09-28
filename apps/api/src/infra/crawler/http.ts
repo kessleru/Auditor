@@ -30,7 +30,7 @@ export interface HttpClient {
 export class FetchFailedError extends Error {
   constructor(
     readonly url: string,
-    reason: string,
+    readonly reason: string,
     /** Falha de rede que pode passar numa nova tentativa (não é o caso de resposta grande demais). */
     readonly transient = true,
   ) {
