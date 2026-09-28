@@ -23,7 +23,8 @@ Data: 27/09/2026. Aprovado pelo autor do TCC na conversa de desenho.
   - JPEG qualidade 75;
   - seletor dentro de iframe ou shadow DOM (alvo do axe com mais de um nível), elemento invisível ou
     sem tamanho: sem foto; falha de foto nunca falha a página.
-- Arquivos em `SNAPSHOTS_DIR/<coleta>/<página>/<n>.jpg` (`snapshot-storage`).
+- Arquivos em `SNAPSHOTS_DIR/<coleta>/<página>/<achado>.jpg` (`snapshot-storage`), com o id do
+  achado no nome.
 - Nenhuma mudança de versão do axe nem do navegador; nenhuma mudança nas regras de 3.2.
 
 ### Dados
