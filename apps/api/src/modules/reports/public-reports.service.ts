@@ -76,6 +76,7 @@ export function createPublicReportsService(
       criticalProblems: null,
       templateProblems: null,
       pendingValidation: 0,
+      reviewNeeded: null,
       pagesEvaluated: 0,
       overall: null,
     };
@@ -116,6 +117,7 @@ export function createPublicReportsService(
       criticalProblems: ranked?.criticalProblems ?? 0,
       templateProblems: ranked?.templateProblems ?? 0,
       pendingValidation: entry.summary.pendingValidation,
+      reviewNeeded: entry.summary.incompleteRules,
       pagesEvaluated: ranked?.pagesEvaluated ?? 0,
       overall: {
         conformity: entry.summary.conformity,

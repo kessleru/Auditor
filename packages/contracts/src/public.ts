@@ -26,6 +26,11 @@ export const publicInstitutionSchema = z.object({
   templateProblems: z.number().int().nullable(),
   /** Achados ainda aguardando a validação manual. */
   pendingValidation: z.number().int(),
+  /**
+   * Verificações que o axe não conseguiu decidir (`incomplete`, ex.: contraste sobre imagem), em
+   * todas as páginas avaliadas: ficam fora do cálculo, mas pedem revisão humana (seção 3.3).
+   */
+  reviewNeeded: z.number().int().nullable(),
   /** Páginas avaliadas no núcleo comum. */
   pagesEvaluated: z.number().int(),
   pagesTotal: z.number().int(),

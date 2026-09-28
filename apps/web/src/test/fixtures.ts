@@ -14,6 +14,7 @@ export const iftm: PublicInstitution = {
   criticalProblems: 5,
   templateProblems: 2,
   pendingValidation: 3,
+  reviewNeeded: 7,
   pagesEvaluated: 4,
   pagesTotal: 4,
   coverage: { found: 12, expected: 13, missing: ['class_schedule'] },
@@ -33,6 +34,7 @@ export const ifx: PublicInstitution = {
   criticalProblems: null,
   templateProblems: null,
   pendingValidation: 0,
+  reviewNeeded: null,
   pagesEvaluated: 0,
   overall: null,
 };
