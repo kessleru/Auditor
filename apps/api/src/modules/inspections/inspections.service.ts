@@ -12,9 +12,8 @@ import {
   type InspectionPortal,
   type InspectionProblem,
   type InspectionSummary,
+  isTemplateProblem,
   type TargetTask,
-  TEMPLATE_MIN_PAGES,
-  TEMPLATE_THRESHOLD,
   type TaskInspection,
   type taskInspectionInputSchema,
 } from '@auditoria-rf/contracts';
@@ -87,8 +86,7 @@ export function createInspectionsService(
     const problems = [...byFingerprint.values()].map((group) => {
       const first = group[0] as (typeof rows)[number];
       const pageIds = new Set(group.map((f) => f.collectionPageId));
-      const template =
-        pages.length >= TEMPLATE_MIN_PAGES && pageIds.size / pages.length >= TEMPLATE_THRESHOLD;
+      const template = isTemplateProblem(pageIds.size, pages.length);
       const problem: InspectionProblem = {
         findingId: first.id,
         fingerprint: first.fingerprint,
