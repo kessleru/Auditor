@@ -4,8 +4,10 @@ import type { PageFailureKind } from './domain.js';
 // não de uma coluna nova) vale também para as coletas já feitas; os testes amarram cada mensagem
 // que o motor produz ao seu grupo, para uma mudança de texto não mudar a contagem sem aviso.
 
+// Falhas do lado da pesquisa: o navegador não abriu, caiu ou perdeu a página no meio da análise,
+// a máquina ficou sem internet ou a versão do axe não bate.
 const TOOL =
-  /navegador|axe-core executado|Erro interno|Sem conexão com a internet|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED/i;
+  /navegador|axe-core executado|Erro interno|Sem conexão com a internet|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|Target (?:page, context or browser )?(?:has been )?closed|Browser has been closed|Page crashed|Execution context was destroyed/i;
 const TIMEOUT = /Tempo esgotado|TimeoutError|Timeout \d+ ?ms/i;
 const NOT_HTML = /não é uma página HTML|baixa um arquivo|Download is starting/i;
 const NETWORK =

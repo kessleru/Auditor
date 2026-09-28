@@ -35,6 +35,17 @@ describe('classifyFailure', () => {
     ],
     ['O axe-core executado (4.10.0) difere do registrado na coleta (4.13.0).', 200, 'tool'],
     ['Erro interno: ENOSPC: no space left on device', null, 'tool'],
+    // O navegador caiu ou perdeu a página: falha da ferramenta, não do portal.
+    [described('page.goto: Target page, context or browser has been closed'), null, 'tool'],
+    [described('browser.newContext: Browser has been closed'), null, 'tool'],
+    [described('page.goto: Page crashed'), null, 'tool'],
+    [
+      described(
+        'page.content: Execution context was destroyed, most likely because of a navigation',
+      ),
+      null,
+      'tool',
+    ],
     // Coletas antigas gravavam a mensagem do Playwright como veio.
     ['page.goto: Timeout 30000ms exceeded.', null, 'timeout'],
     ['page.goto: net::ERR_SSL_PROTOCOL_ERROR at https://x', null, 'network'],
