@@ -496,7 +496,16 @@ async function loadRobots(
       );
     }
   } catch (err) {
-    if (!(err instanceof FetchFailedError)) throw err;
+    // RFC 9309 (2.3.1.4): robots.txt inacessível por erro de rede também é tudo proibido. A falha
+    // segue como de rede para o domínio sem "www." ainda ser tentado com "www.".
+    if (err instanceof FetchFailedError) {
+      throw new FetchFailedError(
+        err.url,
+        `${err.reason}. Sem o robots.txt, pelo protocolo (RFC 9309), o portal é tratado como proibido; tente de novo mais tarde`,
+        err.transient,
+      );
+    }
+    throw err;
   }
   return {
     robots: parseRobots(`${origin}/robots.txt`, content, robotsAgent),

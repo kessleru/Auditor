@@ -602,6 +602,17 @@ describe('falhas da página inicial', () => {
     await expect(run(site.client)).rejects.toThrow(/robots\.txt/);
   });
 
+  it('robots.txt inacessível por erro de rede interrompe sem pedir páginas (RFC 9309)', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { networkError: true },
+      'https://if.edu.br/': { body: html('Início') },
+      [`${ORIGIN}/robots.txt`]: { networkError: true },
+      [`${ORIGIN}/`]: { body: html('Início') },
+    });
+    await expect(run(site.client)).rejects.toThrow(/RFC 9309/);
+    expect(site.pageRequests()).toEqual([]);
+  });
+
   it('robots.txt com erro de servidor interrompe a descoberta (RFC 9309)', async () => {
     const site = fakeSite({
       'https://if.edu.br/robots.txt': { status: 503, body: 'fora', contentType: 'text/plain' },
