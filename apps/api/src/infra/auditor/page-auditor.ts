@@ -105,14 +105,21 @@ async function captureElements(page: Page, violations: Result[]): Promise<Elemen
         };
         if (clip.width < 1 || clip.height < 1) continue;
         await element.evaluate((el, name) => el.setAttribute(name, ''), HIGHLIGHT_ATTRIBUTE);
-        const image = await page.screenshot({
-          clip,
-          type: 'jpeg',
-          quality: 75,
-          animations: 'disabled',
-          timeout: 5000,
-        });
-        await element.evaluate((el, name) => el.removeAttribute(name), HIGHLIGHT_ATTRIBUTE);
+        let image: Buffer;
+        try {
+          image = await page.screenshot({
+            clip,
+            type: 'jpeg',
+            quality: 75,
+            animations: 'disabled',
+            timeout: 5000,
+          });
+        } finally {
+          // Sempre sai, mesmo se a foto falhar: senão o contorno aparece na foto do próximo achado.
+          await element
+            .evaluate((el, name) => el.removeAttribute(name), HIGHLIGHT_ATTRIBUTE)
+            .catch(() => {});
+        }
         shots.push({ ruleId: rule.id, selector, image });
       } catch {
         // A foto é complemento: sem ela, o achado mostra só o código.
