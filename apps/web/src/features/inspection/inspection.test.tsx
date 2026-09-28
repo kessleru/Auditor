@@ -129,6 +129,29 @@ describe('portal: contexto, abas e validação (3.3)', () => {
       routes: {
         ...base,
         'GET /collections/5/institutions/1/findings': findings,
+        'GET /collections/5/institutions/1/incomplete': {
+          pagesWithoutResults: 0,
+          rules: [
+            {
+              ruleId: 'color-contrast',
+              title: 'Os elementos devem ter contraste de cor suficiente',
+              helpUrl: 'https://dequeuniversity.com/rules/axe/4.13/color-contrast',
+              wcagCriteria: '1.4.3',
+              nodesTotal: 31,
+              pages: 2,
+              nodes: [
+                {
+                  pageUrl: 'https://iftm.edu.br',
+                  functionKey: 'home',
+                  selector: '.banner p',
+                  htmlSnippet: '<p>Inscrições abertas</p>',
+                  reason:
+                    'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+                },
+              ],
+            },
+          ],
+        },
         'PATCH /findings/11/validation': (init: RequestInit | undefined) => {
           patched = JSON.parse(String(init?.body));
           return Response.json({ finding: {} });
@@ -155,6 +178,18 @@ describe('portal: contexto, abas e validação (3.3)', () => {
 
     const sections = await screen.findAllByRole('heading', { level: 2 });
     expect(sections[0]!.textContent).toContain('Em todas as páginas (template)');
+    // Verificações que o axe não decidiu: só leitura, com o motivo em português.
+    const incomplete = await screen.findByRole('region', {
+      name: /Verificações que o axe não decidiu/,
+    });
+    expect(within(incomplete).getByText('31 elementos')).toBeTruthy();
+    expect(
+      within(incomplete).getByText(
+        'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+      ),
+    ).toBeTruthy();
+    expect(within(incomplete).getByText('Mostrando 1 de 31.')).toBeTruthy();
+    expect(within(incomplete).queryByRole('button', { name: /Confirmar/ })).toBeNull();
     await expectNoAxeViolations(container);
 
     // Filtros por regra e severidade, para não percorrer 100+ problemas um a um.
