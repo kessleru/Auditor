@@ -12,6 +12,8 @@ import { DomainLocks } from './infra/locks/domain-locks.js';
 import { createFindingsRepository } from './modules/findings/findings.repository.js';
 import { createFindingsService } from './modules/findings/findings.service.js';
 import { createSnapshotStorage } from './infra/storage/snapshot-storage.js';
+import { createAuditDraftsRepository } from './modules/audit-drafts/audit-drafts.repository.js';
+import { createAuditDraftsService } from './modules/audit-drafts/audit-drafts.service.js';
 import { createAuthRepository } from './modules/auth/auth.repository.js';
 import { createAuthService } from './modules/auth/auth.service.js';
 import { createCollectionsRepository } from './modules/collections/collections.repository.js';
@@ -128,6 +130,11 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     concurrency: options.concurrency ?? env.COLLECTION_CONCURRENCY,
     ...timing,
   });
+  const auditDrafts = createAuditDraftsService(
+    createAuditDraftsRepository(db),
+    { institutions, discovery, collections },
+    timing,
+  );
   const reportsRepository = createReportsRepository(db);
   const reports = createReportsService(reportsRepository);
   const publicReports = createPublicReportsService(reportsRepository, {
@@ -152,6 +159,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     routes,
     discovery,
     collections,
+    auditDrafts,
     reports,
     publicReports,
     inspections,
