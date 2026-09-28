@@ -51,6 +51,27 @@ describe('incompleteReason', () => {
     );
   });
 
+  it('troca também o ${data} sozinho pelo valor medido', () => {
+    expect(
+      incompleteReason({
+        any: [{ id: 'no-implicit-explicit-label', data: 'Busca' }],
+        all: [],
+        none: [],
+      }),
+    ).toBe('Verifique se o <label> não precisa fazer parte do nome do campo ARIA Busca');
+    expect(
+      incompleteReason({
+        any: [{ id: 'no-implicit-explicit-label', data: ['Nome', 'Busca'] }],
+        all: [],
+        none: [],
+      }),
+    ).toBe('Verifique se o <label> não precisa fazer parte do nome do campo ARIA Nome, Busca');
+    // Sem valor, o marcador some em vez de aparecer na tela.
+    expect(
+      incompleteReason({ any: [{ id: 'no-implicit-explicit-label' }], all: [], none: [] }),
+    ).not.toContain('${');
+  });
+
   it('check sem tradução usa a mensagem do axe', () => {
     expect(
       incompleteReason({
