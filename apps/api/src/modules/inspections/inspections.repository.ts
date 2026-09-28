@@ -37,6 +37,7 @@ export function createInspectionsRepository(db: DB) {
         .select({
           id: collectionPages.id,
           status: collectionPages.status,
+          snapshotPath: collectionPages.snapshotPath,
           url: routes.url,
           institutionId: routes.institutionId,
           functionKey: pageFunctions.key,
