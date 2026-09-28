@@ -41,7 +41,14 @@ const problem = (id: number, overrides = {}) => ({
   occurrences: 1,
   validation: 'pending',
   validationNote: null,
-  example: { pageUrl: 'https://iftm.edu.br', selector: 'img', htmlSnippet: '<img src="a.png">' },
+  example: {
+    findingId: id,
+    pageUrl: 'https://iftm.edu.br',
+    selector: 'img',
+    htmlSnippet: '<img src="a.png">',
+    screenshotUrl: null,
+    evidence: null,
+  },
   ...overrides,
 });
 const findings: InspectionFindings = {
@@ -60,9 +67,12 @@ const findings: InspectionFindings = {
       problems: [
         problem(11, {
           example: {
+            findingId: 11,
             pageUrl: 'https://iftm.edu.br',
             selector: 'main img',
             htmlSnippet: '<img src="b.png">',
+            screenshotUrl: '/api/v1/findings/11/screenshot',
+            evidence: null,
           },
         }),
       ] as never,

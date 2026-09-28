@@ -107,6 +107,7 @@ export function createReportsRepository(db: DB) {
     findingDetailsOf(collectionId: number, institutionId: number) {
       return db
         .select({
+          id: findings.id,
           collectionPageId: findings.collectionPageId,
           fingerprint: findings.fingerprint,
           ruleId: findings.ruleId,
@@ -116,6 +117,8 @@ export function createReportsRepository(db: DB) {
           validation: findings.validation,
           selector: findings.selector,
           htmlSnippet: findings.htmlSnippet,
+          screenshotPath: findings.screenshotPath,
+          evidenceJson: findings.evidenceJson,
           help: findings.help,
           helpUrl: findings.helpUrl,
           pageUrl: routes.url,

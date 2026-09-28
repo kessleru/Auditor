@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { conformityClasses } from './conformity.js';
 import { findingValidations, pageFunctionKeys, severities, wcagPrinciples } from './domain.js';
+import { findingExampleSchema } from './findings.js';
 
 // Visão pública (somente leitura). Cada instituição aparece com a sua coleta mais recente
 // terminada; se falhou nela, é ausência de dado (ADR 0006).
@@ -93,7 +94,7 @@ export const publicProblemSchema = z.object({
   template: z.boolean(),
   pages: z.number().int(),
   occurrences: z.number().int(),
-  example: z.object({ pageUrl: z.string(), selector: z.string(), htmlSnippet: z.string() }),
+  example: findingExampleSchema,
 });
 export type PublicProblem = z.infer<typeof publicProblemSchema>;
 
