@@ -6,6 +6,7 @@ import { Badge, Button, Choice, FindingCard, FindingPreview, Note } from '../../
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import { useInspectionFindings, useValidateFinding } from './api';
+import { IncompleteChecks } from './IncompleteChecks';
 import type { PortalContext } from './context';
 
 const validationBadge = {
@@ -286,6 +287,7 @@ export function ValidationTab() {
                   </section>
                 );
               })}
+              <IncompleteChecks collectionId={collectionId} institutionId={institutionId} />
               <Note title="Por que registrar os falsos positivos">
                 A taxa de confirmação dos achados automatizados é resultado da pesquisa: ela mede o
                 quanto a ferramenta pode ser usada sem revisão humana. Descartar silenciosamente um
