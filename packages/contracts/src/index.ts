@@ -5,6 +5,7 @@ export * from './domain.js';
 export * from './errors.js';
 export * from './findings.js';
 export * from './health.js';
+export * from './indicators.js';
 export * from './inspection.js';
 export * from './institutions.js';
 export * from './public.js';

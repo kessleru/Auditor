@@ -5,6 +5,7 @@ import {
   collectionPages,
   collections,
   findings,
+  functionAbsences,
   institutions,
   pageFunctions,
   routes,
@@ -90,6 +91,37 @@ export function createReportsRepository(db: DB) {
         .where(inArray(collections.status, [...FINISHED]))
         .orderBy(desc(collections.finishedAt), desc(collections.id))
         .get();
+    },
+
+    /** Rotas confirmadas com função, com os indícios da descoberta (ADR 0011). */
+    confirmedRoutesWithEvidence() {
+      return db
+        .select({
+          url: routes.url,
+          source: routes.source,
+          title: routes.title,
+          linkText: routes.linkText,
+          functionKey: pageFunctions.key,
+          domain: institutions.domain,
+        })
+        .from(routes)
+        .innerJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
+        .innerJoin(institutions, eq(institutions.id, routes.institutionId))
+        .where(and(eq(routes.status, 'confirmed'), eq(institutions.active, true)))
+        .all()
+        .map((r) => ({ ...r, functionKey: r.functionKey as PageFunctionKey }));
+    },
+
+    /** Funções marcadas como não encontradas, por instituição ativa. */
+    functionAbsences() {
+      return db
+        .select({ functionKey: pageFunctions.key })
+        .from(functionAbsences)
+        .innerJoin(pageFunctions, eq(pageFunctions.id, functionAbsences.functionId))
+        .innerJoin(institutions, eq(institutions.id, functionAbsences.institutionId))
+        .where(eq(institutions.active, true))
+        .all()
+        .map((r) => r.functionKey as PageFunctionKey);
     },
 
     activeInstitutions() {
