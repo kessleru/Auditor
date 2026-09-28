@@ -1,191 +1,99 @@
-# Onde parou (28/09/2026) — para o próximo Claude continuar
+# Onde parou (28/09/2026, 2ª sessão) — para o próximo Claude continuar
 
-Branch: `feat/previa-e-demonstracao` (ainda sem PR). Desenho aprovado em
-`docs/superpowers/specs/2026-09-27-previa-e-demonstracao-design.md`. O autor pediu para seguir
-**sem parar** e, ao terminar, fazer **ciclos de revisão e melhoria em loop**, priorizando o que
-melhora a **qualidade da auditoria**.
+Branch: `claude/docs-continuous-reading-1qb2x8`, a partir da `main` com o PR #24 (prévia visual e
+demonstração) já integrado. O autor pediu para seguir **sem parar** e, ao terminar, fazer **ciclos
+de revisão e melhoria**, priorizando a **qualidade da auditoria**. Decisões de método (seção 3 do
+plano) **não mudam sem o autor**: estão listadas em "Decisões do autor".
 
-## Pedido do autor (3 partes)
+## Feito nesta sessão (números = itens da lista anterior)
 
-- **A. Prévia visual dos problemas.** ✅ Feito e commitado: foto do elemento na coleta, evidência de
-  contraste, `GET /findings/:id/screenshot`, `FindingPreview` no card. ADR 0014.
-- **B. Demonstração pré-carregada.** Infra ✅ feita e commitada (`npm run demo:export`, importação no
-  `db-seed`, conta "Demonstração" sem login, `DEMO_DATA`). **Falta gerar os dados** (ver abaixo) e
-  escrever a ADR 0015.
-- **C. Bateria de problemas e melhorias.** Em andamento (ver "Revisão").
+| Item | O que mudou |
+| --- | --- |
+| 3 | Verificações que o axe não decidiu (`incomplete`) listadas na aba de validação, por regra, com o motivo em português (locale do axe). **Só leitura** |
+| 4 | `npm run fingerprint:report -- --collection=<id>`: mede o agrupamento (regra + seletor) contra seletor sem `nth-child` e contra o HTML do elemento |
+| 5 | Elemento vai para o centro da janela antes da foto (aviso de cookies e cabeçalho fixo deixam de cobrir) |
+| 6 | `npm run evidence:backfill`: evidência de contraste e tamanho do alvo das coletas antigas, a partir do `.axe.json.gz` |
+| 7 | Visão pública e CSV dizem por que o portal ficou sem dado: bloqueou a ferramenta × fora do ar × falha da ferramenta (`motivo_sem_dado`) |
+| 8, 28 | Tempo de carregamento de cada página (Navigation Timing) e falhas por motivo: bloco "Confiabilidade da coleta" e fim do `npm run collect` |
+| 9, 10 | nginx com CSP, `nosniff`, `Referrer-Policy`, `frame-ancestors`; `location ^~ /api/`. Validado com a imagem `nginx:1.29-alpine` e no navegador (sem violação de CSP) |
+| 14, 15 | E2E e dogfood rodados (verdes); `/dev/ui` sem violação no navegador real; axe em 390 e 1280 px nas telas do auditor |
+| 16 | Link "abrir a foto em tamanho real (abre em nova aba)" |
+| 17, 29 | Evidência: fonte do contraste (a amostra usa a fonte do portal), tamanho do alvo e distância (`target-size`), endereço da imagem, destino do link, tipo do campo |
+| 18, 20, 21 | Spec corrigida; README (prévia, demonstração, comandos, limitações; caminhos do launcher que tinham perdido a `\`); ADRs 0014–0016 no plano |
+| 25 | `npm run retest -- --institution=<sigla> [--rounds=2] [--out x.json]`: teste-reteste, concordância entre rodadas, nada gravado |
+| 26, 27 | Página `/indicadores` (auditor): taxa de confirmação por regra (CSV com dicionário) e acerto da sugestão de função |
+| 31, 32 | Limitações no README e na `/metodologia` (identificação `AuditoriaRF`, só desktop, recursos da página, conteúdo após rolagem) |
+| 34 | `npm run backup [-- --out <pasta>]`: cópia online do SQLite e dos snapshots |
+| 35 | Conferido: sessões vencidas são apagadas a cada login (`deleteExpiredSessions`) |
+| 36 | Limite por IP na API pública (600/10 min), nas fotos (3.000/10 min) e nos CSVs (20/10 min) |
+| 37 | `.github/workflows/ci.yml`: lint, tipos, testes; build, E2E e dogfood (falha com achado crítico). **Ainda não rodou no GitHub** |
+| 38 | Filtros por regra e severidade na validação (em lote, não: ver decisões) |
+| 39 | Coluna "Autor" na lista de coletas |
+| 40, 41 | `/metodologia` explica foto e evidência, bloqueio antirrobô e limites; E2E da prévia visual |
+| — | ADR 0015 (demonstração) escrita; ADR 0014 ampliada |
+| — | Achados da revisão: 7 regras do axe sem tradução no locale (ex.: `target-size`) ganharam título em português; tabela que rola em tela estreita vira região focável (WCAG 2.1.1); "sem dado" sem página que falhou não é mais "bloqueio"; lint ignora `playwright-report` e `e2e/.auth` |
 
-## Commits desta branch
+Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 416, web 95, contracts 39).
 
-`docs` spec · `feat(api)` foto + evidência · `feat(api)` exemplo + rota da foto · `feat(web)` prévia ·
-`feat(api)` demonstração · `fix(api)` timeout no corpo · `fix(api)` descoberta fora do domínio ·
-`fix(api)` coleta fora do domínio (ADR 0016) · `feat` incomplete exibido · `chore(docker)`
-.dockerignore. Tudo com lint, typecheck e testes passando até o último commit de código.
+## Falta: dados da demonstração (parte B do pedido anterior)
 
-## B — como terminar a demonstração
+A rede do ambiente de nuvem desta sessão bloqueia os portais (`403` no proxy para
+`www.cefetmg.br`, `www.ifnmg.edu.br` etc.): **rodar na máquina do autor** ou liberar os domínios nas
+configurações de rede do ambiente. Passos (inalterados, ver também a ADR 0015):
 
-Scripts de apoio (fora do repositório) em
-`%TEMP%\claude\c--Users-otavi-OneDrive-Documentos-Auditor\ce44e1f4-...\scratchpad\demo\`
-(`common.ts`, `discover.ts`, `candidates.ts`, `search.ts`, `decide.ts`, `collect.ts`, `pages.ts`).
-Se sumirem, refazer: usam `createServices` com `DATABASE_PATH`/`SNAPSHOTS_DIR` apontando para um
-banco à parte e `ensureDemoAuditor` de `apps/api/src/db/seeds/demo.ts`. Rodar de `apps/api` com
-`npx tsx --conditions=development --env-file-if-exists=../../.env <script>`.
+1. Escolher 3 portais que respondem (IFTM e IFMG bloqueiam com Radware; **avisar o autor**, que tinha
+   escolhido "IFTM + 2 de MG").
+2. Banco à parte (`DATABASE_PATH`/`SNAPSHOTS_DIR` temporários), descobrir, confirmar uma rota por
+   função (ou "não encontrada" com motivo), coletar, marcar a subamostra e validar cada problema.
+3. Com os dados: `npm run fingerprint:report` e `npm run retest` para os números do TCC.
+4. `npm run demo:export -- --collections=<ids>`, conferir o tamanho de `apps/api/demo/`, commitar.
 
-Estado da última descoberta (banco à parte, 28/09):
+## Decisões do autor (perguntar; não mudar sozinho)
 
-- **IFTM e IFMG: bloqueados** pelo Radware Bot Manager (302 para `validate.perfdrive.com`). Pela
-  ADR 0012/0016 não se contorna: ficam como ausência de dado.
-- **IFSULDEMINAS** terminou rápido demais: investigar (`candidates.ts IFSULDEMINAS`).
-- **CEFET-MG** e **IFNMG** estavam no meio da descoberta quando parei (rodar de novo se preciso).
+1. **Espera `networkidle`** (3.2.1): portal com conexão permanente nunca fica ocioso → ausência de
+   dado. Proposta (ADR 0012): `load` + até 30 s de `networkidle`, auditar mesmo sem ele e registrar.
+2. **`robots.txt` na coleta**: a coleta não confere o robots na hora (rota manual, robots mudado).
+3. **Verificações inconclusivas**: agora aparecem. Decidir se o auditor registra uma decisão sobre
+   elas, se isso entra no cálculo, e se a coleta deve fotografar também esses elementos.
+4. **Agrupamento dos problemas** (ADR 0003): na coleta local de teste, o seletor genérico `p` juntou
+   dois textos diferentes de páginas diferentes num único problema "de template". O inverso
+   (`nth-child` partindo um problema) também é possível. Rodar `npm run fingerprint:report` nos dados
+   reais e decidir se a chave muda (ex.: regra + seletor + HTML normalizado).
+5. **Só desktop (1280×800)**: segunda passada em 390 px? (item 22)
+6. **Regras `best-practice`** (`region`, `heading-order`...): registrar à parte, fora da nota? (23)
+7. **Conteúdo carregado ao rolar** não é avaliado. (24)
+8. **LGPD nas fotos**: recorte pode mostrar pessoa; hoje a foto de achado confirmado é pública. (33)
+9. **Validação em lote** (item 38): só com justificativa por problema? Hoje, um por vez.
+10. **Captura da página inteira** (item 30): estimativa 0,5–1,5 MB por página em JPEG → 13 páginas ×
+    42 instituições ≈ 270–820 MB por coleta. Vale o espaço?
 
-Passos restantes:
+## Não verificado aqui
 
-1. Escolher 3 portais que respondem (sugestão: CEFET-MG, IFNMG e IFSULDEMINAS ou IF Sudeste MG;
-   o IFTM pode entrar com rotas manuais para mostrar "ausência de dado"). **Avisar o autor** da
-   troca: ele tinha escolhido "IFTM + 2 de MG".
-2. Confirmar uma rota por função (ou "não encontrada" com motivo) com `decide.ts`.
-3. Coletar (`collect.ts`), marcar os 3 na subamostra (`services.inspections.setSample`) e validar
-   cada problema distinto olhando foto e código (`services.inspections.validate`, conta demo,
-   justificativa sempre).
-4. `npm run demo:export -- --collections=<id>` com o `.env` apontando para o banco à parte; conferir
-   o tamanho de `apps/api/demo/`; commitar; ADR 0015 (dados de demonstração).
+- **Imagens Docker (item 11)**: o `npm ci` dentro do contêiner falhou pela rede deste ambiente
+  ("Exit handler never called"), não pelo Dockerfile. Rodar `cd docker && docker compose build` na
+  máquina do autor; conferir que `apps/api/demo/` entra na imagem da API.
+- **CI no GitHub**: primeira execução acontece no PR; conferir e corrigir se algo falhar.
+- `npm audit`: 4 moderadas só em dev (esbuild antigo via `drizzle-kit`). A máquina do autor roda
+  Node 24; o projeto fixa 22 (`nvm use` antes de coletar).
 
-## Revisão (C) — achados ainda não resolvidos
+## Comandos novos
 
-Qualidade da auditoria:
-
-- `networkidle` nunca termina em portais com conexão permanente → ausência de dado. Pendente de
-  decisão do autor (ADR 0012). **Perguntar**, não mudar sozinho.
-- A coleta não confere o `robots.txt` na hora de auditar (rotas manuais ou robots alterado depois
-  da descoberta). Decisão de método: **perguntar**.
-- Itens `incomplete` do axe: agora contados na tela, mas o auditor não vê quais são. Proposta:
-  listar na aba de validação (com foto). Decidir com o autor se a decisão dele entra no cálculo.
-- Medir com os dados da demonstração se seletores com `nth-child` partem um problema de template
-  em vários "distintos" (infla a métrica principal).
-
-Outros:
-
-- nginx sem cabeçalhos de segurança (CSP, `X-Content-Type-Options`, `frame-ancestors`); lembrar
-  que `add_header` numa `location` apaga os herdados. CSP proposta:
-  `default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';
-  connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`.
-- `npm audit`: 0 em produção; 4 moderadas só em dev (esbuild antigo via `@esbuild-kit`).
-- A máquina roda Node 24; o projeto fixa Node 22.
-
-Depois: abrir PR da branch (o que muda, como testar, critérios de aceite; nunca atribuição a IA)
-e seguir em ciclos de revisão → correção com teste → commit.
+`npm run backup`, `npm run evidence:backfill`, `npm run fingerprint:report -- --collection=<id>`,
+`npm run retest -- --institution=<sigla>`. Rotas novas: `GET /reports/indicators` (+ `rules.csv`,
+`rules-dictionary.csv`) e `GET /collections/:id/institutions/:iid/incomplete`, ambas do auditor.
 
 ## Como trabalhar aqui (resumo para quem chega)
 
 - Ler `CLAUDE.md` e a seção do plano antes de mexer. Regras da seção 3 do plano **não mudam sem o
   autor**: na dúvida, perguntar.
 - TDD: teste falhando → correção → `npm run lint`, `npm run typecheck`, `npm test`.
-- Commits pequenos, Conventional Commits em português, **sem** Co-Authored-By nem menção a IA.
-- Todo PR que toca `apps/web` passa pela skill `a11y-code-review`.
-- Decisão relevante vira ADR em `docs/decisoes/` (próximas: 0015 demonstração, 0017+).
-
-## Lista completa: problemas, melhorias e revisões
-
-Legenda: **[P]** problema real · **[M]** melhoria · **[D]** precisa de decisão do autor.
-Ordem = prioridade sugerida.
-
-### Qualidade da auditoria (prioridade do autor)
-
-1. **[D] Espera `networkidle`** (seção 3.2.1): portal com chat, vídeo ou analytics contínuo nunca
-   fica ocioso → tempo esgotado → ausência de dado. Proposta (ADR 0012): esperar `load` e até 30 s
-   por `networkidle`, auditar mesmo sem ele e registrar isso na página.
-2. **[D] `robots.txt` na coleta**: a coleta não confere o robots na hora de auditar (rota manual ou
-   robots alterado depois da descoberta). Proposta: conferir e falhar a página com o motivo.
-3. **[M/D] Itens `incomplete` visíveis**: hoje só o número aparece. Listar na aba de validação
-   (regra, elemento, foto — fotografar também os nós `incomplete`). Decidir se a decisão do auditor
-   sobre eles entra na conformidade ou só fica registrada.
-4. **[M] Medir fragmentação de template**: seletores com `nth-child` diferentes entre páginas podem
-   partir um problema de template em vários distintos (infla a métrica principal). Comparar, nos
-   dados da demonstração, `rule+seletor` × `rule+html normalizado`. Se confirmar → **[D]** ajustar o
-   `fingerprint` (ADR 0003).
-5. **[M] Banner de cookies/LGPD e cabeçalho fixo** cobrem a foto do elemento. Medir; se for comum,
-   rolar com margem para o cabeçalho fixo antes da foto.
-6. **[M] Coletas antigas sem foto/evidência**: dá para preencher a evidência de contraste a partir do
-   `.axe.json.gz` já salvo (foto não). Comando de preenchimento retroativo, opcional.
-7. **[M] Portal bloqueado**: mostrar na visão pública o motivo da ausência de dado ("bloqueou a
-   ferramenta" × "fora do ar"), hoje só aparece "sem dado".
-8. **[M] Confiabilidade**: registrar na coleta quantas páginas falharam por tipo de motivo (tempo,
-   HTTP, fora do domínio) para o capítulo de limitações do TCC.
-
-### Segurança e implantação
-
-9. **[P] nginx sem cabeçalhos de segurança** (CSP, `X-Content-Type-Options: nosniff`,
-   `Referrer-Policy`, `frame-ancestors 'none'`). Atenção: `add_header` numa `location` apaga os
-   herdados — repetir na `location` dos assets. CSP proposta acima.
-10. **[P] nginx: a `location ~* \.(js|css|svg|woff2?)$` vence o prefixo `/api/`**: uma rota da API
-    terminada nessas extensões seria servida como arquivo estático. Usar `location ^~ /api/`.
-11. **[M] Imagem Docker**: conferir que o build ainda passa com o `.dockerignore` novo (Docker não
-    estava rodando nesta máquina) e que `apps/api/demo/` entra na imagem.
-12. **[M] `npm audit`**: 4 moderadas em dev (esbuild antigo via `@esbuild-kit`, dependência do
-    drizzle-kit). Não afeta produção; atualizar quando o drizzle-kit permitir.
-13. **[P] Node 24 na máquina**, projeto fixa Node 22 (`.nvmrc`). Testes passaram, mas o
-    `better-sqlite3`/Chromium são compilados contra a 22: usar `nvm use` antes de coletar.
-
-### Front e acessibilidade
-
-14. **[M] Rodar o dogfood** (`npm run dogfood -- --base <url>`) e os E2E (`npm run test:e2e`) depois
-    da prévia visual: nenhum dos dois foi rodado nesta sessão.
-15. **[M] Catálogo `/dev/ui`**: ganhou o card de contraste; conferir no navegador (axe sem
-    violação).
-16. **[M] Foto em tamanho real**: a prévia limita a 320 px de altura; oferecer "abrir a foto" num
-    link, com nome acessível.
-17. **[M] Amostra de contraste**: usa `system-ui`; o portal pode usar outra fonte. Registrar a
-    família da fonte na evidência (o axe não dá; pegar do `getComputedStyle` na coleta).
-
-### Código e processo
-
-18. **[M] Spec** diz `<n>.jpg`; o código grava `<achado>.jpg`. Ajustar a spec.
-19. **[M] `docs/CONTINUAR.md`** é temporário: apagar quando a branch virar PR.
-20. **[M] README**: citar a demonstração (`DEMO_DATA`, `npm run demo:export`) e a prévia visual.
-21. **[M] Plano**: registrar ADRs 0014–0016 na tabela da seção 8.
-
-### Mais — qualidade da auditoria
-
-22. **[D] Só desktop (1280×800)**: nada é auditado em largura de celular; o reflow (1.4.10) fica só
-    na verificação manual de zoom. Avaliar uma segunda passada em 390 px.
-23. **[D] Regras `best-practice` fora** (ex.: `region`, `heading-order`, `landmark-one-main`): não
-    são WCAG, mas ajudam a explicar a usabilidade. Registrar à parte, fora da conformidade?
-24. **[D] Conteúdo carregado ao rolar** não é avaliado (o axe roda no DOM do carregamento). Rolar
-    até o fim antes do axe muda o método.
-25. **[M] Teste-reteste**: auditar a mesma página duas vezes e comparar (carrossel e anúncio mudam o
-    resultado). Dá um número de confiabilidade para o TCC.
-26. **[M] Acerto da sugestão de função**: comparar sugestão × rota confirmada (os dados já estão no
-    banco) — indicador da descoberta para o TCC.
-27. **[M] Falso positivo por regra**: a taxa já é registrada; mostrar por regra no relatório do
-    auditor e no CSV.
-28. **[M] Tempo de carregamento** de cada página (já medido pelo navegador): guardar e exibir; é
-    dado de usabilidade e explica os tempos esgotados.
-29. **[M] Evidência de outras regras**, além do contraste, a partir do `data` do axe:
-    `target-size` (tamanho e distância medidos), `image-alt` (endereço da imagem), `link-name`
-    (destino do link), `label` (tipo do campo).
-30. **[M] Snapshot só em HTML**: sem CSS e imagens, não reproduz a página. Avaliar guardar também
-    uma captura da página inteira (atenção ao tamanho).
-31. **[P] Recursos da página fora do intervalo de 1,5 s**: o intervalo vale para a navegação, mas o
-    navegador baixa CSS, JS e imagens de uma vez. Registrar em "limitações" (é o que um cidadão faz).
-32. **[P] Versão para robô**: portais podem servir outra página (ou bloquear) para o user-agent
-    `AuditoriaRF`; o resultado pode diferir do que o cidadão vê. Registrar em "limitações".
-
-### Mais — segurança, dados e implantação
-
-33. **[D] LGPD nas fotos**: um recorte pode mostrar nome ou foto de pessoa (notícia, servidor). Hoje
-    a foto de achado confirmado é pública. Avaliar deixar a foto só para o auditor ou borrar rostos.
-34. **[M] Backup**: o plano (8.1) pede cópia periódica do SQLite e dos snapshots; não há script
-    (`npm run backup`), e o launcher não faz.
-35. **[M] Sessões expiradas**: conferir se são apagadas do banco (senão a tabela só cresce).
-36. **[M] Limite de requisições na API pública** (CSV e listagens) além do login.
-37. **[M] CI**: conferir se há workflow rodando lint, typecheck, testes e o dogfood (Fase 12 pede o
-    dogfood falhando o build em violação crítica).
-
-### Mais — front e fluxo do auditor
-
-38. **[M] Validação lenta**: 100+ problemas por portal, um a um. Filtros por regra e severidade na
-    aba de validação; validação em lote só com justificativa por problema (cuidado metodológico).
-39. **[M] Autor da coleta** visível na lista de coletas (deixa claro o que é "Demonstração").
-40. **[M] Página `/metodologia`**: explicar a foto e a evidência (ADR 0014), o bloqueio antirrobô
-    como causa de ausência de dado (ADR 0016) e as verificações inconclusivas.
-41. **[M] E2E** cobrindo a prévia visual (foto e amostra de contraste) e a revisão de rotas com
-    descoberta bloqueada.
+- Commits pequenos, Conventional Commits em português, **sem** Co-Authored-By nem menção a IA (o
+  hook `commit-msg` remove, mas não conte com ele).
+- Todo PR que toca `apps/web` passa pela skill `a11y-code-review`; conferir também no navegador
+  (axe em 1280 e 390 px).
+- Na nuvem do Claude Code, o Chromium pré-instalado (`/opt/pw-browsers`) é de outra revisão que a do
+  Playwright 1.63: crie uma pasta com `chromium-1243/chrome-linux64` → `chromium-1194/chrome-linux`
+  e `chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell` →
+  `headless_shell` (mais os arquivos `INSTALLATION_COMPLETE`) e aponte `PLAYWRIGHT_BROWSERS_PATH`
+  para ela. Não rode `playwright install`.
+- Próxima ADR livre: 0017.
