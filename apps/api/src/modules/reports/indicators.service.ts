@@ -28,10 +28,26 @@ const RULES_CSV: [coluna: string, descricao: string][] = [
   ],
 ];
 
-/** Subdomínio da instituição (ex.: biblioteca.if.edu.br): a descoberta sugere também pelo host. */
-function isSubdomain(url: string, domain: string): boolean {
-  const host = new URL(url).hostname;
-  return host !== domain && host !== `www.${domain}`;
+const hostOf = (url: string) => new URL(url).hostname;
+
+/**
+ * Host do portal de cada instituição: o mais frequente entre os endereços descobertos. A
+ * descoberta rastreia só a origem do portal, que pode não ser `www.<domínio>` (a página inicial
+ * pode redirecionar para `portal.<domínio>`); links de outro subdomínio são poucos.
+ */
+export function portalHosts(urls: readonly { institutionId: number; url: string }[]) {
+  const counts = new Map<number, Map<string, number>>();
+  for (const { institutionId, url } of urls) {
+    const hosts = counts.get(institutionId) ?? new Map<string, number>();
+    hosts.set(hostOf(url), (hosts.get(hostOf(url)) ?? 0) + 1);
+    counts.set(institutionId, hosts);
+  }
+  return new Map(
+    [...counts].map(([institutionId, hosts]) => [
+      institutionId,
+      [...hosts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] as string,
+    ]),
+  );
 }
 
 /**
@@ -90,6 +106,7 @@ export function createIndicatorsService(repo: ReportsRepository) {
         },
       ]),
     );
+    const portalHostOf = portalHosts(repo.discoveredUrls());
     for (const route of repo.confirmedRoutesWithEvidence()) {
       const row = rows.get(route.functionKey);
       if (!row) continue;
@@ -102,7 +119,8 @@ export function createIndicatorsService(repo: ReportsRepository) {
         url: route.url,
         title: route.title ?? undefined,
         linkText: route.linkText ?? undefined,
-        includeHost: isSubdomain(route.url, route.domain),
+        // Link para outro subdomínio da instituição: a descoberta sugere também pelo host.
+        includeHost: hostOf(route.url) !== portalHostOf.get(route.institutionId),
       });
       if (suggested === route.functionKey) row.hits++;
       else if (suggested === null) row.noSuggestion++;

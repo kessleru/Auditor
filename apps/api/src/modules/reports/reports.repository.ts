@@ -1,5 +1,5 @@
 import type { CollectionScope, PageFunctionKey } from '@auditoria-rf/contracts';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import {
   collectionPages,
@@ -97,12 +97,12 @@ export function createReportsRepository(db: DB) {
     confirmedRoutesWithEvidence() {
       return db
         .select({
+          institutionId: routes.institutionId,
           url: routes.url,
           source: routes.source,
           title: routes.title,
           linkText: routes.linkText,
           functionKey: pageFunctions.key,
-          domain: institutions.domain,
         })
         .from(routes)
         .innerJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
@@ -110,6 +110,16 @@ export function createReportsRepository(db: DB) {
         .where(and(eq(routes.status, 'confirmed'), eq(institutions.active, true)))
         .all()
         .map((r) => ({ ...r, functionKey: r.functionKey as PageFunctionKey }));
+    },
+
+    /** Endereços que a descoberta encontrou (sitemap ou rastreamento), por instituição ativa. */
+    discoveredUrls() {
+      return db
+        .select({ institutionId: routes.institutionId, url: routes.url })
+        .from(routes)
+        .innerJoin(institutions, eq(institutions.id, routes.institutionId))
+        .where(and(ne(routes.source, 'manual'), eq(institutions.active, true)))
+        .all();
     },
 
     /** Funções marcadas como não encontradas, por instituição ativa. */

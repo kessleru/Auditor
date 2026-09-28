@@ -469,10 +469,13 @@ describe('indicadores da pesquisa (auditor)', () => {
           title,
         })
         .run();
-    discovered('https://if-e.edu.br/processo-seletivo', 'admission', 'Processo seletivo'); // acerto
+    // O portal fica em portal.if-e.edu.br (a página inicial redireciona para lá): é a origem do
+    // rastreamento, e não um subdomínio de fora.
+    discovered('https://portal.if-e.edu.br', 'home', 'Início'); // acerto: a raiz do portal
+    discovered('https://portal.if-e.edu.br/processo-seletivo', 'admission', 'Processo seletivo');
     discovered('https://biblioteca.if-e.edu.br', 'library', null); // acerto pelo subdomínio
-    discovered('https://if-e.edu.br/biblioteca', 'courses', 'Biblioteca'); // sugeria outra
-    discovered('https://if-e.edu.br/pagina-123', 'contact', 'Página'); // sem sugestão
+    discovered('https://portal.if-e.edu.br/biblioteca', 'courses', 'Biblioteca'); // sugeria outra
+    discovered('https://portal.if-e.edu.br/pagina-123', 'contact', 'Página'); // sem sugestão
 
     const agent = await loggedInAgent(app, db);
     const { suggestions } = indicatorsSchema.parse(
@@ -484,7 +487,7 @@ describe('indicadores da pesquisa (auditor)', () => {
     expect(row('courses')).toMatchObject({ discovered: 1, hits: 0, otherFunction: 1 });
     expect(row('contact')).toMatchObject({ discovered: 1, hits: 0, noSuggestion: 1 });
     // Rotas das fixtures foram informadas à mão; IFD marcou tudo como não encontrado.
-    expect(row('home')).toMatchObject({ discovered: 0, manual: 3, absent: 1 });
+    expect(row('home')).toMatchObject({ discovered: 1, hits: 1, manual: 3, absent: 1 });
     expect(suggestions).toHaveLength(13);
   });
 });
