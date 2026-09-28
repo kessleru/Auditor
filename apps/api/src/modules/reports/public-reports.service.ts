@@ -1,4 +1,5 @@
 import {
+  classifyFailure,
   CONFORMITY_THRESHOLDS,
   type Methodology,
   type NoDataReason,
@@ -12,7 +13,6 @@ import {
   TEMPLATE_MIN_PAGES,
   TEMPLATE_THRESHOLD,
 } from '@auditoria-rf/contracts';
-import { classifyFailure } from '../../infra/auditor/failure-kind.js';
 import { AXE_TAGS } from '../../infra/auditor/page-auditor.js';
 import { ruleTexts } from '../../infra/auditor/rule-texts.js';
 import { NotFoundError } from '../../shared/errors.js';

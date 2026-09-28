@@ -1,7 +1,9 @@
 import { errors } from 'playwright';
 import { describe, expect, it } from 'vitest';
-import { classifyFailure } from './failure-kind.js';
+import { classifyFailure } from '@auditoria-rf/contracts';
 import { describeFailure, offDomainReason } from './page-auditor.js';
+
+// O classificador fica em contracts; este teste amarra cada mensagem que o motor grava ao grupo.
 
 const described = (message: string) => describeFailure(new Error(message), 30_000);
 

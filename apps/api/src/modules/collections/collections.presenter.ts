@@ -1,5 +1,9 @@
-import type { Collection, CollectionPage, CollectionProgress } from '@auditoria-rf/contracts';
-import { classifyFailure } from '../../infra/auditor/failure-kind.js';
+import {
+  classifyFailure,
+  type Collection,
+  type CollectionPage,
+  type CollectionProgress,
+} from '@auditoria-rf/contracts';
 import type { CollectionPageWithRoute, CollectionRow } from './collections.repository.js';
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
