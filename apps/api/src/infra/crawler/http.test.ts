@@ -242,6 +242,23 @@ describe('createHttpClient', () => {
     });
     await expect(client.get('https://a.edu.br/x')).rejects.toThrow(/redirecionamentos demais/);
   });
+
+  it('Location malformado vira FetchFailedError, sem nova tentativa', async () => {
+    const { clock, now } = fakeClock();
+    const { calls, make } = fakeFetch({
+      'https://a.edu.br/x': () =>
+        new Response(null, { status: 302, headers: { location: 'http://[::1' } }),
+    });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+    });
+    const error = await client.get('https://a.edu.br/x').catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(FetchFailedError);
+    expect(String(error)).toMatch(/redirecionamento para endereço inválido/);
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe('parseRetryAfter', () => {
