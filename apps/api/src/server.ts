@@ -11,8 +11,9 @@ runMigrations(db);
 seedReferenceData(db);
 
 const app = createApp({ db });
-// Retomada: coletas interrompidas por reinício voltam para a fila.
+// Retomada: coletas e descobertas interrompidas por reinício voltam para a fila.
 app.services.collections.resume();
+app.services.discovery.resume();
 
 const server = app.listen(env.API_PORT, () => {
   logger.info(`API em http://localhost:${env.API_PORT}`);
@@ -22,6 +23,7 @@ async function shutdown(signal: string) {
   logger.info(`${signal} recebido; encerrando.`);
   server.close();
   // Páginas em execução não são esperadas: voltam para a fila na próxima inicialização.
+  app.services.discovery.close();
   await app.services.collections.close();
   process.exit(0);
 }

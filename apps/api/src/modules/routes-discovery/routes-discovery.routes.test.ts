@@ -1,4 +1,8 @@
-import { discoveryResponseSchema, routeListResponseSchema } from '@auditoria-rf/contracts';
+import {
+  discoveryListResponseSchema,
+  discoveryResponseSchema,
+  routeListResponseSchema,
+} from '@auditoria-rf/contracts';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
@@ -57,10 +61,11 @@ beforeEach(() => {
   discover = crawl(iftmSite());
 });
 
-async function setup() {
+async function setup({ discoveryConcurrency }: { discoveryConcurrency?: number } = {}) {
   const app = createApp({
     db,
     discover: (domain, checkUrls, onProgress) => discover(domain, checkUrls, onProgress),
+    discoveryConcurrency,
   });
   const agent = await loggedInAgent(app, db);
   return { app, agent };
@@ -71,10 +76,25 @@ async function waitForDiscovery(agent: Awaited<ReturnType<typeof setup>>['agent'
     const { discovery } = discoveryResponseSchema.parse(
       (await agent.get(`/api/v1/institutions/${id}/discovery`)).body,
     );
-    if (discovery.status !== 'running') return discovery;
+    if (discovery.status !== 'queued' && discovery.status !== 'running') return discovery;
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error('A descoberta não terminou.');
+}
+
+async function waitForStatus(
+  agent: Awaited<ReturnType<typeof setup>>['agent'],
+  status: string,
+  id = 1,
+) {
+  for (let i = 0; i < 100; i++) {
+    const { discovery } = discoveryResponseSchema.parse(
+      (await agent.get(`/api/v1/institutions/${id}/discovery`)).body,
+    );
+    if (discovery.status === status) return discovery;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`A descoberta não chegou a ${status}.`);
 }
 
 async function listRoutes(agent: Awaited<ReturnType<typeof setup>>['agent'], query = '') {
@@ -97,7 +117,9 @@ describe('descoberta de rotas', () => {
 
     const started = await agent.post('/api/v1/institutions/1/discover');
     expect(started.status).toBe(202);
-    expect(started.body.discovery.status).toBe('running');
+    // Entra na fila e roda em segundo plano: a resposta não espera a descoberta.
+    expect(['queued', 'running']).toContain(started.body.discovery.status);
+    expect(started.body.discovery.queuedAt).toEqual(expect.any(String));
 
     const discovery = await waitForDiscovery(agent);
     expect(discovery).toMatchObject({
@@ -175,12 +197,9 @@ describe('descoberta de rotas', () => {
     };
     const { agent } = await setup();
 
-    const started = await agent.post('/api/v1/institutions/1/discover');
-    expect(started.body.discovery.progress).toEqual({
-      phase: 'robots',
-      visited: 0,
-      planned: null,
-    });
+    await agent.post('/api/v1/institutions/1/discover');
+    const first = await waitForStatus(agent, 'running');
+    expect(first.progress).toEqual({ phase: 'robots', visited: 0, planned: null });
     report?.({ phase: 'pages', visited: 12, planned: 200 });
     const running = await agent.get('/api/v1/institutions/1/discovery');
     expect(running.body.discovery.progress).toEqual({ phase: 'pages', visited: 12, planned: 200 });
@@ -261,6 +280,104 @@ describe('descoberta de rotas', () => {
     const { agent } = await setup();
     expect((await agent.post('/api/v1/institutions/999/discover')).status).toBe(404);
     expect((await agent.get('/api/v1/institutions/999/routes')).status).toBe(404);
+  });
+});
+
+const emptyResult = (origin: string): DiscoveryResult => ({
+  origin,
+  source: 'crawler',
+  robotsTxtFound: false,
+  sitemapFiles: [],
+  routes: [],
+  blockedByRobots: 0,
+  failed: 0,
+  stoppedEarly: null,
+  offDomainHost: null,
+  checks: [],
+});
+
+describe('fila da descoberta (ADR 0017)', () => {
+  const addInstitution = async (
+    agent: Awaited<ReturnType<typeof setup>>['agent'],
+    acronym: string,
+  ) =>
+    (
+      await agent.post('/api/v1/institutions').send({
+        name: `Instituto ${acronym}`,
+        acronym,
+        domain: `${acronym.toLowerCase()}.edu.br`,
+      })
+    ).body.institution.id as number;
+
+  it('sem vaga, a instituição espera na fila e roda quando a anterior termina', async () => {
+    const releases = new Map<string, (value: DiscoveryResult) => void>();
+    discover = (domain) => new Promise((resolve) => releases.set(domain, resolve));
+    const { agent } = await setup({ discoveryConcurrency: 1 });
+    const other = await addInstitution(agent, 'IFX');
+
+    await agent.post('/api/v1/institutions/1/discover');
+    const queued = await agent.post(`/api/v1/institutions/${other}/discover`);
+    expect(queued.body.discovery).toMatchObject({ status: 'queued', startedAt: null });
+
+    releases.get('iftm.edu.br')?.(emptyResult(ORIGIN));
+    expect((await waitForStatus(agent, 'running', other)).startedAt).toEqual(expect.any(String));
+    releases.get('ifx.edu.br')?.(emptyResult('https://ifx.edu.br'));
+    expect((await waitForDiscovery(agent, other)).status).toBe('completed');
+  });
+
+  it('sobrevive a um reinício: a rodada interrompida volta para a fila e o resultado fica gravado', async () => {
+    discover = () => new Promise<DiscoveryResult>(() => {});
+    const first = await setup();
+    await first.agent.post('/api/v1/institutions/1/discover');
+    await waitForStatus(first.agent, 'running');
+    // A API para no meio da descoberta.
+    first.app.services.discovery.close();
+
+    discover = crawl(iftmSite());
+    const second = await setup();
+    second.app.services.discovery.resume();
+    const done = await waitForDiscovery(second.agent);
+    expect(done).toMatchObject({ status: 'completed', summary: { found: 5, created: 5 } });
+
+    // Outra instância (a API de novo reiniciada) lê o resumo do banco, não da memória.
+    const third = await setup();
+    const again = discoveryResponseSchema.parse(
+      (await third.agent.get('/api/v1/institutions/1/discovery')).body,
+    );
+    expect(again.discovery).toMatchObject({ status: 'completed', summary: { found: 5 } });
+  });
+
+  it('em lote: põe na fila as que não estão em andamento e lista a situação de cada uma', async () => {
+    const releases: ((value: DiscoveryResult) => void)[] = [];
+    discover = () => new Promise((resolve) => releases.push(resolve));
+    const { agent } = await setup({ discoveryConcurrency: 1 });
+    const other = await addInstitution(agent, 'IFX');
+    await agent.post('/api/v1/institutions/1/discover');
+
+    const batch = await agent.post('/api/v1/discoveries').send({ institutionIds: [1, other] });
+    expect(batch.status).toBe(202);
+    expect(
+      discoveryListResponseSchema
+        .parse(batch.body)
+        .discoveries.map((d) => [d.institutionId, d.status]),
+    ).toEqual([
+      [1, 'running'],
+      [other, 'queued'],
+    ]);
+    // A que já rodava não ganhou uma segunda rodada.
+    releases.shift()?.(emptyResult(ORIGIN));
+    await waitForStatus(agent, 'running', other);
+    releases.shift()?.(emptyResult('https://ifx.edu.br'));
+    await waitForDiscovery(agent, other);
+    expect(releases).toHaveLength(0);
+
+    const list = await agent.get(`/api/v1/discoveries?institutionIds=1,${other}`);
+    expect(discoveryListResponseSchema.parse(list.body).discoveries.map((d) => d.status)).toEqual([
+      'completed',
+      'completed',
+    ]);
+    expect((await agent.get('/api/v1/discoveries?institutionIds=1,999')).status).toBe(404);
+    expect((await agent.post('/api/v1/discoveries').send({ institutionIds: [] })).status).toBe(400);
   });
 });
 

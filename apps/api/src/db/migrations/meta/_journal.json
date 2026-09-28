@@ -50,6 +50,13 @@
       "when": 1790568102391,
       "tag": "0006_tempo_de_carregamento",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790608259977,
+      "tag": "0007_fila_da_descoberta",
+      "breakpoints": true
     }
   ]
 }

@@ -38,6 +38,7 @@ const idleDiscovery = {
     institutionId: 1,
     status: 'idle',
     progress: null,
+    queuedAt: null,
     startedAt: null,
     finishedAt: null,
     error: null,
@@ -185,6 +186,40 @@ describe('revisão de rotas (1.2)', () => {
       // As rotas gravadas no fim aparecem sem recarregar a página.
       const toReview = await screen.findByRole('region', { name: 'Para revisar (1)' });
       expect(toReview.textContent).toContain('Sugestão: iftm.edu.br/ingresso');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('descoberta na fila: avisa que espera vaga e recarrega as rotas quando termina', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let finished = false;
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM')] },
+        'GET /institutions/1/routes': () =>
+          Response.json({ routes: finished ? routes : [], absences: [] }),
+        'GET /institutions/1/discovery': () =>
+          Response.json({
+            discovery: {
+              ...idleDiscovery.discovery,
+              status: finished ? 'completed' : 'queued',
+              queuedAt: '2026-09-28T10:00:00.000Z',
+            },
+          }),
+      },
+    });
+    try {
+      renderRoute('/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission');
+      expect(await screen.findByText(/Descoberta na fila: começa quando outra/)).toBeTruthy();
+      expect(screen.getByText(/dá para sair desta tela/)).toBeTruthy();
+      const button = screen.getByRole('button', { name: 'Na fila…' }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+
+      finished = true;
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(await screen.findByRole('region', { name: 'Para revisar (1)' })).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }

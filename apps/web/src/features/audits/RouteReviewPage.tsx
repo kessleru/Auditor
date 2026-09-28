@@ -1,5 +1,6 @@
 import {
   type DiscoveryProgress,
+  isDiscoveryActive,
   type PageFunctionKey,
   pageFunctionLabels,
   type RouteReplacement,
@@ -164,15 +165,20 @@ export function RouteReviewPage() {
   const position = scope.institutionIds.indexOf(institutionId);
   const nextId = position >= 0 ? scope.institutionIds[position + 1] : undefined;
   const nextAcronym = institutions.data?.find((i) => i.id === nextId)?.acronym;
-  const running = discovery.data?.status === 'running';
+  // Na fila ou lendo o portal: a descoberta roda em segundo plano, mesmo fora desta tela.
+  const running = discovery.data ? isDiscoveryActive(discovery.data.status) : false;
   const summary = discovery.data?.summary;
   const progressRef = useRef<HTMLParagraphElement>(null);
   // A função decidida sai de uma lista e entra na outra: o botão que tinha o foco some.
   const focusProgress = () => requestAnimationFrame(() => progressRef.current?.focus());
 
-  const runningText = running ? progressText(discovery.data?.progress ?? null) : null;
+  const runningText = running
+    ? discovery.data?.status === 'queued'
+      ? 'Descoberta na fila: começa quando outra instituição terminar.'
+      : progressText(discovery.data?.progress ?? null)
+    : null;
   const discoveryText = runningText
-    ? `${runningText} Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos.`
+    ? `${runningText} Há um intervalo de 1,5 s entre requisições; pode levar alguns minutos, e dá para sair desta tela.`
     : summary
       ? `Última descoberta: ${summary.found} URLs, ${summary.withSuggestion} com função sugerida.${
           summary.stoppedEarly === 'failures'
@@ -312,7 +318,11 @@ export function RouteReviewPage() {
                   onClick={() => start.mutate()}
                   disabled={running || start.isPending}
                 >
-                  {running ? 'Descobrindo…' : 'Descobrir de novo'}
+                  {running
+                    ? discovery.data?.status === 'queued'
+                      ? 'Na fila…'
+                      : 'Descobrindo…'
+                    : 'Descobrir de novo'}
                 </Button>
               </div>
 

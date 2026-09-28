@@ -18,6 +18,9 @@ const envSchema = z.object({
     z.url('CRAWLER_PROXY deve ser uma URL, como http://proxy.iftm.edu.br:3128.').optional(),
   ),
   COLLECTION_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
+  // Descobertas de rotas ao mesmo tempo, sempre de instituições diferentes (ADR 0017); o intervalo
+  // de 1,5 s por host continua valendo.
+  DISCOVERY_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   // Atrás de proxy reverso (nginx do docker/): quais proxies são confiáveis para X-Forwarded-*.
   // Aceita o mesmo que o `trust proxy` do Express: true/false, número de saltos ou lista

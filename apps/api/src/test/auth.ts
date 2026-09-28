@@ -10,9 +10,15 @@ export const testAuditor = {
   password: 'senha-bem-longa-123',
 };
 
-/** Cria o auditor de teste e devolve um agente do Supertest já com a sessão. */
+/**
+ * Cria o auditor de teste (se ainda não existe no banco) e devolve um agente do Supertest já com a
+ * sessão. Duas instâncias da API sobre o mesmo banco (reinício) usam o mesmo auditor.
+ */
 export async function loggedInAgent(app: App, db: DB) {
-  await createAuthService(createAuthRepository(db)).createAuditor(testAuditor);
+  const repo = createAuthRepository(db);
+  if (!repo.findUserByEmail(testAuditor.email)) {
+    await createAuthService(repo).createAuditor(testAuditor);
+  }
   const agent = request.agent(app);
   const res = await agent
     .post('/api/v1/auth/login')
