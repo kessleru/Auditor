@@ -19,7 +19,7 @@ import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
 import { ReviewNeededNote } from './ReviewNeededNote';
-import { ComparisonBasis } from './CoreFunctionsNote';
+import { ComparisonBasis, noConformityText } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
 import { noDataDescription } from './noData';
 
@@ -131,14 +131,15 @@ export function AuditorInstitutionPage() {
               <ConformitySummary
                 conformity={institution.conformity}
                 acronym={institution.acronym}
+                emptyText={noConformityText(institution)}
                 figures={[
                   {
                     label: 'Problemas',
-                    value: institution.problems ?? 0,
+                    value: institution.problems ?? '—',
                     hint: `${institution.pendingValidation} aguardando validação`,
                   },
-                  { label: 'Críticos', value: institution.criticalProblems ?? 0 },
-                  { label: 'De template', value: institution.templateProblems ?? 0 },
+                  { label: 'Críticos', value: institution.criticalProblems ?? '—' },
+                  { label: 'De template', value: institution.templateProblems ?? '—' },
                   {
                     label: 'Tarefas concluídas',
                     value: institution.tasks

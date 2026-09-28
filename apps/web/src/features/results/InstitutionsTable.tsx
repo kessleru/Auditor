@@ -2,7 +2,7 @@ import { pageFunctionLabels, type PublicInstitution } from '@auditoria-rf/contra
 import { Link } from 'react-router';
 import { ConformityBar, DataTable } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
-import { coverageText } from './CoreFunctionsNote';
+import { coverageText, outsideCore } from './CoreFunctionsNote';
 import { noDataShort } from './noData';
 import { NotCollectedList } from './NotCollectedList';
 
@@ -38,6 +38,8 @@ function Conformity({ row }: { row: PublicInstitution }) {
     return <span className="text-label text-text-muted">Ainda não avaliado</span>;
   if (row.status === 'no_data')
     return <span className="text-label text-text-muted">{noDataShort(row.noDataReason)}</span>;
+  if (outsideCore(row))
+    return <span className="text-label text-text-muted">Sem função em comum</span>;
   return <ConformityBar value={row.conformity} label={`Conformidade do ${row.acronym}`} />;
 }
 

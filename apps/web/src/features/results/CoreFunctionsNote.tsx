@@ -32,6 +32,17 @@ export function CoreFunctionsNote({ coreFunctions }: { coreFunctions: PageFuncti
   );
 }
 
+/**
+ * Sem página no núcleo comum (as instituições avaliadas não têm função em comum), o resumo fica
+ * sem número: nunca 0 problemas.
+ */
+export const outsideCore = (institution: PublicInstitution) =>
+  institution.status === 'evaluated' && institution.pagesEvaluated === 0;
+
+/** Texto do resumo sem conformidade: fora do núcleo comum ou sem regra aplicável. */
+export const noConformityText = (institution: PublicInstitution) =>
+  outsideCore(institution) ? 'Sem função em comum para comparar' : 'Sem regra aplicável';
+
 /** "11 de 13", ou travessão sem cobertura medida. */
 export function coverageText(coverage: { found: number; expected: number } | null): string {
   return coverage ? `${coverage.found} de ${coverage.expected}` : '—';
@@ -56,9 +67,11 @@ export function ComparisonBasis({ institution }: { institution: PublicInstitutio
         <div className="flex flex-col gap-1">
           <dt className="text-label text-text-muted">Números do resumo</dt>
           <dd className="text-body text-text">
-            {institution.pagesEvaluated === 1
-              ? '1 página, das funções que todas as instituições têm'
-              : `${formatNumber(institution.pagesEvaluated)} páginas, das funções que todas as instituições têm`}
+            {outsideCore(institution)
+              ? 'Nenhuma: as instituições avaliadas não têm função em comum'
+              : institution.pagesEvaluated === 1
+                ? '1 página, das funções que todas as instituições têm'
+                : `${formatNumber(institution.pagesEvaluated)} páginas, das funções que todas as instituições têm`}
           </dd>
         </div>
         <div className="flex flex-col gap-1">
