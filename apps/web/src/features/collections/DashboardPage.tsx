@@ -15,6 +15,7 @@ import {
 import { formatDate, formatNumber } from '../../lib/format';
 import { useResultsOverview } from '../results/auditorApi';
 import { NotCollectedList } from '../results/NotCollectedList';
+import { noDataShort } from '../results/noData';
 import { QueryState } from '../results/QueryState';
 import { FINISHED_STATUSES, useCollections } from './api';
 
@@ -113,7 +114,9 @@ function Overview({ running }: { running: number }) {
                       />
                     ) : (
                       <span className="text-label text-text-muted">
-                        {row.status === 'no_data' ? 'Sem dado' : 'Ainda não avaliado'}
+                        {row.status === 'no_data'
+                          ? noDataShort(row.noDataReason)
+                          : 'Ainda não avaliado'}
                       </span>
                     ),
                 },

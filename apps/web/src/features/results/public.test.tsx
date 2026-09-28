@@ -26,7 +26,7 @@ describe('visão pública (0.2)', () => {
         .getAttribute('aria-valuenow'),
     ).toBe('78');
     expect(rows[0]!.textContent).toContain('validação em andamento');
-    expect(rows[1]!.textContent).toContain('Sem dado');
+    expect(rows[1]!.textContent).toContain('Sem dado: bloqueou a ferramenta');
     expect(rows[1]!.textContent).not.toContain('0%');
 
     expect(screen.getByRole('link', { name: 'Abrir relatório do IFTM' }).getAttribute('href')).toBe(
@@ -136,6 +136,11 @@ describe('detalhe da instituição (4.3, leitura)', () => {
   it('portal sem dado explica a ausência de dado', async () => {
     renderRoute('/instituicoes/2');
     expect(await screen.findByRole('heading', { name: 'Sem dado na última coleta' })).toBeTruthy();
+    // O motivo: bloqueio não é portal fora do ar (ADR 0016).
+    expect(
+      screen.getByText(/O portal bloqueou o acesso da ferramenta na coleta mais recente/),
+    ).toBeTruthy();
+    expect(screen.getByText(/user-agent AuditoriaRF/)).toBeTruthy();
     expect(screen.queryByText(/0%/)).toBeNull();
     expect(screen.queryByRole('article')).toBeNull();
   });

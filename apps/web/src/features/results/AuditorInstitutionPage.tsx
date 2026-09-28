@@ -21,6 +21,7 @@ import { ConformitySummary } from './ConformitySummary';
 import { ReviewNeededNote } from './ReviewNeededNote';
 import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
+import { noDataDescription } from './noData';
 
 type Filter = 'all' | 'automated' | 'inspection' | 'critical';
 
@@ -119,7 +120,7 @@ export function AuditorInstitutionPage() {
             {institution.status === 'no_data' ? (
               <ErrorState
                 title="Sem dado na última coleta"
-                description="Nenhuma página pôde ser avaliada: ausência de dado, fora das médias."
+                description={noDataDescription(institution.noDataReason)}
               />
             ) : null}
             {institution.status === 'not_collected' ? (

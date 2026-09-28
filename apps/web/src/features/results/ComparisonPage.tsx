@@ -19,6 +19,7 @@ import { CoreFunctionsNote, coverageText } from './CoreFunctionsNote';
 import { inspectionBadge } from './inspectionBadge';
 import { NotCollectedList } from './NotCollectedList';
 import { QueryState } from './QueryState';
+import { noDataShort } from './noData';
 
 type Sort = 'conformity' | 'problems';
 
@@ -166,7 +167,7 @@ export function ComparisonPage() {
                         ) : (
                           <span className="text-label text-text-muted">
                             {r.status === 'no_data'
-                              ? 'Portal não pôde ser avaliado na coleta'
+                              ? noDataShort(r.noDataReason)
                               : 'Ainda não avaliado'}
                           </span>
                         ),
