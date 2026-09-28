@@ -9,6 +9,8 @@ import {
 } from './infra/crawler/index.js';
 import { CollectionEventBus } from './infra/events/collection-events.js';
 import { DomainLocks } from './infra/locks/domain-locks.js';
+import { createFindingsRepository } from './modules/findings/findings.repository.js';
+import { createFindingsService } from './modules/findings/findings.service.js';
 import { createSnapshotStorage } from './infra/storage/snapshot-storage.js';
 import { createAuthRepository } from './modules/auth/auth.repository.js';
 import { createAuthService } from './modules/auth/auth.service.js';
@@ -85,6 +87,7 @@ const buildDiscover =
 /** Composição dos services. A API (`createApp`) e a CLI usam exatamente esta função. */
 export function createServices(db: DB, options: ServiceOptions = {}) {
   const timing = options.clock && { now: options.clock };
+  const storage = createSnapshotStorage(options.snapshotsDir ?? env.SNAPSHOTS_DIR);
 
   const auth = createAuthService(createAuthRepository(db), timing);
   // Contato do user-agent (seção 3.1.3): o do .env ou, sem ele, o e-mail do primeiro auditor, o
@@ -111,7 +114,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
             (old) => void old.close(),
           )
         : () => options.auditor ?? null,
-    storage: createSnapshotStorage(options.snapshotsDir ?? env.SNAPSHOTS_DIR),
+    storage,
     locks: new DomainLocks(),
     events: new CollectionEventBus(),
     concurrency: options.concurrency ?? env.COLLECTION_CONCURRENCY,
@@ -129,6 +132,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     inspections,
   );
   const exporter = createExportService(publicReports, reportsRepository);
+  const findings = createFindingsService(createFindingsRepository(db), storage);
 
   return {
     auth,
@@ -141,6 +145,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     inspections,
     results,
     exporter,
+    findings,
   };
 }
 

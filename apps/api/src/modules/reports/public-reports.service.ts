@@ -14,6 +14,7 @@ import { ruleTexts } from '../../infra/auditor/rule-texts.js';
 import { NotFoundError } from '../../shared/errors.js';
 import { commonCore, coverageOf, evaluatedFunctions, summarizeInstitution } from './metrics.js';
 import type { ReportsRepository } from './reports.repository.js';
+import { findingExample } from '../findings/finding-example.js';
 
 const mean = (values: (number | null)[]) => {
   const valid = values.filter((v): v is number => v !== null);
@@ -75,6 +76,7 @@ export function createPublicReportsService(
       criticalProblems: null,
       templateProblems: null,
       pendingValidation: 0,
+      reviewNeeded: null,
       pagesEvaluated: 0,
       overall: null,
     };
@@ -115,6 +117,7 @@ export function createPublicReportsService(
       criticalProblems: ranked?.criticalProblems ?? 0,
       templateProblems: ranked?.templateProblems ?? 0,
       pendingValidation: entry.summary.pendingValidation,
+      reviewNeeded: entry.summary.incompleteRules,
       pagesEvaluated: ranked?.pagesEvaluated ?? 0,
       overall: {
         conformity: entry.summary.conformity,
@@ -219,11 +222,7 @@ export function createPublicReportsService(
           template: problem.template,
           pages: problem.pages,
           occurrences: problem.occurrences,
-          example: {
-            pageUrl: example.pageUrl,
-            selector: example.selector,
-            htmlSnippet: example.htmlSnippet,
-          },
+          example: findingExample(example),
         };
       });
     },

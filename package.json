@@ -24,6 +24,7 @@
     "collect": "npm run collect -w @auditoria-rf/api --",
     "discover": "npm run discover -w @auditoria-rf/api --",
     "dogfood": "npm run dogfood -w @auditoria-rf/api --",
+    "demo:export": "npm run demo:export -w @auditoria-rf/api --",
     "test:e2e": "npm run test:e2e -w @auditoria-rf/web"
   },
   "devDependencies": {

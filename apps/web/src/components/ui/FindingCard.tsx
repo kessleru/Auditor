@@ -20,6 +20,8 @@ export interface FindingCardProps {
   reference?: string;
   description: string;
   pageUrl?: string;
+  /** Como o problema aparece no portal (ex.: `FindingPreview`), acima do código. */
+  preview?: ReactNode;
   snippet?: string;
   recommendation: ReactNode;
   /** Problema de template: presente em todas (ou quase todas) as páginas avaliadas. */
@@ -33,7 +35,7 @@ export interface FindingCardProps {
 
 /**
  * Card de problema. O que decide a leitura fica à vista: título, severidade, critério, onde
- * aparece e o trecho de código. Descrição da regra, página e como corrigir ficam em "Detalhes".
+ * aparece, como aparece no portal (prévia) e o trecho de código. Descrição da regra, página e como corrigir ficam em "Detalhes".
  * A origem só aparece quando é da inspeção manual: automatizado é o caso comum.
  */
 export function FindingCard({
@@ -45,6 +47,7 @@ export function FindingCard({
   reference,
   description,
   pageUrl,
+  preview,
   snippet,
   recommendation,
   template = false,
@@ -77,6 +80,7 @@ export function FindingCard({
         </p>
       ) : null}
       {manual ? <p className="text-body text-text">{description}</p> : null}
+      {preview}
       {snippet ? (
         <pre className="rounded-md bg-muted px-3 py-2 font-mono text-code break-all whitespace-pre-wrap text-text">
           <code>{snippet}</code>

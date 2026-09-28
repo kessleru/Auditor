@@ -69,9 +69,11 @@ export async function runDiscover(
 
     if (s.stoppedEarly) {
       print(
-        s.stoppedEarly === 'failures'
-          ? 'Parou antes do fim: o portal deixou de responder (falhas seguidas).'
-          : 'Parou no tempo máximo; as rotas encontradas até ali foram guardadas.',
+        s.stoppedEarly === 'deadline'
+          ? 'Parou no tempo máximo; as rotas encontradas até ali foram guardadas.'
+          : s.offDomainHost
+            ? `Parou antes do fim: o portal passou a mandar a ferramenta para ${s.offDomainHost} (provável proteção contra robôs).`
+            : 'Parou antes do fim: o portal deixou de responder (falhas seguidas).',
       );
     }
 

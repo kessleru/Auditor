@@ -9,6 +9,7 @@ import {
   EmptyState,
   ErrorState,
   FindingCard,
+  FindingPreview,
   Logo,
   NavItem,
   PageTitle,
@@ -178,6 +179,37 @@ export function UiCatalogPage() {
           pageUrl="https://www.iftm.edu.br/"
           snippet={'<img src="/banner-ingresso.png">'}
           recommendation='adicionar alt descrevendo a função da imagem, ou alt="" se for decorativa.'
+        />
+        <FindingCard
+          severity="critical"
+          origin="automated"
+          wcagCriteria="1.4.3"
+          principle="perceivable"
+          title="Contraste insuficiente"
+          description="O aviso de inscrições tem cor de texto clara demais para o fundo."
+          pageUrl="https://www.iftm.edu.br/"
+          preview={
+            <FindingPreview
+              example={{
+                findingId: 1,
+                pageUrl: 'https://www.iftm.edu.br/',
+                selector: 'p.aviso',
+                htmlSnippet: '<p class="aviso">Inscrições abertas até sexta</p>',
+                screenshotUrl: null,
+                evidence: {
+                  kind: 'contrast',
+                  fgColor: '#999999',
+                  bgColor: '#ffffff',
+                  contrastRatio: 2.85,
+                  expectedContrastRatio: 4.5,
+                  fontSizePx: 14,
+                  bold: false,
+                },
+              }}
+            />
+          }
+          snippet={'<p class="aviso">Inscrições abertas até sexta</p>'}
+          recommendation="escurecer o texto até a razão de 4,5:1."
         />
       </Section>
 

@@ -1,7 +1,8 @@
 import type { AuthUser } from '@auditoria-rf/contracts';
-import { and, eq, gt, lte } from 'drizzle-orm';
+import { and, eq, gt, lte, ne } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import { sessions, users } from '../../db/schema.js';
+import { DEMO_AUDITOR } from '../../shared/demo.js';
 
 const authUserColumns = { id: users.id, email: users.email, name: users.name };
 
@@ -11,8 +12,14 @@ export function createAuthRepository(db: DB) {
       return db.select().from(users).where(eq(users.email, email)).get();
     },
 
+    /** Auditores de verdade: a conta que assina a demonstração fica de fora (ADR 0015). */
     listUsers(): AuthUser[] {
-      return db.select(authUserColumns).from(users).orderBy(users.id).all();
+      return db
+        .select(authUserColumns)
+        .from(users)
+        .where(ne(users.email, DEMO_AUDITOR.email))
+        .orderBy(users.id)
+        .all();
     },
 
     insertUser(values: { email: string; name: string; passwordHash: string }): AuthUser {

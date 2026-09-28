@@ -95,6 +95,8 @@ describe('detalhe da instituição (4.3, leitura)', () => {
       screen.getByRole('meter', { name: 'Conformidade do IFTM' }).getAttribute('aria-valuetext'),
     ).toBe('78%, Bom');
     expect(screen.getByText('Ainda fora da lista de problemas')).toBeTruthy();
+    // O incomplete do axe fica fora do cálculo, mas é exibido (seção 3.3).
+    expect(screen.getByText(/7 verificações ficaram inconclusivas para o axe/)).toBeTruthy();
 
     const chart = screen.getByRole('img', { name: /Conformidade por coleta/ });
     expect(chart.getAttribute('aria-label')).toBe(
@@ -107,6 +109,13 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     expect(cards).toHaveLength(2);
     expect(within(cards[0]!).getByText('Template')).toBeTruthy();
     expect(within(cards[0]!).getByText(/em 4 páginas, 4 ocorrências/)).toBeTruthy();
+    // Como o problema aparece no portal: a foto tirada na coleta; sem foto, só o código.
+    expect(
+      within(cards[0]!)
+        .getByRole('img', { name: /Foto do elemento no portal/ })
+        .getAttribute('src'),
+    ).toBe('/api/v1/findings/21/screenshot');
+    expect(within(cards[1]!).queryByRole('img')).toBeNull();
     const basis = screen.getByRole('region', { name: 'Base da comparação' });
     expect(basis.textContent).toContain('12 de 13 funções procuradas');
     expect(basis.textContent).toContain('Não encontradas: Horários de aula');

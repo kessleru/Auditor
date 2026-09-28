@@ -212,14 +212,19 @@ describe('revisão de rotas (1.2)', () => {
               withSuggestion: 2,
               blockedByRobots: 0,
               failed: 0,
-              stoppedEarly: null,
+              stoppedEarly: 'failures',
+              offDomainHost: 'validate.perfdrive.com',
             },
           },
         },
       },
     });
     const { container } = renderRoute('/auditorias/nova/rotas/1?instituicoes=1&funcoes=home');
-    expect(await screen.findByText(/Última descoberta: 4 URLs/)).toBeTruthy();
+    const last = await screen.findByText(/Última descoberta: 4 URLs/);
+    // Bloqueio por proteção contra robôs é dito como tal, não como portal fora do ar.
+    expect(last.textContent).toContain(
+      'o portal passou a mandar a ferramenta para validate.perfdrive.com (provável proteção contra robôs)',
+    );
     // O anúncio sai por setTimeout: espera além dele antes de conferir o silêncio.
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe('');

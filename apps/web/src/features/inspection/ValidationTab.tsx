@@ -2,7 +2,7 @@ import { pageFunctionLabels, type InspectionProblem } from '@auditoria-rf/contra
 import { Check } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import { Badge, Button, Choice, FindingCard, Note } from '../../components/ui';
+import { Badge, Button, Choice, FindingCard, FindingPreview, Note } from '../../components/ui';
 import { ApiError } from '../../lib/api';
 import { QueryState } from '../results/QueryState';
 import { useInspectionFindings, useValidateFinding } from './api';
@@ -41,6 +41,7 @@ function ProblemCard({
       principle={problem.principle}
       description={problem.description}
       pageUrl={problem.example.pageUrl}
+      preview={<FindingPreview example={problem.example} />}
       snippet={problem.example.htmlSnippet}
       template={problem.template}
       meta={

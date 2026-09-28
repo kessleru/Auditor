@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { AxeImpact, Severity, WcagPrinciple } from '@auditoria-rf/contracts';
+import type { AxeImpact, FindingEvidence, Severity, WcagPrinciple } from '@auditoria-rf/contracts';
 import type { AxeResults, ImpactValue, NodeResult, Result } from 'axe-core';
 
 // Tradução dos resultados do axe-core para o modelo da pesquisa (seções 3.2 e 3.3; ADR 0003).
@@ -79,6 +79,47 @@ export interface FindingDraft {
   help: string;
   helpUrl: string;
   fingerprint: string;
+  evidenceJson: FindingEvidence | null;
+}
+
+const numberFrom = (value: unknown): number | null => {
+  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/**
+ * Evidência que o axe já mediu para o elemento reprovado, para a interface mostrar o problema sem
+ * abrir o portal (ADR 0014). Hoje só o contraste: cores, razão obtida e exigida, e a fonte.
+ */
+export function evidenceOf(ruleId: string, node: NodeResult): FindingEvidence | null {
+  if (ruleId !== 'color-contrast') return null;
+  const check = [...node.any, ...node.all, ...node.none].find((c) => c.id === 'color-contrast');
+  const data = (check?.data ?? {}) as Record<string, unknown>;
+  const contrastRatio = numberFrom(data['contrastRatio']);
+  // "4.5:1" → 4.5; "12.0pt (16px)" → 16.
+  const expectedContrastRatio = numberFrom(
+    String(data['expectedContrastRatio'] ?? '').split(':')[0],
+  );
+  const fontSizePx = numberFrom(/\(([\d.]+)px\)/.exec(String(data['fontSize'] ?? ''))?.[1]);
+  const { fgColor, bgColor } = data;
+  if (
+    typeof fgColor !== 'string' ||
+    typeof bgColor !== 'string' ||
+    contrastRatio === null ||
+    expectedContrastRatio === null ||
+    fontSizePx === null
+  ) {
+    return null;
+  }
+  return {
+    kind: 'contrast',
+    fgColor,
+    bgColor,
+    contrastRatio: Math.round(contrastRatio * 100) / 100,
+    expectedContrastRatio,
+    fontSizePx,
+    bold: data['fontWeight'] === 'bold' || (numberFrom(data['fontWeight']) ?? 0) >= 700,
+  };
 }
 
 const MAX_SNIPPET = 2000;
@@ -116,6 +157,7 @@ export function findingsFromViolations(
         help: rule.help,
         helpUrl: rule.helpUrl,
         fingerprint: fingerprintOf(rule.id, selector, institutionId),
+        evidenceJson: evidenceOf(rule.id, node),
       };
     });
   });

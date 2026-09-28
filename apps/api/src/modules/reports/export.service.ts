@@ -45,6 +45,11 @@ const DICTIONARY: Record<ExportDataset, [coluna: string, tipo: string, descricao
       'inteiro',
       'Achados ainda não revisados pelo auditor (não contam como problema).',
     ],
+    [
+      'revisao_humana',
+      'inteiro',
+      'Verificações que o axe não decidiu (incomplete), em todas as páginas avaliadas; fora da conformidade.',
+    ],
     ['paginas_avaliadas', 'inteiro', 'Páginas do núcleo comum auditadas com sucesso.'],
     ['paginas_total', 'inteiro', 'Páginas previstas no escopo da coleta.'],
     [
@@ -121,6 +126,7 @@ export function createExportService(publicReports: PublicReportsService, repo: R
               i.criticalProblems,
               i.templateProblems,
               i.status === 'evaluated' ? i.pendingValidation : null,
+              i.reviewNeeded,
               i.pagesEvaluated,
               i.pagesTotal,
               core.join('|'),

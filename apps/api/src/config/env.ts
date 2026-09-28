@@ -33,6 +33,8 @@ const envSchema = z.object({
   // Cookie de sessão `Secure`: "auto" (padrão) marca quando a requisição chegou por HTTPS
   // (direto ou pelo X-Forwarded-Proto de um proxy confiável); "true"/"false" forçam.
   COOKIE_SECURE: z.enum(['auto', 'true', 'false']).default('auto'),
+  // Coletas de demonstração (ADR 0015), importadas pelo seed; "false" deixa o banco só com as suas.
+  DEMO_DATA: z.enum(['true', 'false']).default('true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

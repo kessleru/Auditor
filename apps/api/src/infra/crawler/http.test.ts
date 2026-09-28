@@ -146,6 +146,32 @@ describe('createHttpClient', () => {
     expect(sleeps).toContain(3000);
   });
 
+  it('tempo esgotado lendo o corpo vira FetchFailedError (falha da página, não da descoberta)', async () => {
+    const { clock, now } = fakeClock();
+    const slowBody = () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(
+              new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+            );
+          },
+        }),
+      );
+    const { calls, make } = fakeFetch({ 'https://a.edu.br/lenta': slowBody });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+      sleep: clock.sleep,
+    });
+    const error = await client.get('https://a.edu.br/lenta').catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(FetchFailedError);
+    expect((error as FetchFailedError).message).toContain('aborted due to timeout');
+    // É passageira: conta com a nova tentativa, como a falha de conexão.
+    expect(calls).toHaveLength(2);
+  });
+
   it('falha passageira de rede passa na nova tentativa', async () => {
     const { clock, now } = fakeClock();
     let first = true;

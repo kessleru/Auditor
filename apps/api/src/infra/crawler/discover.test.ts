@@ -541,6 +541,50 @@ describe('área autenticada', () => {
   });
 });
 
+describe('proteção contra robôs (redirecionamento para fora do domínio)', () => {
+  const CHALLENGE = 'https://validate.perfdrive.com/?ssc=portal';
+
+  it('robots.txt redirecionado para outro domínio interrompe a descoberta, sem visitar o desafio', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { redirect: CHALLENGE, status: 302 },
+      [CHALLENGE]: { body: html('Are you human?') },
+      'https://validate.perfdrive.com/': { body: html('Are you human?') },
+    });
+    await expect(run(site.client)).rejects.toThrow(
+      /redirecionou para validate\.perfdrive\.com, fora do domínio da instituição/,
+    );
+    expect(site.requested).not.toContain('https://validate.perfdrive.com/');
+  });
+
+  it('página inicial redirecionada para outro domínio interrompe a descoberta', async () => {
+    const site = crawlerSite({ [`${ORIGIN}/`]: { redirect: CHALLENGE, status: 302 } });
+    await expect(run(site.client)).rejects.toThrow(/proteção contra robôs/);
+  });
+
+  it('páginas que passam a ir para o desafio contam como falha e o domínio fica registrado', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => `/p${i}`);
+    const pages: Record<string, FakeResource> = {
+      [`${ORIGIN}/`]: { body: html('Início', links(...many)) },
+    };
+    for (const path of many) pages[`${ORIGIN}${path}`] = { redirect: CHALLENGE, status: 302 };
+    pages[CHALLENGE] = { body: html('Are you human?') };
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: crawlerSite(pages).client,
+      robotsAgent: agent,
+      maxConsecutiveFailures: 5,
+    });
+    expect(result.stoppedEarly).toBe('failures');
+    expect(result.offDomainHost).toBe('validate.perfdrive.com');
+    expect(byUrl(result.routes)).toEqual([ORIGIN]);
+  });
+
+  it('sem redirecionamento para fora, não há domínio registrado', async () => {
+    const site = crawlerSite({ [`${ORIGIN}/`]: { body: html('Início') } });
+    expect((await run(site.client)).offDomainHost).toBeNull();
+  });
+});
+
 describe('falhas da página inicial', () => {
   it('erro HTTP vira DiscoveryError', async () => {
     const site = crawlerSite({ [`${ORIGIN}/`]: { status: 503, body: 'fora do ar' } });

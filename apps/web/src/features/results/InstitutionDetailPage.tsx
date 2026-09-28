@@ -1,7 +1,15 @@
 import type { PublicProblem } from '@auditoria-rf/contracts';
 import { useId, useState } from 'react';
 import { useParams } from 'react-router';
-import { cn, EmptyState, ErrorState, FindingCard, Page, PageHeader } from '../../components/ui';
+import {
+  cn,
+  EmptyState,
+  ErrorState,
+  FindingCard,
+  FindingPreview,
+  Page,
+  PageHeader,
+} from '../../components/ui';
 import { formatDate } from '../../lib/format';
 import { usePublicFindings, usePublicInstitution } from './api';
 import { Breadcrumb } from './Breadcrumb';
@@ -9,6 +17,7 @@ import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
 import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
+import { ReviewNeededNote } from './ReviewNeededNote';
 
 type Filter = 'all' | 'critical' | 'template';
 
@@ -92,6 +101,7 @@ function Problems({ institutionId }: { institutionId: number }) {
                       principle={problem.principle}
                       description={problem.description}
                       pageUrl={problem.example.pageUrl}
+                      preview={<FindingPreview example={problem.example} />}
                       snippet={problem.example.htmlSnippet}
                       template={problem.template}
                       meta={principleText(problem)}
@@ -181,6 +191,7 @@ export function InstitutionDetailPage() {
                   },
                 ]}
               />
+              <ReviewNeededNote count={institution.reviewNeeded} />
               <ComparisonBasis institution={institution} />
             </div>
           ) : null}

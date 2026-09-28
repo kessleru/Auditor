@@ -175,7 +175,14 @@ export function createHttpClient({
         await res.body?.cancel();
         throw new FetchFailedError(current, 'resposta grande demais', false);
       }
-      const body = Buffer.from(await res.arrayBuffer());
+      // O tempo limite vale também para ler o corpo: servidor que manda o cabeçalho e trava no
+      // meio da página é falha passageira desta URL, não um erro que derruba a descoberta toda.
+      let body: Buffer;
+      try {
+        body = Buffer.from(await res.arrayBuffer());
+      } catch (err) {
+        throw new FetchFailedError(current, describeNetworkError(err));
+      }
       if (body.length > maxBytes) {
         throw new FetchFailedError(current, 'resposta grande demais', false);
       }

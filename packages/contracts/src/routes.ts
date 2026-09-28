@@ -102,6 +102,8 @@ export const discoverySummarySchema = z.object({
   failed: z.number().int(),
   /** Parou antes de percorrer tudo: tempo máximo ou falhas seguidas (portal parou de responder). */
   stoppedEarly: z.enum(['deadline', 'failures']).nullable(),
+  /** Domínio fora da instituição para onde páginas foram mandadas (proteção contra robôs). */
+  offDomainHost: z.string().nullable(),
 });
 export type DiscoverySummary = z.infer<typeof discoverySummarySchema>;
 
