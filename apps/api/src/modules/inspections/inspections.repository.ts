@@ -105,6 +105,8 @@ export function createInspectionsRepository(db: DB) {
           validationNote: findings.validationNote,
           selector: findings.selector,
           htmlSnippet: findings.htmlSnippet,
+          screenshotPath: findings.screenshotPath,
+          evidenceJson: findings.evidenceJson,
           help: findings.help,
           helpUrl: findings.helpUrl,
           pageUrl: routes.url,

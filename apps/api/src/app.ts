@@ -9,9 +9,11 @@ import { notFound } from './middlewares/notFound.js';
 import { requireAuditor as requireAuditorFor } from './middlewares/requireAuditor.js';
 import { createAuthController } from './modules/auth/auth.controller.js';
 import { createAuthRoutes } from './modules/auth/auth.routes.js';
-import type { SecureCookies } from './modules/auth/session-cookie.js';
+import { readSessionToken, type SecureCookies } from './modules/auth/session-cookie.js';
 import { createCollectionsController } from './modules/collections/collections.controller.js';
 import { createCollectionsRoutes } from './modules/collections/collections.routes.js';
+import { createFindingsController } from './modules/findings/findings.controller.js';
+import { createFindingsRoutes } from './modules/findings/findings.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { createInspectionsController } from './modules/inspections/inspections.controller.js';
 import { createInspectionsRoutes } from './modules/inspections/inspections.routes.js';
@@ -77,6 +79,13 @@ export function createApp({
   );
   api.use(createResultsRoutes(createResultsController(s.results), requireAuditor));
   api.use(createInspectionsRoutes(createInspectionsController(s.inspections), requireAuditor));
+  api.use(
+    createFindingsRoutes(
+      createFindingsController(s.findings, (req) =>
+        Boolean(s.auth.authenticate(readSessionToken(req))),
+      ),
+    ),
+  );
   app.use('/api/v1', api);
 
   app.use(notFound);

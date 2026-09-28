@@ -201,7 +201,7 @@ export function createCollectionsService({
         progress: repo.progress(page.collectionId),
       });
 
-      const outcome = await requireAuditor().audit(page.url);
+      const outcome = await requireAuditor().audit(page.url, { domain: page.domain });
       // Interrompida pelo desligamento: continua `running` e volta para a fila ao reiniciar.
       if (stopping) return;
       if (outcome.ok) {
@@ -213,7 +213,7 @@ export function createCollectionsService({
         );
         const counts = countRules(outcome.results);
         const drafts = findingsFromViolations(outcome.results.violations, page.institutionId);
-        repo.transaction(() => {
+        const inserted = repo.transaction(() => {
           repo.updatePage(page.id, {
             status: 'done',
             httpStatus: outcome.httpStatus,
@@ -225,8 +225,26 @@ export function createCollectionsService({
             inapplicableCount: counts.inapplicable,
             evaluatedAt: now(),
           });
-          repo.insertFindings(page.id, drafts);
+          return repo.insertFindings(page.id, drafts);
         });
+        // Fotos são complemento (ADR 0014): se o disco falhar aqui, o achado fica só com o código.
+        for (const shot of outcome.screenshots) {
+          const finding = inserted.find(
+            (f) => f.ruleId === shot.ruleId && f.selector === shot.selector,
+          );
+          if (!finding) continue;
+          try {
+            const { screenshotPath } = await storage.saveScreenshot(
+              page.collectionId,
+              page.id,
+              finding.id,
+              shot.image,
+            );
+            repo.setScreenshotPath(finding.id, screenshotPath);
+          } catch (err) {
+            logger.warn({ err, findingId: finding.id }, 'falha ao gravar a foto do achado');
+          }
+        }
       } else {
         repo.updatePage(page.id, {
           status: 'failed',

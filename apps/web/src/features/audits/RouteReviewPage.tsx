@@ -176,7 +176,9 @@ export function RouteReviewPage() {
     : summary
       ? `Última descoberta: ${summary.found} URLs, ${summary.withSuggestion} com função sugerida.${
           summary.stoppedEarly === 'failures'
-            ? ' Parou antes do fim: o portal deixou de responder.'
+            ? summary.offDomainHost
+              ? ` Parou antes do fim: o portal passou a mandar a ferramenta para ${summary.offDomainHost} (provável proteção contra robôs). Informe as URLs à mão ou peça à TI a liberação do user-agent AuditoriaRF.`
+              : ' Parou antes do fim: o portal deixou de responder.'
             : summary.stoppedEarly === 'deadline'
               ? ' Parou no tempo máximo.'
               : ''

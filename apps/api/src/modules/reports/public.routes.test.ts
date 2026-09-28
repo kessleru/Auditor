@@ -68,6 +68,8 @@ function page(
       status,
       passesCount: passes,
       violationsCount: violations,
+      // Casos que o axe não decide: fora do cálculo, mas contados para a revisão humana.
+      incompleteCount: status === 'done' ? 2 : 0,
     })
     .returning()
     .get();
@@ -177,6 +179,7 @@ describe('API pública', () => {
       criticalProblems: 1,
       templateProblems: 1,
       pendingValidation: 1,
+      reviewNeeded: 4,
       pagesEvaluated: 2,
       pagesTotal: 2,
       collectedAt: '2026-09-12T12:00:00.000Z',
@@ -184,6 +187,7 @@ describe('API pública', () => {
     expect(ifbRow).toMatchObject({
       conformity: null,
       problems: null,
+      reviewNeeded: null,
       pagesEvaluated: 0,
       pagesTotal: 1,
     });

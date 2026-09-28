@@ -9,6 +9,7 @@ import {
   taskResults,
   wcagPrinciples,
 } from './domain.js';
+import { findingExampleSchema } from './findings.js';
 
 // Camada manual (seção 3.4 do plano; ADR 0008).
 
@@ -132,7 +133,7 @@ export const inspectionProblemSchema = z.object({
   occurrences: z.number().int(),
   validation: z.enum(findingValidations),
   validationNote: z.string().nullable(),
-  example: z.object({ pageUrl: z.string(), selector: z.string(), htmlSnippet: z.string() }),
+  example: findingExampleSchema,
 });
 export type InspectionProblem = z.infer<typeof inspectionProblemSchema>;
 

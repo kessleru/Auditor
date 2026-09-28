@@ -65,6 +65,11 @@ export interface DiscoveryResult {
    * As rotas encontradas até ali ficam valendo.
    */
   stoppedEarly: 'deadline' | 'failures' | null;
+  /**
+   * Domínio fora da instituição para onde páginas foram redirecionadas (ex.: desafio de proteção
+   * contra robôs). Essas páginas contam como falha; o domínio explica a parada ao auditor.
+   */
+  offDomainHost: string | null;
   /** Verificação das rotas já confirmadas (seção 3.1.7). */
   checks: RouteCheck[];
 }
@@ -108,10 +113,16 @@ export class DiscoveryError extends Error {
   }
 }
 
+/** O portal mandou a ferramenta para outro domínio: bloqueio, nunca a nova origem (ADR 0016). */
+const offDomainError = (host: string) =>
+  new DiscoveryError(
+    `O portal redirecionou para ${host}, fora do domínio da instituição: provável proteção contra robôs. A ferramenta não contorna bloqueios (o portal fica sem dado); a equipe de TI pode liberar o user-agent AuditoriaRF.`,
+  );
+
 type PageOutcome =
   | { kind: 'page'; url: string; title: string | undefined; html: string }
   | { kind: 'authenticated'; url: string; title: string | undefined }
-  | { kind: 'skipped' };
+  | { kind: 'skipped'; offDomainHost?: string };
 
 /** O que se sabe de uma URL pelos links que apontam para ela. */
 interface LinkInfo {
@@ -151,13 +162,13 @@ export async function discoverRoutes({
   // "www.", como faria quem digita o endereço no navegador.
   let opened: Awaited<ReturnType<typeof openPortal>>;
   try {
-    opened = await openPortal(client, `https://${domain}`, robotsAgent);
+    opened = await openPortal(client, `https://${domain}`, robotsAgent, domain);
   } catch (err) {
     if (!(err instanceof FetchFailedError) || domain.startsWith('www.')) {
       throw new DiscoveryError(err instanceof Error ? err.message : String(err));
     }
     try {
-      opened = await openPortal(client, `https://www.${domain}`, robotsAgent);
+      opened = await openPortal(client, `https://www.${domain}`, robotsAgent, domain);
     } catch (again) {
       throw new DiscoveryError(again instanceof Error ? again.message : String(again));
     }
@@ -165,6 +176,8 @@ export async function discoverRoutes({
   let { robots, robotsTxtFound, origin } = opened;
   const { homeResponse } = opened;
   let intervalMs = crawlInterval(robots);
+  const homeHost = new URL(homeResponse.url).hostname;
+  if (!isWithinDomain(homeHost, domain)) throw offDomainError(homeHost);
   if (homeResponse.status >= 400) {
     throw new DiscoveryError(
       `A página inicial respondeu HTTP ${homeResponse.status}${HTTP_HINTS[homeResponse.status] ?? ''}.`,
@@ -173,7 +186,12 @@ export async function discoverRoutes({
   const homeOrigin = new URL(homeResponse.url).origin;
   if (isDevHost(new URL(homeOrigin).host)) throw new DiscoveryError(DEV_HOST_REASON);
   if (homeOrigin !== origin) {
-    ({ robots, robotsTxtFound, origin } = await loadRobots(client, homeOrigin, robotsAgent));
+    ({ robots, robotsTxtFound, origin } = await loadRobots(
+      client,
+      homeOrigin,
+      robotsAgent,
+      domain,
+    ));
     intervalMs = crawlInterval(robots);
   }
   const homeUrl = normalizeUrl(homeResponse.url) as string;
@@ -187,6 +205,7 @@ export async function discoverRoutes({
     routes: new Map<string, DiscoveredRoute>(),
     blockedByRobots: new Set<string>(),
     failed: 0,
+    offDomainHost: null as string | null,
   };
   const linkInfo = new Map<string, LinkInfo>();
   const inSitemap = new Set<string>();
@@ -299,6 +318,7 @@ export async function discoverRoutes({
 
   const record = (outcome: PageOutcome) => {
     if (outcome.kind === 'skipped') {
+      if (outcome.offDomainHost) state.offDomainHost = outcome.offDomainHost;
       state.failed++;
       consecutiveFailures++;
       return;
@@ -326,7 +346,7 @@ export async function discoverRoutes({
 
   const visit = async (url: string): Promise<PageOutcome> => {
     try {
-      return analyzePage(await client.get(url, { intervalMs }), origin);
+      return analyzePage(await client.get(url, { intervalMs }), origin, domain);
     } catch (err) {
       if (err instanceof FetchFailedError) return { kind: 'skipped' };
       throw err;
@@ -335,7 +355,7 @@ export async function discoverRoutes({
     }
   };
 
-  const homeOutcome = analyzePage(homeResponse, origin);
+  const homeOutcome = analyzePage(homeResponse, origin, domain);
   if (homeOutcome.kind !== 'page') {
     throw new DiscoveryError('A página inicial não pôde ser lida como HTML público.');
   }
@@ -420,6 +440,7 @@ export async function discoverRoutes({
     blockedByRobots: state.blockedByRobots.size,
     stoppedEarly,
     failed: state.failed,
+    offDomainHost: state.offDomainHost,
   };
 }
 
@@ -430,19 +451,32 @@ function crawlInterval(robots: RobotsRules): number | undefined {
 }
 
 /** robots.txt e página inicial a partir de `baseUrl`. Falha de rede na inicial propaga. */
-async function openPortal(client: HttpClient, baseUrl: string, robotsAgent: string) {
-  const loaded = await loadRobots(client, baseUrl, robotsAgent);
+async function openPortal(
+  client: HttpClient,
+  baseUrl: string,
+  robotsAgent: string,
+  domain: string,
+) {
+  const loaded = await loadRobots(client, baseUrl, robotsAgent, domain);
   const homeResponse = await client.get(`${loaded.origin}/`, {
     intervalMs: crawlInterval(loaded.robots),
   });
   return { ...loaded, homeResponse };
 }
 
-async function loadRobots(client: HttpClient, baseUrl: string, robotsAgent: string) {
+async function loadRobots(
+  client: HttpClient,
+  baseUrl: string,
+  robotsAgent: string,
+  domain: string,
+) {
   let origin = new URL(baseUrl).origin;
   let content: string | null = null;
   try {
     const res = await client.get(`${origin}/robots.txt`);
+    const host = new URL(res.url).hostname;
+    // O redirecionamento do robots.txt revela a origem canônica, mas só dentro da instituição.
+    if (!isWithinDomain(host, domain)) throw offDomainError(host);
     origin = new URL(res.url).origin;
     if (res.status === 200) content = res.body.toString('utf8');
     // RFC 9309 (2.3.1.4): robots.txt com erro de servidor = tudo proibido. Por cautela, a
@@ -462,12 +496,14 @@ async function loadRobots(client: HttpClient, baseUrl: string, robotsAgent: stri
   };
 }
 
-function analyzePage(res: HttpResponse, origin: string): PageOutcome {
+function analyzePage(res: HttpResponse, origin: string, domain: string): PageOutcome {
   // Redirecionou para login/SSO, mesmo em outro host: a URL pedida é de área autenticada.
   if (res.redirected && isAuthUrl(res.url)) {
     const url = normalizeUrl(res.requestedUrl);
     return url ? { kind: 'authenticated', url, title: undefined } : { kind: 'skipped' };
   }
+  const finalHost = new URL(res.url).hostname;
+  if (!isWithinDomain(finalHost, domain)) return { kind: 'skipped', offDomainHost: finalHost };
   if (res.status >= 400 || !/html/i.test(res.contentType)) return { kind: 'skipped' };
 
   const url = normalizeUrl(res.url);

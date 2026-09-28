@@ -9,6 +9,7 @@ import {
   EmptyState,
   ErrorState,
   FindingCard,
+  FindingPreview,
   Page,
   PageHeader,
 } from '../../components/ui';
@@ -17,6 +18,7 @@ import { CSV_PROBLEMS_URL, useAuditorInstitution } from './auditorApi';
 import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
+import { ReviewNeededNote } from './ReviewNeededNote';
 import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
 
@@ -149,7 +151,10 @@ export function AuditorInstitutionPage() {
               />
             ) : null}
             {institution.status === 'evaluated' ? (
-              <ComparisonBasis institution={institution} />
+              <>
+                <ReviewNeededNote count={institution.reviewNeeded} />
+                <ComparisonBasis institution={institution} />
+              </>
             ) : null}
 
             {history.length > 0 ? (
@@ -200,6 +205,7 @@ export function AuditorInstitutionPage() {
                           principle={c.p.principle}
                           description={c.p.description}
                           pageUrl={c.p.example.pageUrl}
+                          preview={<FindingPreview example={c.p.example} />}
                           snippet={c.p.example.htmlSnippet}
                           template={c.p.template}
                           meta={

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { conformityClasses } from './conformity.js';
 import { findingValidations, pageFunctionKeys, severities, wcagPrinciples } from './domain.js';
+import { findingExampleSchema } from './findings.js';
 
 // Visão pública (somente leitura). Cada instituição aparece com a sua coleta mais recente
 // terminada; se falhou nela, é ausência de dado (ADR 0006).
@@ -25,6 +26,11 @@ export const publicInstitutionSchema = z.object({
   templateProblems: z.number().int().nullable(),
   /** Achados ainda aguardando a validação manual. */
   pendingValidation: z.number().int(),
+  /**
+   * Verificações que o axe não conseguiu decidir (`incomplete`, ex.: contraste sobre imagem), em
+   * todas as páginas avaliadas: ficam fora do cálculo, mas pedem revisão humana (seção 3.3).
+   */
+  reviewNeeded: z.number().int().nullable(),
   /** Páginas avaliadas no núcleo comum. */
   pagesEvaluated: z.number().int(),
   pagesTotal: z.number().int(),
@@ -93,7 +99,7 @@ export const publicProblemSchema = z.object({
   template: z.boolean(),
   pages: z.number().int(),
   occurrences: z.number().int(),
-  example: z.object({ pageUrl: z.string(), selector: z.string(), htmlSnippet: z.string() }),
+  example: findingExampleSchema,
 });
 export type PublicProblem = z.infer<typeof publicProblemSchema>;
 

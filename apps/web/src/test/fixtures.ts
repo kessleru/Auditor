@@ -14,6 +14,7 @@ export const iftm: PublicInstitution = {
   criticalProblems: 5,
   templateProblems: 2,
   pendingValidation: 3,
+  reviewNeeded: 7,
   pagesEvaluated: 4,
   pagesTotal: 4,
   coverage: { found: 12, expected: 13, missing: ['class_schedule'] },
@@ -33,6 +34,7 @@ export const ifx: PublicInstitution = {
   criticalProblems: null,
   templateProblems: null,
   pendingValidation: 0,
+  reviewNeeded: null,
   pagesEvaluated: 0,
   overall: null,
 };
@@ -65,9 +67,12 @@ export const problems: PublicProblem[] = [
     pages: 4,
     occurrences: 4,
     example: {
+      findingId: 21,
       pageUrl: 'https://iftm.edu.br',
       selector: 'header img',
       htmlSnippet: '<img src="logo.png">',
+      screenshotUrl: '/api/v1/findings/21/screenshot',
+      evidence: null,
     },
   },
   {
@@ -84,9 +89,12 @@ export const problems: PublicProblem[] = [
     pages: 1,
     occurrences: 2,
     example: {
+      findingId: 22,
       pageUrl: 'https://iftm.edu.br/ingresso',
       selector: 'footer a',
       htmlSnippet: '<a href="/x"></a>',
+      screenshotUrl: null,
+      evidence: null,
     },
   },
 ];

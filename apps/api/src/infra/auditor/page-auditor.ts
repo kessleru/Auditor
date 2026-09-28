@@ -1,9 +1,11 @@
 import { createRequire } from 'node:module';
 import { AxeBuilder } from '@axe-core/playwright';
-import type { AxeResults } from 'axe-core';
-import { type Browser, type BrowserContext, chromium, errors } from 'playwright';
+import type { AxeResults, Result } from 'axe-core';
+import { type Browser, type BrowserContext, chromium, errors, type Page } from 'playwright';
 import { MIN_REQUEST_INTERVAL_MS } from '../crawler/http.js';
 import { type HostThrottle, sharedHostThrottle } from '../crawler/throttle.js';
+import { isWithinDomain } from '../crawler/url.js';
+import { selectorOf } from './axe-mapping.js';
 
 // Auditoria automatizada de uma página (seção 3.2 do plano).
 
@@ -25,14 +27,118 @@ export interface AuditorVersions {
   userAgent: string;
 }
 
+/** Foto de um elemento reprovado, casada com o achado pela regra e pelo seletor (ADR 0014). */
+export interface ElementScreenshot {
+  ruleId: string;
+  selector: string;
+  image: Buffer;
+}
+
 export type AuditOutcome =
-  | { ok: true; httpStatus: number | null; finalUrl: string; html: string; results: AxeResults }
+  | {
+      ok: true;
+      httpStatus: number | null;
+      finalUrl: string;
+      html: string;
+      results: AxeResults;
+      screenshots: ElementScreenshot[];
+    }
   | { ok: false; httpStatus: number | null; error: string };
+
+export const MAX_SCREENSHOTS_PER_PAGE = 30;
+const SCREENSHOT_MARGIN_PX = 16;
+const MAX_SCREENSHOT_HEIGHT_PX = 600;
+const HIGHLIGHT_ATTRIBUTE = 'data-auditoria-rf-alvo';
+
+/**
+ * Fotografa os elementos reprovados, com uma margem para mostrar o fundo e a vizinhança e um
+ * contorno de destaque. Roda depois do axe e do snapshot: não muda o que foi avaliado nem o HTML
+ * salvo. Elemento em iframe ou shadow DOM, invisível, ou a página inteira (`html`, `body`) fica
+ * sem foto; uma foto que falha nunca falha a página.
+ */
+async function captureElements(page: Page, violations: Result[]): Promise<ElementScreenshot[]> {
+  const shots: ElementScreenshot[] = [];
+  const seen = new Set<string>();
+  const viewport = page.viewportSize() ?? VIEWPORT;
+  await page
+    .addStyleTag({
+      content: `[${HIGHLIGHT_ATTRIBUTE}]{outline:3px solid #d4351c !important;outline-offset:2px !important}`,
+    })
+    .catch(() => {});
+
+  for (const rule of violations) {
+    for (const node of rule.nodes) {
+      if (shots.length >= MAX_SCREENSHOTS_PER_PAGE) return shots;
+      const [target] = node.target;
+      if (node.target.length !== 1 || typeof target !== 'string') continue;
+      const selector = selectorOf(node.target);
+      const key = `${rule.id} ${selector}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try {
+        const element = await page.$(`css=${target}`);
+        if (!element) continue;
+        const tag = await element.evaluate((el) => el.tagName.toLowerCase());
+        if (tag === 'html' || tag === 'body') continue;
+        await element.scrollIntoViewIfNeeded({ timeout: 2000 });
+        const box = await element.boundingBox();
+        if (!box || box.width < 1 || box.height < 1) continue;
+        const x = Math.max(0, box.x - SCREENSHOT_MARGIN_PX);
+        const y = Math.max(0, box.y - SCREENSHOT_MARGIN_PX);
+        const clip = {
+          x,
+          y,
+          width: Math.min(viewport.width - x, box.x + box.width + SCREENSHOT_MARGIN_PX - x),
+          height: Math.min(
+            viewport.height - y,
+            MAX_SCREENSHOT_HEIGHT_PX,
+            box.y + box.height + SCREENSHOT_MARGIN_PX - y,
+          ),
+        };
+        if (clip.width < 1 || clip.height < 1) continue;
+        await element.evaluate((el, name) => el.setAttribute(name, ''), HIGHLIGHT_ATTRIBUTE);
+        const image = await page.screenshot({
+          clip,
+          type: 'jpeg',
+          quality: 75,
+          animations: 'disabled',
+          timeout: 5000,
+        });
+        await element.evaluate((el, name) => el.removeAttribute(name), HIGHLIGHT_ATTRIBUTE);
+        shots.push({ ruleId: rule.id, selector, image });
+      } catch {
+        // A foto é complemento: sem ela, o achado mostra só o código.
+      }
+    }
+  }
+  return shots;
+}
+
+export interface AuditOptions {
+  /**
+   * Domínio da instituição. A página que termina fora dele (ex.: desafio de proteção contra robôs
+   * noutro domínio) vira falha: auditar o desafio mediria outro site (ADR 0016).
+   */
+  domain?: string;
+}
 
 export interface PageAuditor {
   versions(): Promise<AuditorVersions>;
-  audit(url: string): Promise<AuditOutcome>;
+  audit(url: string, options?: AuditOptions): Promise<AuditOutcome>;
   close(): Promise<void>;
+}
+
+/** Motivo da falha se a página aberta saiu do domínio da instituição; `null` se não saiu. */
+export function offDomainReason(pageUrl: string, domain: string | undefined): string | null {
+  if (!domain) return null;
+  let host: string;
+  try {
+    host = new URL(pageUrl).hostname;
+  } catch {
+    return null;
+  }
+  if (!host || isWithinDomain(host, domain)) return null;
+  return `A página redirecionou para ${host}, fora do domínio da instituição (${domain}): provável proteção contra robôs. A ferramenta não contorna bloqueios; o portal fica sem dado.`;
 }
 
 export interface PlaywrightAuditorOptions {
@@ -135,22 +241,25 @@ export function createPlaywrightAuditor({
       };
     },
 
-    async audit(url) {
+    async audit(url, { domain } = {}) {
       const host = new URL(url).host;
       let lastError: unknown;
       for (let attempt = 1; attempt <= 2; attempt++) {
         let context: BrowserContext | undefined;
+        let page: Page | undefined;
         try {
           context = await (
             await getBrowser()
           ).newContext({ viewport: VIEWPORT, userAgent, locale: 'pt-BR' });
-          const page = await context.newPage();
+          page = await context.newPage();
           await throttle.wait(host, minIntervalMs);
           const response = await page.goto(url, {
             waitUntil: 'networkidle',
             timeout: navigationTimeoutMs,
           });
           const httpStatus = response?.status() ?? null;
+          const offDomain = offDomainReason(page.url(), domain);
+          if (offDomain) return { ok: false, httpStatus, error: offDomain };
           if (httpStatus !== null && httpStatus >= 400) {
             return { ok: false, httpStatus, error: `A página respondeu HTTP ${httpStatus}.` };
           }
@@ -172,8 +281,13 @@ export function createPlaywrightAuditor({
             };
           }
           const html = await page.content();
-          return { ok: true, httpStatus, finalUrl: page.url(), html, results };
+          const screenshots = await captureElements(page, results.violations);
+          return { ok: true, httpStatus, finalUrl: page.url(), html, results, screenshots };
         } catch (err) {
+          // Desafio que nunca termina de carregar (tempo esgotado já no outro domínio): o motivo
+          // real é o redirecionamento, não a lentidão.
+          const offDomain = page && !page.isClosed() ? offDomainReason(page.url(), domain) : null;
+          if (offDomain) return { ok: false, httpStatus: null, error: offDomain };
           lastError = err;
           if (!isTransientFailure(err)) break;
         } finally {
