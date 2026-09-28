@@ -165,8 +165,19 @@ export function createHttpClient({
         if (redirects.length >= maxRedirects) {
           throw new FetchFailedError(requestedUrl, 'redirecionamentos demais', false);
         }
+        let next: string;
+        try {
+          next = new URL(location, current).href;
+        } catch {
+          // Location malformado: falha desta URL, não da descoberta toda.
+          throw new FetchFailedError(
+            requestedUrl,
+            'redirecionamento para endereço inválido',
+            false,
+          );
+        }
         redirects.push({ url: current, status: res.status });
-        current = new URL(location, current).href;
+        current = next;
         continue;
       }
 
