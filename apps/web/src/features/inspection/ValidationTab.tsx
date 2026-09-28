@@ -112,9 +112,11 @@ function ProblemCard({
             }}
           >
             <label className="flex flex-col gap-1.5 text-label font-medium">
-              Justificativa (obrigatória; o falso positivo fica registrado e não pode ser desfeito)
+              Justificativa (obrigatória, ao menos 10 caracteres; o falso positivo fica registrado e
+              não pode ser desfeito)
               <textarea
                 value={note}
+                maxLength={1000}
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
                 className="rounded-md border border-border-strong bg-surface px-3 py-2 font-normal"
