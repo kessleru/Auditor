@@ -56,6 +56,7 @@ function page(
   passes: number,
   violations: number,
   status: 'done' | 'failed' = 'done',
+  failure: { error?: string; httpStatus?: number } = {},
 ) {
   // A página herda a função da rota, como na coleta de verdade.
   const functionId = db.select().from(routes).where(eq(routes.id, routeId)).get()?.functionId;
@@ -70,6 +71,8 @@ function page(
       violationsCount: violations,
       // Casos que o axe não decide: fora do cálculo, mas contados para a revisão humana.
       incompleteCount: status === 'done' ? 2 : 0,
+      error: failure.error ?? null,
+      httpStatus: failure.httpStatus ?? null,
     })
     .returning()
     .get();
@@ -142,7 +145,10 @@ beforeEach(() => {
   );
   const p1 = page(recent.id, ifa.routes[0]!.id, 8, 2);
   const p2 = page(recent.id, ifa.routes[1]!.id, 9, 1);
-  page(recent.id, ifb.routes[0]!.id, 0, 0, 'failed');
+  page(recent.id, ifb.routes[0]!.id, 0, 0, 'failed', {
+    error:
+      'A página redirecionou para validate.perfdrive.com, fora do domínio da instituição (if-b.edu.br): provável proteção contra robôs. A ferramenta não contorna bloqueios; o portal fica sem dado.',
+  });
   // image-alt no cabeçalho, nas duas páginas: confirmado (template).
   finding(p1.id, 'image-alt', 'header img', 'confirmed');
   finding(p2.id, 'image-alt', 'header img', 'confirmed');
@@ -184,7 +190,10 @@ describe('API pública', () => {
       pagesTotal: 2,
       collectedAt: '2026-09-12T12:00:00.000Z',
     });
+    expect(ifaRow!.noDataReason).toBeNull();
     expect(ifbRow).toMatchObject({
+      // O motivo da ausência: bloqueio não é portal fora do ar (ADR 0016).
+      noDataReason: 'blocked',
       conformity: null,
       problems: null,
       reviewNeeded: null,
@@ -325,6 +334,8 @@ describe('exportação de dados abertos (CSV)', () => {
     expect(bySigla.IFA![col('axe_versao')]).toBe('4.13.0');
     expect(bySigla.IFB![col('situacao')]).toBe('sem_dado');
     expect(bySigla.IFB![col('conformidade')]).toBe('');
+    expect(bySigla.IFB![col('motivo_sem_dado')]).toBe('bloqueio');
+    expect(bySigla.IFA![col('motivo_sem_dado')]).toBe('');
   });
 
   it('problemas: só confirmados', async () => {
