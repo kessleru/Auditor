@@ -58,7 +58,15 @@ const findings: InspectionFindings = {
       kind: 'template',
       page: null,
       problems: [
-        problem(10, { template: true, pages: 2, occurrences: 2, validation: 'confirmed' }),
+        problem(10, {
+          ruleId: 'color-contrast',
+          title: 'Elementos devem ter contraste de cor suficiente',
+          severity: 'moderate',
+          template: true,
+          pages: 2,
+          occurrences: 2,
+          validation: 'confirmed',
+        }),
       ] as never,
     },
     {
@@ -148,6 +156,20 @@ describe('portal: contexto, abas e validação (3.3)', () => {
     const sections = await screen.findAllByRole('heading', { level: 2 });
     expect(sections[0]!.textContent).toContain('Em todas as páginas (template)');
     await expectNoAxeViolations(container);
+
+    // Filtros por regra e severidade, para não percorrer 100+ problemas um a um.
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Regra' }),
+      'color-contrast',
+    );
+    expect(screen.getByText('1 de 2 problemas exibidos')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /template/ })).toBeTruthy();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severidade' }), 'critical');
+    expect(screen.getByText('0 de 2 problemas exibidos')).toBeTruthy();
+    expect(screen.getByText('Nenhum problema com esses filtros.')).toBeTruthy();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Regra' }), '');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severidade' }), '');
+    expect(screen.getByText('2 problemas exibidos')).toBeTruthy();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Mostrar só os pendentes' }));
     expect(screen.getByText('1 de 2 problemas exibidos')).toBeTruthy();
