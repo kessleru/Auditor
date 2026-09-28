@@ -1,4 +1,4 @@
-import type { PageFailureKind } from '@auditoria-rf/contracts';
+import type { PageFailureKind } from './domain.js';
 
 // Motivo agrupado de uma página que falhou, lido da mensagem gravada na coleta. Ler da mensagem (e
 // não de uma coluna nova) vale também para as coletas já feitas; os testes amarram cada mensagem

@@ -3,6 +3,7 @@ export * from './collections.js';
 export * from './conformity.js';
 export * from './domain.js';
 export * from './errors.js';
+export * from './failure-kind.js';
 export * from './findings.js';
 export * from './health.js';
 export * from './indicators.js';
