@@ -605,8 +605,14 @@ async function checkRoute(
   try {
     const res = await client.get(url, { intervalMs });
     const firstHop = res.redirects[0];
-    if (firstHop && (firstHop.status === 301 || firstHop.status === 308)) {
-      return { url, result: 'moved', httpStatus: firstHop.status, movedTo: normalizeUrl(res.url) };
+    const movedTo = normalizeUrl(res.url);
+    // "/x" → "/x/" é o mesmo endereço normalizado: não é mudança de rota.
+    if (
+      firstHop &&
+      (firstHop.status === 301 || firstHop.status === 308) &&
+      movedTo !== normalizeUrl(url)
+    ) {
+      return { url, result: 'moved', httpStatus: firstHop.status, movedTo };
     }
     if (res.status === 404 || res.status === 410) {
       return { url, result: 'not_found', httpStatus: res.status, movedTo: null };
