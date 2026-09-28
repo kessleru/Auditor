@@ -108,6 +108,7 @@ Uma ferramenta que mede acessibilidade não pode ser inacessível. O projeto se 
 | `npm run create-auditor -- --email <e-mail> --name <nome>` | cria a conta do auditor (não há cadastro público) |
 | `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais (funções, tarefas-alvo, as 42 instituições da Rede Federal e a demonstração) |
 | `npm run demo:export -- --collections=<ids>` | empacota coletas em `apps/api/demo/` como demonstração |
+| `npm run evidence:backfill` (ou `-- --collection=<id>`) | refaz a evidência de contraste e de tamanho do alvo das coletas antigas, a partir do resultado do axe salvo |
 
 ## Estrutura
 

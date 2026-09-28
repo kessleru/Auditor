@@ -33,6 +33,22 @@ público abstrato para quem não lê HTML.
 6. **Nunca injetar o HTML do portal** na página do sistema (risco de script de terceiros). A
    "renderização" é sempre imagem ou SVG gerado a partir de dados medidos.
 
+## Ampliação (28/09/2026)
+
+7. **Mais evidência.** Além do contraste, `target-size` (2.5.8) guarda o tamanho medido pelo axe e
+   a distância até o vizinho mais próximo. Para imagem sem texto alternativo (`image-alt`,
+   `input-image-alt`), link sem nome (`link-name`) e campo sem rótulo (`label`, `select-name`), o
+   navegador lê do elemento o endereço da imagem, o destino do link e o tipo do campo; no
+   contraste, a família da fonte calculada (o axe não a informa), que a amostra passa a usar com a
+   do sistema de reserva. É uma única leitura no navegador, depois do axe e do snapshot, que só lê.
+   Endereços do portal aparecem como texto, nunca como link.
+8. **Preenchimento retroativo.** `npm run evidence:backfill` refaz a evidência de contraste e de
+   tamanho do alvo das coletas antigas a partir do `.axe.json.gz` salvo; a fonte, a imagem, o link e
+   o campo exigem a página aberta e ficam sem. Só completa achados sem evidência: nunca muda a
+   validação nem o resultado da coleta.
+9. **Foto em tamanho real.** A prévia limita a foto a 320 px de altura e oferece um link para abri-la
+   inteira, em nova aba (avisado no próprio texto do link).
+
 ## O que não muda
 
 O resultado da auditoria e o HTML salvo são os mesmos: a foto sai depois dos dois, com as mesmas
