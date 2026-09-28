@@ -17,6 +17,7 @@ import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
 import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
+import { ReviewNeededNote } from './ReviewNeededNote';
 
 type Filter = 'all' | 'critical' | 'template';
 
@@ -190,6 +191,7 @@ export function InstitutionDetailPage() {
                   },
                 ]}
               />
+              <ReviewNeededNote count={institution.reviewNeeded} />
               <ComparisonBasis institution={institution} />
             </div>
           ) : null}

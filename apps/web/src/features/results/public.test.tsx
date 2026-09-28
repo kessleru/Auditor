@@ -95,6 +95,8 @@ describe('detalhe da instituição (4.3, leitura)', () => {
       screen.getByRole('meter', { name: 'Conformidade do IFTM' }).getAttribute('aria-valuetext'),
     ).toBe('78%, Bom');
     expect(screen.getByText('Ainda fora da lista de problemas')).toBeTruthy();
+    // O incomplete do axe fica fora do cálculo, mas é exibido (seção 3.3).
+    expect(screen.getByText(/7 verificações ficaram inconclusivas para o axe/)).toBeTruthy();
 
     const chart = screen.getByRole('img', { name: /Conformidade por coleta/ });
     expect(chart.getAttribute('aria-label')).toBe(
