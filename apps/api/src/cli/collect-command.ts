@@ -1,5 +1,6 @@
 import {
   classifyConformity,
+  formatSeconds,
   pageFailureKindLabels,
   pageFunctionLabels,
   type CollectionEvent,
@@ -20,7 +21,6 @@ export interface CollectArgs {
 
 const CLASS_LABEL = { good: 'Bom', partial: 'Parcial', critical: 'Crítico' } as const;
 const percent = (value: number) => `${(value * 100).toFixed(1).replace('.', ',')}%`;
-const seconds = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
 
 export class CollectCommandError extends Error {}
 
@@ -109,7 +109,7 @@ export async function runCollect(
   if (reliability.loadTime) {
     const { measured, medianMs, maxMs } = reliability.loadTime;
     print(
-      `Carregamento: mediana ${seconds(medianMs)}, máximo ${seconds(maxMs)} (${measured} página(s)).`,
+      `Carregamento: mediana ${formatSeconds(medianMs)}, máximo ${formatSeconds(maxMs)} (${measured} página(s)).`,
     );
   }
 
