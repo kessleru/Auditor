@@ -242,6 +242,48 @@ describe('createHttpClient', () => {
     });
     await expect(client.get('https://a.edu.br/x')).rejects.toThrow(/redirecionamentos demais/);
   });
+
+  it('Location malformado vira FetchFailedError, sem nova tentativa', async () => {
+    const { clock, now } = fakeClock();
+    const { calls, make } = fakeFetch({
+      'https://a.edu.br/x': () =>
+        new Response(null, { status: 302, headers: { location: 'http://[::1' } }),
+    });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+    });
+    const error = await client.get('https://a.edu.br/x').catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(FetchFailedError);
+    expect(String(error)).toMatch(/redirecionamento para endereço inválido/);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('não segue o redirecionamento que followRedirect recusa', async () => {
+    const { clock, now } = fakeClock();
+    const { calls, make } = fakeFetch({
+      'https://a.edu.br/x': () =>
+        new Response(null, { status: 302, headers: { location: '/proibido' } }),
+      'https://a.edu.br/proibido': () => new Response('segredo'),
+    });
+    const client = createHttpClient({
+      userAgent: 'UA',
+      fetch: make(now),
+      throttle: new HostThrottle(clock),
+    });
+    const res = await client.get('https://a.edu.br/x', {
+      followRedirect: (next) => !next.includes('/proibido'),
+    });
+    expect(res).toMatchObject({
+      url: 'https://a.edu.br/x',
+      status: 302,
+      redirected: false,
+      blockedRedirect: 'https://a.edu.br/proibido',
+    });
+    expect(res.body).toHaveLength(0);
+    expect(calls.map((c) => c.url)).toEqual(['https://a.edu.br/x']);
+  });
 });
 
 describe('parseRetryAfter', () => {

@@ -23,11 +23,14 @@ describe('createAuditor', () => {
     expect(row?.passwordHash).not.toContain(input.password);
   });
 
-  it('exige senha com pelo menos 12 caracteres', async () => {
+  it('exige senha com pelo menos 6 caracteres', async () => {
     const { service } = setup();
     await expect(service.createAuditor({ ...input, password: 'curta' })).rejects.toThrow(
-      /12 caracteres/,
+      /6 caracteres/,
     );
+    await expect(
+      service.createAuditor({ ...input, email: 'seis@iftm.edu.br', password: 'abc123' }),
+    ).resolves.toMatchObject({ email: 'seis@iftm.edu.br' });
   });
 
   it('recusa e-mail repetido', async () => {

@@ -28,7 +28,7 @@ export function fakeSite(resources: Record<string, FakeResource>) {
   const requested: string[] = [];
 
   const client: HttpClient = {
-    async get(url) {
+    async get(url, { followRedirect } = {}) {
       const redirects: HttpResponse['redirects'] = [];
       let current = url;
       for (;;) {
@@ -37,8 +37,21 @@ export function fakeSite(resources: Record<string, FakeResource>) {
         if (resource && 'networkError' in resource)
           throw new FetchFailedError(current, 'ECONNRESET');
         if (resource && 'redirect' in resource) {
+          const next = new URL(resource.redirect, current).href;
+          if (followRedirect && !followRedirect(next)) {
+            return {
+              requestedUrl: url,
+              url: current,
+              status: resource.status ?? 301,
+              redirected: redirects.length > 0,
+              redirects,
+              contentType: '',
+              body: Buffer.alloc(0),
+              blockedRedirect: next,
+            };
+          }
           redirects.push({ url: current, status: resource.status ?? 301 });
-          current = new URL(resource.redirect, current).href;
+          current = next;
           continue;
         }
         const found = resource ?? {

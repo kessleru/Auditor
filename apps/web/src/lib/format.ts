@@ -26,6 +26,9 @@ export function formatMonth(iso: string): string {
   return `${MONTHS[Number(parts.month) - 1]}/${parts.year}`;
 }
 
+/** 2345 (ms) → "2,3 s" (a mesma função da CLI de coleta). */
+export { formatSeconds } from '@auditoria-rf/contracts';
+
 /** 1234 → "1.234". */
 export function formatNumber(value: number): string {
   return value.toLocaleString('pt-BR');

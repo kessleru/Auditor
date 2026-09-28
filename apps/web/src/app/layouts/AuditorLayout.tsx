@@ -2,6 +2,7 @@ import {
   Activity,
   ChartColumn,
   CirclePlus,
+  FlaskConical,
   History,
   Landmark,
   LayoutDashboard,
@@ -35,6 +36,7 @@ const groups = [
     items: [
       { to: '/painel', label: 'Painel', icon: LayoutDashboard },
       { to: '/comparativo', label: 'Comparativo', icon: ChartColumn },
+      { to: '/indicadores', label: 'Indicadores', icon: FlaskConical },
       { to: '/gestao/instituicoes', label: 'Instituições', icon: Landmark },
     ],
   },

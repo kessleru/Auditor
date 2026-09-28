@@ -4,7 +4,7 @@ import type {
   CollectionStatus,
   PageFunctionKey,
 } from '@auditoria-rf/contracts';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import {
   collectionPages,
@@ -14,6 +14,7 @@ import {
   institutions,
   pageFunctions,
   routes,
+  users,
 } from '../../db/schema.js';
 
 export type CollectionRow = Omit<typeof collections.$inferSelect, 'scopeJson'> & {
@@ -150,12 +151,18 @@ export function createCollectionsRepository(db: DB) {
       ];
       if (functionKeys) conditions.push(inArray(pageFunctions.key, [...functionKeys]));
       return db
-        .select({ id: routes.id, functionId: routes.functionId })
+        .select({
+          id: routes.id,
+          functionId: routes.functionId,
+          url: routes.url,
+          functionKey: pageFunctions.key,
+        })
         .from(routes)
         .leftJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
         .where(and(...conditions))
         .orderBy(asc(routes.institutionId), asc(routes.id))
-        .all();
+        .all()
+        .map((r) => ({ ...r, functionKey: r.functionKey as PageFunctionKey | null }));
     },
 
     insertCollection(values: { scope: CollectionScope; createdBy: number }): CollectionRow {
@@ -189,6 +196,19 @@ export function createCollectionsRepository(db: DB) {
         .orderBy(desc(collections.createdAt), desc(collections.id))
         .all()
         .map(toCollection);
+    },
+
+    /** Nome de cada autor, por id. */
+    authorNames(ids: readonly number[]): Map<number, string> {
+      if (ids.length === 0) return new Map();
+      return new Map(
+        db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(inArray(users.id, [...new Set(ids)]))
+          .all()
+          .map((u) => [u.id, u.name]),
+      );
     },
 
     listCollectionsByStatus(statuses: readonly CollectionStatus[]): CollectionRow[] {
@@ -261,11 +281,53 @@ export function createCollectionsRepository(db: DB) {
       db.update(collectionPages).set(values).where(eq(collectionPages.id, id)).run();
     },
 
+    /**
+     * Grava os achados da página. A validação vale para o problema (fingerprint) na coleta
+     * (ADR 0008): achado novo de um problema já decidido, como o de uma página refeita depois da
+     * validação, herda a decisão; falso positivo prevalece por ser definitivo.
+     */
     insertFindings(collectionPageId: number, drafts: readonly FindingInsert[]) {
       if (drafts.length === 0) return [];
+      const decided = new Map<string, typeof findings.$inferSelect>();
+      for (const row of db
+        .select({ finding: findings })
+        .from(findings)
+        .innerJoin(collectionPages, eq(collectionPages.id, findings.collectionPageId))
+        .where(
+          and(
+            eq(
+              collectionPages.collectionId,
+              db
+                .select({ id: collectionPages.collectionId })
+                .from(collectionPages)
+                .where(eq(collectionPages.id, collectionPageId)),
+            ),
+            inArray(findings.fingerprint, [...new Set(drafts.map((d) => d.fingerprint))]),
+            ne(findings.validation, 'pending'),
+          ),
+        )
+        .all()) {
+        const known = decided.get(row.finding.fingerprint);
+        if (!known || row.finding.validation === 'false_positive')
+          decided.set(row.finding.fingerprint, row.finding);
+      }
       return db
         .insert(findings)
-        .values(drafts.map((d) => ({ ...d, collectionPageId })))
+        .values(
+          drafts.map((d) => {
+            const decision = decided.get(d.fingerprint);
+            return {
+              ...d,
+              collectionPageId,
+              ...(decision && {
+                validation: decision.validation,
+                validationNote: decision.validationNote,
+                validatedBy: decision.validatedBy,
+                validatedAt: decision.validatedAt,
+              }),
+            };
+          }),
+        )
         .returning({ id: findings.id, ruleId: findings.ruleId, selector: findings.selector })
         .all();
     },

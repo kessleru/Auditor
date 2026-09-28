@@ -12,7 +12,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
 import type { DB } from '../../db/client.js';
-import { collectionPages, collections, findings } from '../../db/schema.js';
+import { collectionPages, collections, findings, users } from '../../db/schema.js';
 import { seed } from '../../db/seeds/seed.js';
 import type { AuditOutcome, PageAuditor } from '../../infra/auditor/page-auditor.js';
 import { createServices } from '../../services.js';
@@ -188,6 +188,8 @@ describe('execução da coleta', () => {
       violationsCount: 1,
       incompleteCount: 1,
       inapplicableCount: 1,
+      loadTimeMs: 1234,
+      failureKind: null,
     });
 
     const rows = db
@@ -237,6 +239,11 @@ describe('execução da coleta', () => {
       ['ingresso', 'failed', 'net::ERR_CONNECTION_RESET'],
       ['biblioteca', 'failed', 'Erro interno: navegador caiu'],
     ]);
+    // Motivo agrupado, para o relatório de confiabilidade da coleta.
+    const detail = collectionDetailResponseSchema.parse(
+      (await agent.get(`/api/v1/collections/${body.collection.id}`)).body,
+    );
+    expect(detail.pages.map((p) => p.failureKind)).toEqual([null, 'network', 'tool']);
   });
 
   it('nunca audita duas páginas do mesmo host ao mesmo tempo', async () => {
@@ -344,6 +351,80 @@ describe('trava por domínio', () => {
   });
 });
 
+describe('teste-reteste', () => {
+  it('audita as rotas confirmadas várias vezes e mede a concordância, sem gravar nada', async () => {
+    let ingresso = 0;
+    // O banner do ingresso é um carrossel: a imagem sem alt só aparece na primeira rodada.
+    const auditor = fakeAuditor(async (url) =>
+      url.endsWith('/ingresso') && ingresso++ === 0
+        ? okOutcome([{ rule: 'image-alt', targets: ['.slide-1 img'] }])
+        : okOutcome(),
+    );
+    const { service } = await setup(auditor);
+    const { institution } = institutionA();
+
+    const result = await service.retest(institution.id, 2);
+    expect(auditor.audited).toHaveLength(6);
+    expect(auditor.domains.every((d) => d === 'if-a.edu.br')).toBe(true);
+    expect(result.summary).toEqual({
+      pages: 3,
+      compared: 3,
+      stable: 2,
+      meanRuleAgreement: 2 / 3,
+      meanFindingAgreement: 2 / 3,
+    });
+    const page = result.pages.find((p) => p.url.endsWith('/ingresso'));
+    expect(page).toMatchObject({
+      functionKey: 'admission',
+      stable: false,
+      unstableRules: ['image-alt'],
+    });
+    // Nada vai para o banco: nem coleta nem achado.
+    expect(db.select().from(collections).all()).toEqual([]);
+    expect(db.select().from(findings).all()).toEqual([]);
+  });
+
+  it('não roda com uma coleta em execução no mesmo domínio', async () => {
+    const gate = deferred<AuditOutcome>();
+    const auditor = fakeAuditor(() => gate.promise);
+    const { agent, service } = await setup(auditor);
+    const { institution } = institutionA();
+    await create(agent, { institutionIds: [institution.id] });
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(service.retest(institution.id)).rejects.toMatchObject({
+      status: 409,
+      code: 'DOMAIN_BUSY',
+    });
+    gate.resolve(okOutcome());
+    await service.idle();
+  });
+
+  it('dois retestes no mesmo domínio não rodam juntos, e a coleta começa quando ele acaba', async () => {
+    const gate = deferred<void>();
+    const auditor = fakeAuditor(async () => {
+      await gate.promise;
+      return okOutcome();
+    });
+    const { agent, service } = await setup(auditor);
+    const { institution } = institutionA();
+
+    const first = service.retest(institution.id, 1);
+    await expect(service.retest(institution.id, 1)).rejects.toMatchObject({
+      status: 409,
+      code: 'DOMAIN_BUSY',
+    });
+    // A recusa do segundo não soltou a trava do primeiro: a coleta espera.
+    const mine = (await create(agent, { institutionIds: [institution.id] })).body.collection;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(service.getWithProgress(mine.id).collection.status).toBe('queued');
+
+    gate.resolve();
+    await first;
+    expect((await service.waitForFinish(mine.id)).status).toBe('completed');
+  });
+});
+
 describe('cancelamento, nova tentativa e retomada', () => {
   it('cancela: a página em execução termina e nenhuma outra começa', async () => {
     const gate = deferred<void>();
@@ -390,6 +471,37 @@ describe('cancelamento, nova tentativa e retomada', () => {
     expect(retry.status).toBe(200);
     expect(retry.body.page).toMatchObject({ status: 'queued', error: null });
     expect((await service.waitForFinish(body.collection.id)).status).toBe('completed');
+  });
+
+  it('achado novo de um problema já validado na coleta herda a decisão do auditor', async () => {
+    let fail = true;
+    const header = [{ rule: 'image-alt', targets: ['header img'] }];
+    const auditor = fakeAuditor(async (url) =>
+      fail && url.endsWith('/ingresso')
+        ? { ok: false, httpStatus: 503, error: 'HTTP 503' }
+        : okOutcome(header),
+    );
+    const { agent, service } = await setup(auditor);
+    const { body } = await create(agent, { institutionIds: [institutionA().institution.id] });
+    await service.waitForFinish(body.collection.id);
+    // O auditor descarta o problema do cabeçalho: a validação vale para o fingerprint na coleta.
+    const note = 'Imagem decorativa: o alt vazio está no elemento pai.';
+    const validatedAt = new Date('2026-09-20T12:00:00Z');
+    db.update(findings)
+      .set({ validation: 'false_positive', validationNote: note, validatedBy: 1, validatedAt })
+      .run();
+
+    fail = false;
+    const failed = service.get(body.collection.id).pages.find((p) => p.status === 'failed')!;
+    await agent.post(`/api/v1/collection-pages/${failed.id}/retry`);
+    await service.waitForFinish(body.collection.id);
+
+    const rows = db.select().from(findings).all();
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toMatchObject({ validation: 'false_positive', validationNote: note });
+      expect(row.validatedAt).toEqual(validatedAt);
+    }
   });
 
   it('navegador que não abre encerra a coleta com o motivo, sem derrubar o servidor', async () => {
@@ -555,6 +667,13 @@ describe('GET /api/v1/collections', () => {
       institutions: [{ id: institution.id, acronym: 'IFA', name: 'Instituto IFA' }],
       progress: { total: 3, done: 3 },
     });
+    // Quem criou a coleta (a conta de demonstração aparece pelo nome).
+    const author = db
+      .select()
+      .from(users)
+      .where(eq(users.id, all.body.collections[0].createdBy))
+      .get();
+    expect(all.body.collections[0].createdByName).toBe(author?.name);
 
     const running = await agent.get('/api/v1/collections?status=queued,running');
     expect(running.body.collections).toEqual([]);

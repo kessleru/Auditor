@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from 'react';
 import { cn } from './cn';
 
 export interface Column<Row> {
@@ -19,7 +19,28 @@ export interface DataTableProps<Row> {
   rowKey: (row: Row) => string | number;
 }
 
-/** Tabela real (`<table>`, `<caption>`, `<th scope>`), nunca uma grade de divs. */
+/** O conteúdo passa da largura do contêiner (a tabela rola na horizontal)? */
+function useOverflowsX(ref: RefObject<HTMLElement | null>) {
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth);
+    check();
+    const observer = new ResizeObserver(check);
+    // O contêiner muda com a janela; a tabela, com os dados (mais largos sem mudar a altura).
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [ref]);
+  return overflows;
+}
+
+/**
+ * Tabela real (`<table>`, `<caption>`, `<th scope>`), nunca uma grade de divs. Em tela estreita,
+ * a tabela que rola na horizontal vira uma região focável com o nome da legenda: sem isso, quem
+ * usa teclado não consegue rolar uma tabela sem links (WCAG 2.1.1).
+ */
 export function DataTable<Row>({
   caption,
   captionHidden,
@@ -27,10 +48,24 @@ export function DataTable<Row>({
   rows,
   rowKey,
 }: DataTableProps<Row>) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const captionId = useId();
+  const scrollable = useOverflowsX(wrapperRef);
   return (
-    <div className="overflow-x-auto rounded-lg bg-surface shadow-card">
+    <div
+      ref={wrapperRef}
+      className="overflow-x-auto rounded-lg bg-surface shadow-card"
+      {...(scrollable && {
+        role: 'region',
+        'aria-labelledby': captionId,
+        tabIndex: 0,
+      })}
+    >
       <table className="w-full border-collapse text-left text-body">
-        <caption className={cn('px-5 py-3 text-left text-card', captionHidden && 'sr-only')}>
+        <caption
+          id={captionId}
+          className={cn('px-5 py-3 text-left text-card', captionHidden && 'sr-only')}
+        >
           {caption}
         </caption>
         <thead className="bg-muted">

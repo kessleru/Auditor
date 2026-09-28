@@ -18,11 +18,13 @@ const page = (id: number, overrides: Partial<CollectionPage> = {}): CollectionPa
   status: 'queued',
   httpStatus: null,
   error: null,
+  failureKind: null,
   passesCount: 0,
   violationsCount: 0,
   incompleteCount: 0,
   inapplicableCount: 0,
   evaluatedAt: null,
+  loadTimeMs: null,
   ...overrides,
 });
 const collection = (status: string, progress: object) => ({
@@ -112,6 +114,22 @@ describe('acompanhamento da coleta (2.1)', () => {
     expect(await screen.findByText(/Atualizando a cada 5 segundos/)).toBeTruthy();
   });
 
+  it('SSE recusado pelo servidor (ex.: 502 do proxy) passa logo a consultar a cada 5 s', async () => {
+    detail = {
+      collection: collection('running', { queued: 2 }),
+      institutions,
+      pages: [page(1), page(2)],
+    };
+    stub();
+    renderRoute('/coletas/7');
+    await screen.findByRole('heading', { level: 1, name: 'Auditoria em execução' });
+    const source = FakeEventSource.instances.at(-1)!;
+    // O navegador não reconecta depois de uma resposta de erro: esperar 3 falhas travaria a tela.
+    act(() => source.failPermanently());
+    expect(source.closed).toBe(true);
+    expect(await screen.findByText(/Atualizando a cada 5 segundos/)).toBeTruthy();
+  });
+
   it('cancelamento pede confirmação', async () => {
     detail = {
       collection: collection('running', { queued: 2 }),
@@ -143,8 +161,12 @@ describe('falha parcial (2.2)', () => {
       },
       institutions,
       pages: [
-        page(1, { status: 'done', violationsCount: 2 }),
-        page(2, { status: 'failed', error: 'page.goto: Timeout 30000ms exceeded.' }),
+        page(1, { status: 'done', violationsCount: 2, loadTimeMs: 2345 }),
+        page(2, {
+          status: 'failed',
+          error: 'page.goto: Timeout 30000ms exceeded.',
+          failureKind: 'timeout',
+        }),
       ],
     };
     let retried = false;
@@ -160,6 +182,10 @@ describe('falha parcial (2.2)', () => {
     ).toBeTruthy();
     expect(screen.getByText('Tempo de resposta esgotado após 30 segundos')).toBeTruthy();
     expect(screen.getByText(/ausência de dado, não como conformidade zero/)).toBeTruthy();
+    // Confiabilidade: tempo de carregamento e falhas por motivo.
+    const reliability = screen.getByRole('region', { name: 'Confiabilidade da coleta' });
+    expect(reliability.textContent).toContain('mediana 2,3 s · máximo 2,3 s (1 página medida)');
+    expect(reliability.textContent).toContain('Tempo esgotado: 1 página');
     await expectNoAxeViolations(container);
     await userEvent.click(
       screen.getByRole('button', { name: 'Tentar novamente https://iftm.edu.br/p2' }),
@@ -167,6 +193,29 @@ describe('falha parcial (2.2)', () => {
     await waitFor(() => expect(retried).toBe(true));
     // Coleta terminada não abre SSE.
     expect(FakeEventSource.instances).toHaveLength(0);
+  });
+});
+
+describe('histórico de coletas', () => {
+  it('mostra quem criou cada coleta', async () => {
+    stub({
+      'GET /collections': {
+        collections: [
+          {
+            ...collection('completed', { done: 2 }),
+            finishedAt: '2026-09-22T13:20:00.000Z',
+            createdBy: 9,
+            createdByName: 'Demonstração (coleta de exemplo)',
+            institutions,
+          },
+        ],
+      },
+    });
+    const { container } = renderRoute('/historico');
+    const table = await screen.findByRole('table', { name: 'Histórico de coletas' });
+    expect(within(table).getByRole('columnheader', { name: 'Autor' })).toBeTruthy();
+    expect(within(table).getByText('Demonstração (coleta de exemplo)')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });
 

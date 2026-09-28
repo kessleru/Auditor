@@ -177,8 +177,50 @@ export function UiCatalogPage() {
           title="Imagem sem texto alternativo"
           description="O banner da página inicial não possui atributo alt, deixando o conteúdo inacessível a leitores de tela."
           pageUrl="https://www.iftm.edu.br/"
+          preview={
+            <FindingPreview
+              example={{
+                findingId: 2,
+                pageUrl: 'https://www.iftm.edu.br/',
+                selector: 'img.banner',
+                htmlSnippet: '<img src="/banner-ingresso.png">',
+                screenshotUrl: null,
+                evidence: { kind: 'image', src: 'https://www.iftm.edu.br/banner-ingresso.png' },
+              }}
+            />
+          }
           snippet={'<img src="/banner-ingresso.png">'}
           recommendation='adicionar alt descrevendo a função da imagem, ou alt="" se for decorativa.'
+        />
+        <FindingCard
+          severity="critical"
+          origin="automated"
+          wcagCriteria="2.5.8"
+          principle="operable"
+          title="Alvo de toque pequeno demais"
+          description="Os ícones de redes sociais do rodapé são pequenos e muito próximos."
+          pageUrl="https://www.iftm.edu.br/"
+          preview={
+            <FindingPreview
+              example={{
+                findingId: 3,
+                pageUrl: 'https://www.iftm.edu.br/',
+                selector: 'footer .social a',
+                htmlSnippet: '<a href="https://instagram.com/iftm"><svg>…</svg></a>',
+                screenshotUrl: null,
+                evidence: {
+                  kind: 'target-size',
+                  widthPx: 16,
+                  heightPx: 16,
+                  minSizePx: 24,
+                  closestOffsetPx: 8,
+                  minOffsetPx: 24,
+                },
+              }}
+            />
+          }
+          snippet={'<a href="https://instagram.com/iftm"><svg>…</svg></a>'}
+          recommendation="aumentar a área clicável para 24 × 24 px ou afastar os ícones."
         />
         <FindingCard
           severity="critical"
@@ -204,6 +246,7 @@ export function UiCatalogPage() {
                   expectedContrastRatio: 4.5,
                   fontSizePx: 14,
                   bold: false,
+                  fontFamily: 'Rawline, Arial, sans-serif',
                 },
               }}
             />

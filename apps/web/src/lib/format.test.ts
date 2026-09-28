@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatMonth, formatNumber } from './format';
+import { formatDate, formatMonth, formatNumber, formatSeconds } from './format';
 
 describe('format', () => {
   it('datas no horário de Brasília', () => {
@@ -12,5 +12,11 @@ describe('format', () => {
 
   it('números com separador de milhar', () => {
     expect(formatNumber(1247)).toBe('1.247');
+  });
+
+  it('formata segundos com uma casa, sem mostrar 0,0 s', () => {
+    expect(formatSeconds(2345)).toBe('2,3 s');
+    expect(formatSeconds(30_000)).toBe('30,0 s');
+    expect(formatSeconds(18)).toBe('menos de 0,1 s');
   });
 });

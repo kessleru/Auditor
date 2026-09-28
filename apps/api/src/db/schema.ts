@@ -154,6 +154,8 @@ export const collectionPages = sqliteTable(
     incompleteCount: integer('incomplete_count').notNull().default(0),
     inapplicableCount: integer('inapplicable_count').notNull().default(0),
     evaluatedAt: timestamp('evaluated_at'),
+    /** Tempo até o evento `load`, medido pelo navegador (Navigation Timing), em ms. */
+    loadTimeMs: integer('load_time_ms'),
   },
   (t) => [
     unique().on(t.collectionId, t.routeId),

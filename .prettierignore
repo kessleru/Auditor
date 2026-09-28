@@ -5,3 +5,8 @@ data
 .claude/skills
 package-lock.json
 *.md
+# Gerados pelo Playwright e pelo backup (ignorados pelo git em apps/web/.gitignore e na raiz)
+**/e2e/.auth
+**/playwright-report
+**/test-results
+backups

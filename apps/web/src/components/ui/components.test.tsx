@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { LayoutDashboard } from 'lucide-react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
 import {
   Badge,
@@ -106,6 +106,92 @@ describe('DataTable', () => {
       'row',
     );
     await expectNoAxeViolations(container);
+    // Cabe na largura: nenhuma parada de foco a mais.
+    expect(container.firstElementChild?.getAttribute('tabindex')).toBeNull();
+  });
+
+  describe('em tela estreita', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('reavalia quando a tabela alarga sem o contêiner mudar de tamanho', async () => {
+      const observed: Element[] = [];
+      let notify = () => {};
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback: () => void) {
+            notify = callback;
+          }
+          observe(el: Element) {
+            observed.push(el);
+          }
+          disconnect() {}
+        },
+      );
+      let contentWidth = 358;
+      const scrollWidth = vi
+        .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+        .mockImplementation(() => contentWidth);
+      const clientWidth = vi
+        .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+        .mockReturnValue(358);
+      try {
+        render(
+          <DataTable
+            caption="Validação por regra"
+            captionHidden
+            rows={[{ id: 1, rule: 'image-alt' }]}
+            rowKey={(r) => r.id}
+            columns={[{ key: 'rule', header: 'Regra', rowHeader: true, cell: (r) => r.rule }]}
+          />,
+        );
+        expect(screen.queryByRole('region')).toBeNull();
+        // A tabela também é observada: dados mais largos chegam sem mudar a altura.
+        expect(observed.map((el) => el.tagName)).toContain('TABLE');
+        contentWidth = 700;
+        act(() => notify());
+        expect(screen.getByRole('region', { name: 'Validação por regra' })).toBeTruthy();
+      } finally {
+        scrollWidth.mockRestore();
+        clientWidth.mockRestore();
+      }
+    });
+
+    it('a tabela que rola vira região focável com o nome da legenda', async () => {
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          disconnect() {}
+        },
+      );
+      const scrollWidth = vi
+        .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+        .mockReturnValue(700);
+      const clientWidth = vi
+        .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+        .mockReturnValue(358);
+      try {
+        const { container } = render(
+          <DataTable
+            caption="Validação por regra"
+            captionHidden
+            rows={[{ id: 1, rule: 'image-alt', total: 3 }]}
+            rowKey={(r) => r.id}
+            columns={[
+              { key: 'rule', header: 'Regra', rowHeader: true, cell: (r) => r.rule },
+              { key: 'total', header: 'Problemas', align: 'end', cell: (r) => r.total },
+            ]}
+          />,
+        );
+        const region = screen.getByRole('region', { name: 'Validação por regra' });
+        expect(region.getAttribute('tabindex')).toBe('0');
+        await expectNoAxeViolations(container);
+      } finally {
+        scrollWidth.mockRestore();
+        clientWidth.mockRestore();
+      }
+    });
   });
 });
 
@@ -257,7 +343,114 @@ describe('FindingPreview', () => {
     expect(screen.getByText(/Razão 2,85:1/).textContent?.replace(/\s+/g, ' ')).toBe(
       'Razão 2,85:1 — mínimo 4,5:1 texto #999999 sobre fundo #ffffff, fonte de 12 px.',
     );
+    // A foto também abre em tamanho real, com o aviso de nova aba no nome.
+    const open = screen.getByRole('link', { name: /abrir a foto em tamanho real/ });
+    expect(open.getAttribute('href')).toBe('/api/v1/findings/3/screenshot');
+    expect(open.getAttribute('rel')).toContain('noopener');
     await expectNoAxeViolations(container);
+  });
+
+  it('usa a fonte medida no portal, com a do sistema de reserva', () => {
+    render(
+      <FindingPreview
+        example={{
+          ...base,
+          evidence: {
+            kind: 'contrast',
+            fgColor: '#777777',
+            bgColor: '#ffffff',
+            contrastRatio: 4.48,
+            expectedContrastRatio: 4.5,
+            fontSizePx: 14,
+            bold: true,
+            fontFamily: '"Open Sans", Arial, sans-serif',
+          },
+        }}
+      />,
+    );
+    const sample = screen.getByRole('img', { name: /Amostra do texto/ });
+    expect(sample.querySelector('text')?.getAttribute('font-family')).toBe(
+      '"Open Sans", system-ui, sans-serif',
+    );
+    expect(screen.getByText(/Razão 4,48:1/).textContent?.replace(/\s+/g, ' ')).toContain(
+      'fonte Open Sans de 14 px em negrito.',
+    );
+  });
+
+  it.each([
+    [
+      {
+        kind: 'target-size',
+        widthPx: 18.5,
+        heightPx: 18,
+        minSizePx: 24,
+        closestOffsetPx: 10,
+        minOffsetPx: 24,
+      },
+      'Alvo de 18,5 × 18 px — mínimo 24 × 24 px; vizinho mais próximo a 10 px — mínimo 24 px.',
+    ],
+    [
+      {
+        kind: 'target-size',
+        widthPx: null,
+        heightPx: null,
+        minSizePx: 24,
+        closestOffsetPx: 3.5,
+        minOffsetPx: 24,
+      },
+      'Vizinho mais próximo a 3,5 px — mínimo 24 px.',
+    ],
+    [
+      { kind: 'image', src: 'https://iftm.edu.br/logo.png' },
+      'Endereço da imagem: https://iftm.edu.br/logo.png',
+    ],
+    [
+      { kind: 'link', href: 'https://iftm.edu.br/ingresso' },
+      'Destino do link: https://iftm.edu.br/ingresso',
+    ],
+    [{ kind: 'field', fieldType: 'search' }, 'Tipo do campo: busca (search)'],
+    [{ kind: 'field', fieldType: 'week' }, 'Tipo do campo: week'],
+    [
+      {
+        kind: 'target-size',
+        widthPx: null,
+        heightPx: null,
+        minSizePx: 24,
+        closestOffsetPx: 10,
+        minOffsetPx: null,
+      },
+      'Vizinho mais próximo a 10 px.',
+    ],
+  ] as const)('evidência em texto: %j', async (evidence, text) => {
+    const { container } = render(
+      <main>
+        <FindingPreview example={{ ...base, evidence }} />
+      </main>,
+    );
+    expect(container.querySelector('figure p')?.textContent).toBe(text);
+    // Endereços do portal ficam como texto, nunca como link.
+    expect(screen.queryByRole('link')).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
+  it('tamanho do alvo sem nenhuma medida não vira um parágrafo vazio', () => {
+    const { container } = render(
+      <FindingPreview
+        example={{
+          ...base,
+          screenshotUrl: '/api/v1/findings/3/screenshot',
+          evidence: {
+            kind: 'target-size',
+            widthPx: null,
+            heightPx: null,
+            minSizePx: 24,
+            closestOffsetPx: null,
+            minOffsetPx: null,
+          },
+        }}
+      />,
+    );
+    expect(container.querySelector('figure p')).toBeNull();
   });
 
   it('sem foto nem evidência não mostra nada; foto que não carrega some', () => {

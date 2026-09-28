@@ -389,6 +389,15 @@ describe('uma rota confirmada por função', () => {
       .send({ url: 'https://gov.br/biblioteca', functionKey: 'library', replaceConfirmed: true });
     expect(outside.status).toBe(422);
     expect(outside.body.error.code).toBe('OUTSIDE_DOMAIN');
+
+    // Homologação fica fora como na descoberta (3.1.6).
+    const staging = await agent.post('/api/v1/institutions/1/routes').send({
+      url: 'https://hml.iftm.edu.br/biblioteca',
+      functionKey: 'library',
+      replaceConfirmed: true,
+    });
+    expect(staging.status).toBe(422);
+    expect(staging.body.error.code).toBe('DEV_HOST');
   });
 });
 
@@ -471,6 +480,64 @@ describe('substituição de rota (3.1.7)', () => {
       reason: 'moved',
       httpStatus: 308,
       candidateUrl: `${ORIGIN}/bibliotecas`,
+    });
+  });
+
+  it('redirecionamento permanente para fora do domínio não vira candidata', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const biblioteca = (await listRoutes(agent)).find(
+      (r) => r.normalizedUrl === `${ORIGIN}/biblioteca`,
+    )!;
+    await agent
+      .patch(`/api/v1/routes/${biblioteca.id}`)
+      .send({ status: 'confirmed', functionKey: 'library' });
+
+    discover = crawl(
+      fakeSite({
+        'https://iftm.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+        [`${ORIGIN}/robots.txt`]: { status: 404, body: '' },
+        [`${ORIGIN}/`]: { body: html('IFTM') },
+        [`${ORIGIN}/biblioteca`]: { redirect: 'https://www.gov.br/biblioteca', status: 301 },
+        'https://www.gov.br/biblioteca': { body: html('Biblioteca') },
+      }),
+    );
+    await agent.post('/api/v1/institutions/1/discover');
+    const discovery = await waitForDiscovery(agent);
+    expect(discovery.replacements[0]).toMatchObject({
+      reason: 'moved',
+      httpStatus: 301,
+      candidateUrl: null,
+    });
+    expect((await listRoutes(agent)).map((r) => r.normalizedUrl)).not.toContain(
+      'https://www.gov.br/biblioteca',
+    );
+  });
+
+  it('não substitui por rota confirmada de outra função', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const routes = await listRoutes(agent);
+    const ingresso = routes.find((r) => r.normalizedUrl === `${ORIGIN}/ingresso`)!;
+    const biblioteca = routes.find((r) => r.normalizedUrl === `${ORIGIN}/biblioteca`)!;
+    await agent
+      .patch(`/api/v1/routes/${ingresso.id}`)
+      .send({ status: 'confirmed', functionKey: 'admission' });
+    await agent
+      .patch(`/api/v1/routes/${biblioteca.id}`)
+      .send({ status: 'confirmed', functionKey: 'library' });
+
+    const res = await agent
+      .post(`/api/v1/routes/${ingresso.id}/replace`)
+      .send({ newRouteId: biblioteca.id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('FUNCTION_ALREADY_CONFIRMED');
+    const after = await listRoutes(agent);
+    expect(after.find((r) => r.id === biblioteca.id)).toMatchObject({
+      status: 'confirmed',
+      functionKey: 'library',
     });
   });
 

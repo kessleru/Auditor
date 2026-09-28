@@ -185,6 +185,12 @@ describe('aceite da Fase 4', { timeout: 120_000 }, () => {
     expect(output[0]).toBe(`Coleta #${viaCliId} criada: IFLOCAL, 2 página(s).`);
     expect(output.join('\n')).toMatch(/Versões: axe-core 4\.13\.0 · Chromium \d+/);
     expect(output.join('\n')).toMatch(/IFLOCAL: conformidade .* 5 problema\(s\) distinto\(s\)/);
+    // Tempo de carregamento medido pelo navegador, para o relatório de confiabilidade.
+    expect(output.join('\n')).toMatch(
+      // Página local carrega rápido: "menos de 0,1 s" (nunca "0,0 s"), ou o tempo com uma casa.
+      /Carregamento: mediana (?:\d+,\d s|menos de 0,1 s), máximo (?:\d+,\d s|menos de 0,1 s) \(2 página\(s\)\)\./,
+    );
+    expect(output.join('\n')).not.toContain(' 0,0 s');
     expect(output.at(-1)).toBe(
       'A conformidade cobre apenas critérios verificáveis automaticamente.',
     );
