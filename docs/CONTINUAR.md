@@ -35,7 +35,9 @@ plano) **não mudam sem o autor**: estão listadas em "Decisões do autor".
 
 | — | Revisão do PR (9 achados, todos corrigidos): acerto da sugestão usa o host real do portal (a origem pode ser `portal.<domínio>`); navegador que cai conta como falha da ferramenta; `${data}` do locale não aparece mais cru; inconclusivas não são relidas a cada validação; tabela reavalia a rolagem quando os dados alargam; CLI mostra "menos de 0,1 s" como a tela; tamanho do alvo nunca vira "."; classificação das falhas e regra de template em `contracts` (sem `infra/` fora dos services) |
 
-Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 422, web 98, contracts 41).
+| — | Revisão do programa inteiro (18 achados, todos corrigidos com teste). **Descoberta:** o robots.txt vale para a página inicial e para os redirecionamentos (salto para caminho proibido não é seguido); robots.txt inacessível por erro de rede = proibido (RFC 9309); `Location` malformado não derruba a descoberta; sitemap gzip limitado a 50 MB; "/x" → "/x/" não é rota movida; rota confirmada proibida pelo robots não é pedida; prioridade da fila em cache. **Rotas:** 301 para fora do domínio não vira candidata; rota manual em homologação recusada; substituição não tira a rota de outra função. **Coleta:** dois retestes da mesma instituição não rodam juntos; contorno de destaque sai do elemento mesmo com a foto falhando. **Métricas e validação:** sem função em comum, a avaliada fica sem número (não 0 problemas); falso positivo nunca é sobrescrito por outro achado do mesmo problema; achado novo de problema já validado herda a decisão (página refeita). **Front:** progresso cai para a consulta de 5 s quando o SSE é recusado (502); justificativa do falso positivo diz o mínimo; profundidade da tarefa ajustada ao que a API aceita |
+
+Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 438, web 100, contracts 41).
 
 ## Falta: dados da demonstração (parte B do pedido anterior)
 
@@ -68,6 +70,9 @@ configurações de rede do ambiente. Passos (inalterados, ver também a ADR 0015
 9. **Validação em lote** (item 38): só com justificativa por problema? Hoje, um por vez.
 10. **Captura da página inteira** (item 30): estimativa 0,5–1,5 MB por página em JPEG → 13 páginas ×
     42 instituições ≈ 270–820 MB por coleta. Vale o espaço?
+11. **"Coleta mais recente" com "tentar de novo"** (ADR 0006): a ordem é pela data de término. Uma
+    coleta antiga reaberta para refazer uma página termina de novo e passa à frente de uma coleta
+    mais nova da mesma instituição na visão pública. Ordenar pelo início (ou pelo id)?
 
 ## Não verificado aqui
 
