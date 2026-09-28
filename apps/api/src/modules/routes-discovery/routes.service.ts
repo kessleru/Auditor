@@ -8,7 +8,7 @@ import type {
   updateRouteSchema,
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
-import { normalizeUrl } from '../../infra/crawler/url.js';
+import { DEV_HOST_REASON, isDevHost, normalizeUrl } from '../../infra/crawler/url.js';
 import { AppError, NotFoundError } from '../../shared/errors.js';
 import type { InstitutionsService } from '../institutions/institutions.service.js';
 import type { RoutesRepository, RouteWithFunction } from './routes.repository.js';
@@ -158,6 +158,7 @@ export function createRoutesService(
           `A URL precisa ser do domínio ${institution.domain}.`,
         );
       }
+      if (isDevHost(host)) throw new AppError(422, 'DEV_HOST', DEV_HOST_REASON);
 
       return repo.transaction(() => {
         const fnId = functionId(input.functionKey);
