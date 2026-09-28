@@ -97,6 +97,10 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
     expect(outcome.results.testEngine.version).toBe('4.13.0');
     expect(outcome.html).toContain('Portal de teste');
     expect(outcome.httpStatus).toBe(200);
+    // Tempo de carregamento medido pelo navegador (Navigation Timing).
+    expect(outcome.loadTimeMs).toEqual(expect.any(Number));
+    expect(outcome.loadTimeMs).toBeGreaterThan(0);
+    expect(outcome.loadTimeMs).toBeLessThan(10_000);
   });
 
   it('página conforme não tem violações', async () => {

@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { collectionPageStatuses, collectionStatuses, pageFunctionKeys } from './domain.js';
+import {
+  collectionPageStatuses,
+  collectionStatuses,
+  pageFailureKinds,
+  pageFunctionKeys,
+} from './domain.js';
 
 export const createCollectionSchema = z.object({
   institutionIds: z
@@ -56,11 +61,15 @@ export const collectionPageSchema = z.object({
   status: z.enum(collectionPageStatuses),
   httpStatus: z.number().int().nullable(),
   error: z.string().nullable(),
+  /** Motivo agrupado da falha; `null` quando a página não falhou. */
+  failureKind: z.enum(pageFailureKinds).nullable(),
   passesCount: z.number().int(),
   violationsCount: z.number().int(),
   incompleteCount: z.number().int(),
   inapplicableCount: z.number().int(),
   evaluatedAt: z.string().nullable(),
+  /** Tempo até o evento `load` da página, medido pelo navegador (Navigation Timing), em ms. */
+  loadTimeMs: z.number().int().nullable(),
 });
 export type CollectionPage = z.infer<typeof collectionPageSchema>;
 

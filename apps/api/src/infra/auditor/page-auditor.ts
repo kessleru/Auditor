@@ -42,6 +42,8 @@ export type AuditOutcome =
       html: string;
       results: AxeResults;
       screenshots: ElementScreenshot[];
+      /** Tempo até o fim do evento `load`, em ms; `null` se o navegador não informou. */
+      loadTimeMs: number | null;
     }
   | { ok: false; httpStatus: number | null; error: string };
 
@@ -112,6 +114,26 @@ async function captureElements(page: Page, violations: Result[]): Promise<Elemen
     }
   }
   return shots;
+}
+
+/**
+ * Tempo até o fim do evento `load`, medido pelo próprio navegador (Navigation Timing). É dado de
+ * usabilidade e ajuda a explicar os tempos esgotados; só lê, não muda a página.
+ */
+async function measureLoadTime(page: Page): Promise<number | null> {
+  try {
+    const ms = await page.evaluate(() => {
+      // Roda no navegador; os tipos do projeto são os do Node, sem o PerformanceNavigationTiming.
+      const timing = performance as unknown as {
+        getEntriesByType(type: string): { loadEventEnd: number }[];
+      };
+      const [nav] = timing.getEntriesByType('navigation');
+      return nav && nav.loadEventEnd > 0 ? nav.loadEventEnd : null;
+    });
+    return ms === null ? null : Math.round(ms);
+  } catch {
+    return null;
+  }
 }
 
 export interface AuditOptions {
@@ -281,8 +303,17 @@ export function createPlaywrightAuditor({
             };
           }
           const html = await page.content();
+          const loadTimeMs = await measureLoadTime(page);
           const screenshots = await captureElements(page, results.violations);
-          return { ok: true, httpStatus, finalUrl: page.url(), html, results, screenshots };
+          return {
+            ok: true,
+            httpStatus,
+            finalUrl: page.url(),
+            html,
+            results,
+            screenshots,
+            loadTimeMs,
+          };
         } catch (err) {
           // Desafio que nunca termina de carregar (tempo esgotado já no outro domínio): o motivo
           // real é o redirecionamento, não a lentidão.

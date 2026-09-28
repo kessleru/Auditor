@@ -224,6 +224,7 @@ export function createCollectionsService({
             incompleteCount: counts.incomplete,
             inapplicableCount: counts.inapplicable,
             evaluatedAt: now(),
+            loadTimeMs: outcome.loadTimeMs,
           });
           return repo.insertFindings(page.id, drafts);
         });
