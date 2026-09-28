@@ -366,10 +366,13 @@ export function createCollectionsService({
 
     /** Coletas, das mais recentes para as mais antigas, com progresso e instituições. */
     list(statuses?: readonly CollectionStatus[]) {
-      return repo.listCollections(statuses).map((collection) => ({
+      const rows = repo.listCollections(statuses);
+      const authors = repo.authorNames(rows.map((c) => c.createdBy));
+      return rows.map((collection) => ({
         collection,
         progress: repo.progress(collection.id),
         institutions: institutionsOf(collection),
+        createdByName: authors.get(collection.createdBy) ?? '—',
       }));
     },
 

@@ -12,7 +12,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
 import type { DB } from '../../db/client.js';
-import { collectionPages, collections, findings } from '../../db/schema.js';
+import { collectionPages, collections, findings, users } from '../../db/schema.js';
 import { seed } from '../../db/seeds/seed.js';
 import type { AuditOutcome, PageAuditor } from '../../infra/auditor/page-auditor.js';
 import { createServices } from '../../services.js';
@@ -562,6 +562,13 @@ describe('GET /api/v1/collections', () => {
       institutions: [{ id: institution.id, acronym: 'IFA', name: 'Instituto IFA' }],
       progress: { total: 3, done: 3 },
     });
+    // Quem criou a coleta (a conta de demonstração aparece pelo nome).
+    const author = db
+      .select()
+      .from(users)
+      .where(eq(users.id, all.body.collections[0].createdBy))
+      .get();
+    expect(all.body.collections[0].createdByName).toBe(author?.name);
 
     const running = await agent.get('/api/v1/collections?status=queued,running');
     expect(running.body.collections).toEqual([]);

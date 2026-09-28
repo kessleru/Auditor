@@ -180,6 +180,29 @@ describe('falha parcial (2.2)', () => {
   });
 });
 
+describe('histórico de coletas', () => {
+  it('mostra quem criou cada coleta', async () => {
+    stub({
+      'GET /collections': {
+        collections: [
+          {
+            ...collection('completed', { done: 2 }),
+            finishedAt: '2026-09-22T13:20:00.000Z',
+            createdBy: 9,
+            createdByName: 'Demonstração (coleta de exemplo)',
+            institutions,
+          },
+        ],
+      },
+    });
+    const { container } = renderRoute('/historico');
+    const table = await screen.findByRole('table', { name: 'Histórico de coletas' });
+    expect(within(table).getByRole('columnheader', { name: 'Autor' })).toBeTruthy();
+    expect(within(table).getByText('Demonstração (coleta de exemplo)')).toBeTruthy();
+    await expectNoAxeViolations(container);
+  });
+});
+
 describe('painel vazio (5.1)', () => {
   it('convida a iniciar a primeira auditoria', async () => {
     stubApi(auditor, { routes: publicRoutes });

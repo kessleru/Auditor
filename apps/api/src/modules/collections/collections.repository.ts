@@ -14,6 +14,7 @@ import {
   institutions,
   pageFunctions,
   routes,
+  users,
 } from '../../db/schema.js';
 
 export type CollectionRow = Omit<typeof collections.$inferSelect, 'scopeJson'> & {
@@ -189,6 +190,19 @@ export function createCollectionsRepository(db: DB) {
         .orderBy(desc(collections.createdAt), desc(collections.id))
         .all()
         .map(toCollection);
+    },
+
+    /** Nome de cada autor, por id. */
+    authorNames(ids: readonly number[]): Map<number, string> {
+      if (ids.length === 0) return new Map();
+      return new Map(
+        db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(inArray(users.id, [...new Set(ids)]))
+          .all()
+          .map((u) => [u.id, u.name]),
+      );
     },
 
     listCollectionsByStatus(statuses: readonly CollectionStatus[]): CollectionRow[] {
