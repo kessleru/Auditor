@@ -161,7 +161,10 @@ export function IndicatorsPage() {
                       key: 'hits',
                       header: 'Sugestão certa',
                       align: 'end',
-                      cell: (s) => `${formatNumber(s.hits)} (${rate(s.hits, s.discovered)})`,
+                      cell: (s) =>
+                        s.discovered === 0
+                          ? '—'
+                          : `${formatNumber(s.hits)} (${rate(s.hits, s.discovered)})`,
                     },
                     {
                       key: 'other',
