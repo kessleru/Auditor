@@ -399,6 +399,30 @@ describe('teste-reteste', () => {
     gate.resolve(okOutcome());
     await service.idle();
   });
+
+  it('dois retestes no mesmo domínio não rodam juntos, e a coleta começa quando ele acaba', async () => {
+    const gate = deferred<void>();
+    const auditor = fakeAuditor(async () => {
+      await gate.promise;
+      return okOutcome();
+    });
+    const { agent, service } = await setup(auditor);
+    const { institution } = institutionA();
+
+    const first = service.retest(institution.id, 1);
+    await expect(service.retest(institution.id, 1)).rejects.toMatchObject({
+      status: 409,
+      code: 'DOMAIN_BUSY',
+    });
+    // A recusa do segundo não soltou a trava do primeiro: a coleta espera.
+    const mine = (await create(agent, { institutionIds: [institution.id] })).body.collection;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(service.getWithProgress(mine.id).collection.status).toBe('queued');
+
+    gate.resolve();
+    await first;
+    expect((await service.waitForFinish(mine.id)).status).toBe('completed');
+  });
 });
 
 describe('cancelamento, nova tentativa e retomada', () => {
