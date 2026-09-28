@@ -37,7 +37,9 @@ plano) **não mudam sem o autor**: estão listadas em "Decisões do autor".
 
 | — | Revisão do programa inteiro (18 achados, todos corrigidos com teste). **Descoberta:** o robots.txt vale para a página inicial e para os redirecionamentos (salto para caminho proibido não é seguido); robots.txt inacessível por erro de rede = proibido (RFC 9309); `Location` malformado não derruba a descoberta; sitemap gzip limitado a 50 MB; "/x" → "/x/" não é rota movida; rota confirmada proibida pelo robots não é pedida; prioridade da fila em cache. **Rotas:** 301 para fora do domínio não vira candidata; rota manual em homologação recusada; substituição não tira a rota de outra função. **Coleta:** dois retestes da mesma instituição não rodam juntos; contorno de destaque sai do elemento mesmo com a foto falhando. **Métricas e validação:** sem função em comum, a avaliada fica sem número (não 0 problemas); falso positivo nunca é sobrescrito por outro achado do mesmo problema; achado novo de problema já validado herda a decisão (página refeita). **Front:** progresso cai para a consulta de 5 s quando o SSE é recusado (502); justificativa do falso positivo diz o mínimo; profundidade da tarefa ajustada ao que a API aceita |
 
-Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 438, web 100, contracts 41).
+| — | **Descoberta em segundo plano e auditoria salva** (pedido do autor, ADR 0017): fila persistida da descoberta (`discovery_runs`, retomada ao reiniciar a API, `DISCOVERY_CONCURRENCY`), descoberta automática das instituições do escopo ainda não olhadas, descoberta em lote na visão geral; auditoria em montagem por auditor (`audit_drafts`): o escopo salva sozinho e "Nova auditoria" volta para a etapa em que parou; card no Painel; "Descartar esta auditoria". Verificado no navegador (axe 0 em 1280 e 390 px) |
+
+Tudo com `npm run lint`, `npm run typecheck` e `npm test` passando (api 447, web 106, contracts 41).
 
 ## Falta: dados da demonstração (parte B do pedido anterior)
 
@@ -90,7 +92,7 @@ configurações de rede do ambiente. Passos (inalterados, ver também a ADR 0015
 ## Comandos novos
 
 `npm run backup`, `npm run evidence:backfill`, `npm run fingerprint:report -- --collection=<id>`,
-`npm run retest -- --institution=<sigla>`. Rotas novas: `GET /reports/indicators` (+ `rules.csv`,
+`npm run retest -- --institution=<sigla>`. Rotas novas: `GET|PUT|DELETE /audit-draft`, `PATCH /audit-draft/position`, `POST /audit-draft/start`, `GET|POST /discoveries`; `GET /reports/indicators` (+ `rules.csv`,
 `rules-dictionary.csv`) e `GET /collections/:id/institutions/:iid/incomplete`, ambas do auditor.
 
 ## Como trabalhar aqui (resumo para quem chega)
@@ -107,4 +109,4 @@ configurações de rede do ambiente. Passos (inalterados, ver também a ADR 0015
   e `chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell` →
   `headless_shell` (mais os arquivos `INSTALLATION_COMPLETE`) e aponte `PLAYWRIGHT_BROWSERS_PATH`
   para ela. Não rode `playwright install`.
-- Próxima ADR livre: 0017.
+- Próxima ADR livre: 0018.
