@@ -21,9 +21,9 @@
 
 Quem só quer usar o sistema abre `launcher/Auditoria RF.exe` (Windows). Ele verifica o Docker Desktop, inicia se estiver parado, monta a aplicação, sobe API e front, aplica os dados iniciais e abre o navegador em `http://localhost:8080` — com uma janela mostrando cada etapa, um botão para criar a conta do auditor e outro para parar tudo depois.
 
-Na primeira execução ele cria o `.env` a partir do `.env.example` — o `.env` não vai para o repositório, e sem ele o Docker nem inicia. Tudo o que ele faz fica registrado em `%LOCALAPPDATA%AuditoriaRFlauncher.log`, e a janela tem um link para abrir esse arquivo.
+Na primeira execução ele cria o `.env` a partir do `.env.example` — o `.env` não vai para o repositório, e sem ele o Docker nem inicia. Tudo o que ele faz fica registrado em `%LOCALAPPDATA%\AuditoriaRF\launcher.log`, e a janela tem um link para abrir esse arquivo.
 
-Único pré-requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/). Para recompilar o launcher, `powershell -ExecutionPolicy Bypass -File launcheruild.ps1`; ele usa o compilador C# que já vem no Windows, sem instalar nada.
+Único pré-requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/). Para recompilar o launcher, `powershell -ExecutionPolicy Bypass -File launcher\build.ps1`; ele usa o compilador C# que já vem no Windows, sem instalar nada.
 
 ## Rodando em 3 comandos
 
@@ -53,7 +53,11 @@ A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um 
 
 **Camada manual.** Cada achado automatizado é confirmado ou registrado como falso positivo, sempre com justificativa: a taxa de confirmação é um resultado da pesquisa, não um detalhe de implementação. Somam-se tarefas-alvo com o mesmo enunciado em todos os portais e a verificação com teclado, leitor de tela, ampliação a 200%, legendas e contraste.
 
+**Prévia visual.** Na coleta, cada elemento reprovado é fotografado (recorte com margem e contorno de destaque) e, no contraste, as cores, a razão medida e a mínima exigida viram uma amostra do texto. O auditor valida olhando a foto e o código, sem abrir o portal; o público vê a foto dos problemas confirmados. O HTML do portal nunca é injetado na página do sistema.
+
 **Publicação.** Os resultados ficam públicos, com exportação em CSV e dicionário de dados, e uma página que explica o que a nota mede — e o que ela não mede.
+
+**Demonstração.** O `db:seed` importa as coletas de exemplo empacotadas em `apps/api/demo/` (feitas com as ferramentas do próprio sistema e assinadas pela conta "Demonstração", que não entra no sistema). Assim a apresentação abre com dados, sem internet. `DEMO_DATA=false` no `.env` desliga a importação; `npm run demo:export -- --collections=<ids>` gera um pacote novo a partir do banco do `.env`.
 
 ## Decisões que definem o projeto
 
@@ -68,7 +72,7 @@ A pesquisa mede acessibilidade e usabilidade dos portais da Rede Federal com um 
 | Versões de axe-core e navegador **congeladas** | atualizar muda o conjunto de regras e invalida a comparação entre coletas |
 | Uma coleta por vez por domínio, 1,5 s entre requisições | limite ético de carga sobre servidores públicos |
 
-Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 13 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
+Cada uma está registrada como ADR curto em [`docs/decisoes/`](./docs/decisoes) — são 16 — e detalhada no [plano de implementação](./docs/PLANO_DE_IMPLEMENTACAO.md).
 
 ## Acessibilidade do próprio sistema
 
@@ -102,7 +106,8 @@ Uma ferramenta que mede acessibilidade não pode ser inacessível. O projeto se 
 | `npm run discover -- --institution=<sigla>` (ou `--all`) | descobre as rotas nos portais reais e mostra as candidatas por função |
 | `npm run collect -- --institution=<sigla>` | executa uma coleta pela linha de comando |
 | `npm run create-auditor -- --email <e-mail> --name <nome>` | cria a conta do auditor (não há cadastro público) |
-| `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais (funções, tarefas-alvo e as 42 instituições da Rede Federal) |
+| `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais (funções, tarefas-alvo, as 42 instituições da Rede Federal e a demonstração) |
+| `npm run demo:export -- --collections=<ids>` | empacota coletas em `apps/api/demo/` como demonstração |
 
 ## Estrutura
 
@@ -132,6 +137,7 @@ A demonstração roda local com `docker compose up`, a partir de um banco já po
 | Portal com certificado sem a intermediária | nada: a descoberta completa a cadeia pelo AIA, como o navegador |
 | Portal lento ou fora do ar | a descoberta tenta de novo uma vez, respeita o `Retry-After` e para depois de 10 falhas seguidas, guardando o que achou |
 | robots.txt com erro de servidor (5xx) | a descoberta não prossegue (RFC 9309); tente mais tarde |
+| Portal manda a ferramenta para um desafio antirrobô (ex.: `validate.perfdrive.com`) | a descoberta para com a explicação e a coleta registra a página como falha; nenhuma página de outro site é auditada ([ADR 0016](./docs/decisoes/0016-bloqueio-por-protecao-contra-robos.md)) |
 | Portal responde 403 à ferramenta (firewall) | **não contornar** (trocar o user-agent feriria o método): registre como ausência de dado ou peça à TI da instituição que libere o user-agent `AuditoriaRF` |
 | Ambiente de nuvem sem acesso aos portais (ex.: sessão remota com rede restrita) | libere os domínios `.edu.br`, `.g12.br`, `cefetmg.br` e `cefet-rj.br` nas configurações de rede do ambiente, ou rode na sua máquina |
 
@@ -142,6 +148,10 @@ Detalhes na ADR [0012](./docs/decisoes/0012-robustez-da-coleta.md).
 - A nota cobre **apenas critérios verificáveis automaticamente**; não atesta conformidade integral com a WCAG 2.2.
 - Áreas autenticadas (AVA, SUAP) estão fora do escopo — só páginas públicas são avaliadas.
 - Não há testes com participantes humanos; a inspeção assistiva é conduzida pelo pesquisador e não substitui o uso real por pessoas com deficiência.
+- A ferramenta se identifica como `AuditoriaRF`: um portal pode servir outra página (ou bloquear) para esse user-agent, e o resultado pode diferir do que o cidadão vê. Não se contorna, porque esconder a identidade feriria o método.
+- O intervalo de 1,5 s vale entre páginas; ao abrir cada página, o navegador baixa CSS, scripts e imagens de uma vez, como faz o navegador de qualquer cidadão.
+- Só a janela de desktop (1280×800) é auditada; o reflow em telas estreitas fica na verificação manual de ampliação.
+- A foto do achado mostra o elemento na janela da coleta: um cabeçalho fixo ou um aviso de cookies pode encobrir parte dele. Coletas anteriores à prévia visual não têm foto.
 - Modo escuro fora do escopo: dobraria a verificação de contraste sem ganho para a pesquisa.
 
 ## Créditos
