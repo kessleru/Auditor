@@ -10,7 +10,18 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/coverage/**', 'data/**', '.claude/**'] },
+  {
+    // Relatório e resultados do Playwright e backups são gerados localmente (fora do git).
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      'data/**',
+      '.claude/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
+      '**/backups/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
