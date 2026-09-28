@@ -108,6 +108,7 @@ Uma ferramenta que mede acessibilidade não pode ser inacessível. O projeto se 
 | `npm run create-auditor -- --email <e-mail> --name <nome>` | cria a conta do auditor (não há cadastro público) |
 | `npm run db:migrate` / `npm run db:seed` | migrations e dados iniciais (funções, tarefas-alvo, as 42 instituições da Rede Federal e a demonstração) |
 | `npm run demo:export -- --collections=<ids>` | empacota coletas em `apps/api/demo/` como demonstração |
+| `npm run backup` (ou `-- --out <pasta>`) | copia o banco (cópia online, consistente com a API no ar) e os snapshots para `backups/auditoria-<data>`; guarde fora da máquina |
 | `npm run evidence:backfill` (ou `-- --collection=<id>`) | refaz a evidência de contraste e de tamanho do alvo das coletas antigas, a partir do resultado do axe salvo |
 
 ## Estrutura
@@ -128,7 +129,7 @@ docs/         plano de implementação e ADRs
 
 ## Implantação
 
-A demonstração roda local com `docker compose up`, a partir de um banco já populado — não depende de internet nem de terceiros. Hospedagem serverless não serve: o Playwright precisa de um navegador instalado e de execuções longas, e o SQLite precisa de um arquivo em disco que sobreviva entre requisições.
+A demonstração roda local com `docker compose up`, a partir de um banco já populado — não depende de internet nem de terceiros. Faça `npm run backup` periodicamente (no contêiner: `docker compose exec api npm run backup -w @auditoria-rf/api -- --out /app/data/backups`) e copie a pasta gerada para fora da máquina. Hospedagem serverless não serve: o Playwright precisa de um navegador instalado e de execuções longas, e o SQLite precisa de um arquivo em disco que sobreviva entre requisições.
 
 ## Quando a rede ou um portal bloqueia a ferramenta
 
