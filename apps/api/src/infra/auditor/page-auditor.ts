@@ -4,6 +4,7 @@ import type { AxeResults, Result } from 'axe-core';
 import { type Browser, type BrowserContext, chromium, errors, type Page } from 'playwright';
 import { MIN_REQUEST_INTERVAL_MS } from '../crawler/http.js';
 import { type HostThrottle, sharedHostThrottle } from '../crawler/throttle.js';
+import { isWithinDomain } from '../crawler/url.js';
 import { selectorOf } from './axe-mapping.js';
 
 // Auditoria automatizada de uma página (seção 3.2 do plano).
@@ -113,10 +114,31 @@ async function captureElements(page: Page, violations: Result[]): Promise<Elemen
   return shots;
 }
 
+export interface AuditOptions {
+  /**
+   * Domínio da instituição. A página que termina fora dele (ex.: desafio de proteção contra robôs
+   * noutro domínio) vira falha: auditar o desafio mediria outro site (ADR 0016).
+   */
+  domain?: string;
+}
+
 export interface PageAuditor {
   versions(): Promise<AuditorVersions>;
-  audit(url: string): Promise<AuditOutcome>;
+  audit(url: string, options?: AuditOptions): Promise<AuditOutcome>;
   close(): Promise<void>;
+}
+
+/** Motivo da falha se a página aberta saiu do domínio da instituição; `null` se não saiu. */
+export function offDomainReason(pageUrl: string, domain: string | undefined): string | null {
+  if (!domain) return null;
+  let host: string;
+  try {
+    host = new URL(pageUrl).hostname;
+  } catch {
+    return null;
+  }
+  if (!host || isWithinDomain(host, domain)) return null;
+  return `A página redirecionou para ${host}, fora do domínio da instituição (${domain}): provável proteção contra robôs. A ferramenta não contorna bloqueios; o portal fica sem dado.`;
 }
 
 export interface PlaywrightAuditorOptions {
@@ -219,22 +241,25 @@ export function createPlaywrightAuditor({
       };
     },
 
-    async audit(url) {
+    async audit(url, { domain } = {}) {
       const host = new URL(url).host;
       let lastError: unknown;
       for (let attempt = 1; attempt <= 2; attempt++) {
         let context: BrowserContext | undefined;
+        let page: Page | undefined;
         try {
           context = await (
             await getBrowser()
           ).newContext({ viewport: VIEWPORT, userAgent, locale: 'pt-BR' });
-          const page = await context.newPage();
+          page = await context.newPage();
           await throttle.wait(host, minIntervalMs);
           const response = await page.goto(url, {
             waitUntil: 'networkidle',
             timeout: navigationTimeoutMs,
           });
           const httpStatus = response?.status() ?? null;
+          const offDomain = offDomainReason(page.url(), domain);
+          if (offDomain) return { ok: false, httpStatus, error: offDomain };
           if (httpStatus !== null && httpStatus >= 400) {
             return { ok: false, httpStatus, error: `A página respondeu HTTP ${httpStatus}.` };
           }
@@ -259,6 +284,10 @@ export function createPlaywrightAuditor({
           const screenshots = await captureElements(page, results.violations);
           return { ok: true, httpStatus, finalUrl: page.url(), html, results, screenshots };
         } catch (err) {
+          // Desafio que nunca termina de carregar (tempo esgotado já no outro domínio): o motivo
+          // real é o redirecionamento, não a lentidão.
+          const offDomain = page && !page.isClosed() ? offDomainReason(page.url(), domain) : null;
+          if (offDomain) return { ok: false, httpStatus: null, error: offDomain };
           lastError = err;
           if (!isTransientFailure(err)) break;
         } finally {

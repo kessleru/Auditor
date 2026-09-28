@@ -131,17 +131,20 @@ export const okOutcome = (
 
 export function fakeAuditor(
   audit: (url: string) => Promise<AuditOutcome>,
-): PageAuditor & { audited: string[] } {
+): PageAuditor & { audited: string[]; domains: (string | undefined)[] } {
   const audited: string[] = [];
+  const domains: (string | undefined)[] = [];
   return {
     audited,
+    domains,
     versions: async () => ({
       axeVersion: '4.13.0',
       browserVersion: 'Chromium teste',
       userAgent: 'AuditoriaRF/1.0 (+teste)',
     }),
-    audit: (url) => {
+    audit: (url, options) => {
       audited.push(url);
+      domains.push(options?.domain);
       return audit(url);
     },
     close: async () => {},
