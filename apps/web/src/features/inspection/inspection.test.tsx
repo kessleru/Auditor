@@ -304,6 +304,16 @@ describe('tarefas-alvo (3.1)', () => {
     );
     await userEvent.click(screen.getByRole('radio', { name: 'Moderado' }));
     await userEvent.type(screen.getByLabelText(/Observação do avaliador/), 'Contato só no rodapé.');
+    // Profundidade fora do que a API aceita (inteiro de 0 a 50) é ajustada no campo.
+    const depth = screen.getByLabelText(/Profundidade/);
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '2.5');
+    await userEvent.tab();
+    expect((depth as HTMLInputElement).value).toBe('2');
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '75');
+    await userEvent.tab();
+    expect((depth as HTMLInputElement).value).toBe('50');
     await userEvent.click(submit);
     await waitFor(() =>
       expect(saved).toMatchObject({
@@ -312,6 +322,7 @@ describe('tarefas-alvo (3.1)', () => {
         taskId: 1,
         result: 'interrupted',
         interactions: 3,
+        depth: 50,
         path: ['Institucional'],
         heuristic: 'H2',
         severity: 'moderate',
