@@ -65,9 +65,12 @@ export const problems: PublicProblem[] = [
     pages: 4,
     occurrences: 4,
     example: {
+      findingId: 21,
       pageUrl: 'https://iftm.edu.br',
       selector: 'header img',
       htmlSnippet: '<img src="logo.png">',
+      screenshotUrl: '/api/v1/findings/21/screenshot',
+      evidence: null,
     },
   },
   {
@@ -84,9 +87,12 @@ export const problems: PublicProblem[] = [
     pages: 1,
     occurrences: 2,
     example: {
+      findingId: 22,
       pageUrl: 'https://iftm.edu.br/ingresso',
       selector: 'footer a',
       htmlSnippet: '<a href="/x"></a>',
+      screenshotUrl: null,
+      evidence: null,
     },
   },
 ];

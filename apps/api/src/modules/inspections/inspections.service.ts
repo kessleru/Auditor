@@ -20,6 +20,7 @@ import type { z } from 'zod';
 import { ruleTexts } from '../../infra/auditor/rule-texts.js';
 import { AppError, NotFoundError } from '../../shared/errors.js';
 import type { InspectionsRepository } from './inspections.repository.js';
+import { findingExample } from '../findings/finding-example.js';
 
 type ValidationInput = z.output<typeof findingValidationSchema>;
 type TaskInput = z.output<typeof taskInspectionInputSchema>;
@@ -94,11 +95,7 @@ export function createInspectionsService(
         occurrences: group.length,
         validation: first.validation,
         validationNote: first.validationNote,
-        example: {
-          pageUrl: first.pageUrl,
-          selector: first.selector,
-          htmlSnippet: first.htmlSnippet,
-        },
+        example: findingExample(first),
       };
       return { problem, firstPageId: first.collectionPageId };
     });
