@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { decodeSitemapBody, parseSitemap } from './sitemap.js';
+import { gzipSync } from 'node:zlib';
+import { decodeSitemapBody, MAX_SITEMAP_BYTES, parseSitemap } from './sitemap.js';
 import { fixture, gz } from './__fixtures__/site.js';
 
 describe('parseSitemap', () => {
@@ -39,5 +40,11 @@ describe('decodeSitemapBody', () => {
     const xml = fixture('sitemap-noticias.xml');
     expect(decodeSitemapBody(gz(xml))).toBe(xml);
     expect(decodeSitemapBody(Buffer.from(xml))).toBe(xml);
+  });
+
+  it('recusa gzip que passa de 50 MB ao descomprimir (bomba de descompressão)', () => {
+    const bomb = gzipSync(Buffer.alloc(MAX_SITEMAP_BYTES + 1, 0x20));
+    expect(bomb.length).toBeLessThan(1024 * 1024);
+    expect(() => decodeSitemapBody(bomb)).toThrow(RangeError);
   });
 });
