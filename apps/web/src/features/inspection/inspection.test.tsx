@@ -223,6 +223,9 @@ describe('portal: contexto, abas e validação (3.3)', () => {
     const form = within(document.getElementById(toggle.getAttribute('aria-controls')!)!);
     const register = form.getByRole('button', { name: 'Registrar falso positivo' });
     expect((register as HTMLButtonElement).disabled).toBe(true);
+    // O botão desabilitado se explica: o mínimo e o máximo aparecem no rótulo e no campo.
+    const justification = form.getByLabelText(/ao menos 10 caracteres/) as HTMLTextAreaElement;
+    expect(justification.maxLength).toBe(1000);
     await userEvent.type(
       form.getByLabelText(/Justificativa/),
       'Imagem decorativa com alt vazio correto.',
