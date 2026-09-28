@@ -4,7 +4,7 @@ import type {
   PageFunctionKey,
   Severity,
 } from '@auditoria-rf/contracts';
-import { and, asc, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, notInArray } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import {
   assistiveChecks,
@@ -279,10 +279,15 @@ export function createInspectionsRepository(db: DB) {
         .where(eq(collectionPages.collectionId, collectionId))
         .all()
         .map((p) => p.id);
+      // Falso positivo já registrado nunca é sobrescrito, nem por outro achado do mesmo problema.
       db.update(findings)
         .set(values)
         .where(
-          and(eq(findings.fingerprint, fingerprint), inArray(findings.collectionPageId, pageIds)),
+          and(
+            eq(findings.fingerprint, fingerprint),
+            inArray(findings.collectionPageId, pageIds),
+            ne(findings.validation, 'false_positive'),
+          ),
         )
         .run();
     },

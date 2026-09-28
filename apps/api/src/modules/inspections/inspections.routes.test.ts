@@ -225,6 +225,28 @@ describe('validação dos achados (tela 3.3)', () => {
       'O link tem nome via aria-label no elemento pai.',
     );
   });
+
+  it('validar um achado do mesmo problema nunca desfaz um falso positivo já registrado', async () => {
+    await selectSample([ifa.institution.id]);
+    const note = 'O link tem nome via aria-label no elemento pai.';
+    const [fpFinding] = db
+      .select()
+      .from(findings)
+      .where(eq(findings.fingerprint, 'link-name|main a'))
+      .all();
+    await agent
+      .patch(`/api/v1/findings/${fpFinding!.id}/validation`)
+      .send({ validation: 'false_positive', note });
+    // Um achado do mesmo problema ainda pendente (ex.: gravado antes da herança da decisão).
+    const late = finding(pages[1]!.id, 'link-name', 'main a');
+
+    const res = await agent
+      .patch(`/api/v1/findings/${late.id}/validation`)
+      .send({ validation: 'confirmed' });
+    expect(res.status).toBe(200);
+    const kept = db.select().from(findings).where(eq(findings.id, fpFinding!.id)).get();
+    expect(kept).toMatchObject({ validation: 'false_positive', validationNote: note });
+  });
 });
 
 describe('verificações que o axe não decidiu (incomplete)', () => {
