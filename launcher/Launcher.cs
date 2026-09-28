@@ -403,7 +403,7 @@ namespace AuditoriaRf
                 Font = Tokens.Label,
                 ForeColor = Tokens.TextMuted,
                 Text = "O sistema não tem cadastro público: a conta do auditor é criada aqui. "
-                     + "A senha precisa de pelo menos 12 caracteres.",
+                     + "A senha precisa de pelo menos 6 caracteres.",
             };
 
             Label aviso = new Label
@@ -442,9 +442,9 @@ namespace AuditoriaRf
                     aviso.Text = "Preencha o nome e o e-mail.";
                     return;
                 }
-                if (senha.Text.Length < 12)
+                if (senha.Text.Length < 6)
                 {
-                    aviso.Text = "A senha precisa de pelo menos 12 caracteres.";
+                    aviso.Text = "A senha precisa de pelo menos 6 caracteres.";
                     return;
                 }
                 // Nome e e-mail vão como argumentos do comando: aspas quebrariam a linha de comando.

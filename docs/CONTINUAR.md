@@ -76,6 +76,10 @@ configurações de rede do ambiente. Passos (inalterados, ver também a ADR 0015
 
 ## Não verificado aqui
 
+- **Launcher com a senha de 6 caracteres**: o `Launcher.cs` já pede 6, mas o `Auditoria RF.exe`
+  versionado ainda é o compilado antes e recusa senha com menos de 12. Recompilar no Windows:
+  `powershell -ExecutionPolicy Bypass -File launcher\build.ps1` e commitar o `.exe`.
+
 - **Imagens Docker (item 11)**: o `npm ci` dentro do contêiner falhou pela rede deste ambiente
   ("Exit handler never called"), não pelo Dockerfile. Rodar `cd docker && docker compose build` na
   máquina do autor; conferir que `apps/api/demo/` entra na imagem da API.
