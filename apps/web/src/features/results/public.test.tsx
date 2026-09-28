@@ -153,6 +153,10 @@ describe('/metodologia', () => {
     expect(screen.getByText('Chromium 153.0.8010.12')).toBeTruthy();
     expect(screen.getByText('12/09/2026')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'O que a nota não mede' })).toBeTruthy();
+    // Foto e evidência (ADR 0014), bloqueio antirrobô (ADR 0016) e limites da coleta.
+    expect(screen.getByRole('heading', { name: 'Como cada problema é mostrado' })).toBeTruthy();
+    expect(screen.getByText(/A ferramenta não contorna bloqueios/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Limites da coleta automática' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'pesquisa@example.org' })).toBeTruthy();
     await expectNoAxeViolations(container);
   });
