@@ -1,4 +1,4 @@
-import { TEMPLATE_MIN_PAGES, TEMPLATE_THRESHOLD } from '@auditoria-rf/contracts';
+import { isTemplateProblem } from '@auditoria-rf/contracts';
 
 // Análise do agrupamento de problemas (ADR 0003): o `fingerprint` atual é regra + seletor. Este
 // relatório só mede, sem mudar nada, quanto o número de problemas distintos e de template muda
@@ -52,10 +52,9 @@ export function analyzeFingerprints(
       const k = keyOf[key](f);
       pages.set(k, (pages.get(k) ?? new Set()).add(f.pageId));
     }
-    const template =
-      pagesEvaluated < TEMPLATE_MIN_PAGES
-        ? 0
-        : [...pages.values()].filter((p) => p.size / pagesEvaluated >= TEMPLATE_THRESHOLD).length;
+    const template = [...pages.values()].filter((p) =>
+      isTemplateProblem(p.size, pagesEvaluated),
+    ).length;
     return { distinct: pages.size, template };
   };
 
