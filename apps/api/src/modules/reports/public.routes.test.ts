@@ -255,6 +255,34 @@ describe('API pública', () => {
     expect(summary.averageConformity).toBeCloseTo(0.7);
   });
 
+  it('sem função em comum, a avaliada fica sem número no ranking (não 0 problemas)', async () => {
+    const ife = seedInstitutionWithRoutes(db, {
+      domain: 'if-e.edu.br',
+      acronym: 'IFE',
+      urls: [{ url: 'https://if-e.edu.br/ingresso', functionKey: 'admission' }],
+    });
+    const only = finishedCollection([ife.institution.id], '2026-09-22T12:00:00Z', 'completed', [
+      'admission',
+    ]);
+    page(only.id, ife.routes[0]!.id, 7, 3);
+
+    const { institutions: rows, coreFunctions } = publicInstitutionListResponseSchema.parse(
+      (await request(app).get('/api/v1/public/institutions')).body,
+    );
+    expect(coreFunctions).toEqual([]);
+    const byAcronym = Object.fromEntries(rows.map((r) => [r.acronym, r]));
+    expect(byAcronym.IFA).toMatchObject({
+      status: 'evaluated',
+      conformity: null,
+      problems: null,
+      criticalProblems: null,
+      templateProblems: null,
+      pagesEvaluated: 0,
+    });
+    // O resultado de todas as páginas continua ao lado.
+    expect(byAcronym.IFA!.overall).toMatchObject({ problems: 1, pagesEvaluated: 2 });
+  });
+
   it('detalhe com histórico de coletas', async () => {
     const res = await request(app).get(`/api/v1/public/institutions/${ifa.institution.id}`);
     const detail = publicInstitutionDetailSchema.parse(res.body);

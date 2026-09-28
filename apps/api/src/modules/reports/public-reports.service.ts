@@ -136,6 +136,8 @@ export function createPublicReportsService(
       problems: countedProblems,
       functions: core,
     });
+    // Sem página no núcleo (núcleo vazio: as avaliadas não têm função em comum), não há número
+    // comparável: fica vazio, nunca 0 problemas (seção 3.2.8).
     const ranked = inCore.status === 'evaluated' ? inCore : null;
     return {
       ...common,
@@ -143,9 +145,9 @@ export function createPublicReportsService(
       noDataReason: null,
       conformity: ranked?.conformity ?? null,
       classification: ranked?.classification ?? null,
-      problems: ranked?.distinctProblems ?? 0,
-      criticalProblems: ranked?.criticalProblems ?? 0,
-      templateProblems: ranked?.templateProblems ?? 0,
+      problems: ranked?.distinctProblems ?? null,
+      criticalProblems: ranked?.criticalProblems ?? null,
+      templateProblems: ranked?.templateProblems ?? null,
       pendingValidation: entry.summary.pendingValidation,
       reviewNeeded: entry.summary.incompleteRules,
       pagesEvaluated: ranked?.pagesEvaluated ?? 0,
