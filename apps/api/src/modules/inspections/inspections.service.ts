@@ -6,7 +6,9 @@ import {
   type CollectionScope,
   type createTargetTaskSchema,
   type findingValidationSchema,
+  type IncompleteRule,
   type InspectionFindings,
+  type InspectionIncomplete,
   type InspectionPortal,
   type InspectionProblem,
   type InspectionSummary,
@@ -17,7 +19,10 @@ import {
   type taskInspectionInputSchema,
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
-import { ruleTexts } from '../../infra/auditor/rule-texts.js';
+import type { AxeResults } from 'axe-core';
+import { criteriaFromTags, selectorOf } from '../../infra/auditor/axe-mapping.js';
+import { incompleteReason, ruleTexts } from '../../infra/auditor/rule-texts.js';
+import type { SnapshotStorage } from '../../infra/storage/snapshot-storage.js';
 import { AppError, NotFoundError } from '../../shared/errors.js';
 import type { InspectionsRepository } from './inspections.repository.js';
 import { findingExample } from '../findings/finding-example.js';
@@ -33,9 +38,12 @@ const FINISHED = ['completed', 'partial'];
  * Camada manual (seção 3.4; ADR 0008): subamostra escolhida pelo auditor, validação por problema
  * distinto (fingerprint), tarefas-alvo e verificação assistiva, sempre um portal por vez.
  */
+const MAX_INCOMPLETE_NODES = 30;
+const MAX_INCOMPLETE_SNIPPET = 500;
+
 export function createInspectionsService(
   repo: InspectionsRepository,
-  { now = () => new Date() } = {},
+  { now = () => new Date(), storage }: { now?: () => Date; storage?: SnapshotStorage } = {},
 ) {
   const finishedCollection = (id: number) => {
     const collection = repo.collection(id);
@@ -261,6 +269,64 @@ export function createInspectionsService(
         }
       }
       return { counts: countValidations(problems.map((p) => p.problem)), groups };
+    },
+
+    /**
+     * Verificações que o axe não decidiu nas páginas avaliadas do portal, lidas do resultado do
+     * axe salvo em disco, por regra e com o motivo em português. Só leitura (item 3 da revisão).
+     */
+    async incomplete(collectionId: number, institutionId: number): Promise<InspectionIncomplete> {
+      finishedCollection(collectionId);
+      requireInSample(collectionId, institutionId);
+      const pages = repo
+        .pagesOf(collectionId, institutionId)
+        .filter((p) => p.status === 'done' && p.snapshotPath);
+      const byRule = new Map<string, IncompleteRule & { pageIds: Set<number> }>();
+      let pagesWithoutResults = 0;
+      for (const page of pages) {
+        let results: Pick<AxeResults, 'incomplete'>;
+        try {
+          if (!storage) throw new Error('sem armazenamento');
+          results = JSON.parse(
+            await storage.read(storage.resultsPathFor(page.snapshotPath as string)),
+          );
+        } catch {
+          pagesWithoutResults++;
+          continue;
+        }
+        for (const rule of results.incomplete) {
+          const entry = byRule.get(rule.id) ?? {
+            ruleId: rule.id,
+            title: ruleTexts(rule.id, rule.help).title,
+            helpUrl: rule.helpUrl,
+            wcagCriteria: criteriaFromTags(rule.tags).join(', '),
+            nodesTotal: 0,
+            pages: 0,
+            nodes: [],
+            pageIds: new Set<number>(),
+          };
+          entry.pageIds.add(page.id);
+          entry.nodesTotal += rule.nodes.length;
+          for (const node of rule.nodes) {
+            if (entry.nodes.length >= MAX_INCOMPLETE_NODES) break;
+            entry.nodes.push({
+              pageUrl: page.url,
+              functionKey: page.functionKey,
+              selector: selectorOf(node.target),
+              htmlSnippet:
+                node.html.length > MAX_INCOMPLETE_SNIPPET
+                  ? `${node.html.slice(0, MAX_INCOMPLETE_SNIPPET)}…`
+                  : node.html,
+              reason: incompleteReason(node),
+            });
+          }
+          byRule.set(rule.id, entry);
+        }
+      }
+      const rules = [...byRule.values()]
+        .map(({ pageIds, ...rule }) => ({ ...rule, pages: pageIds.size }))
+        .sort((a, b) => b.nodesTotal - a.nodesTotal || a.ruleId.localeCompare(b.ruleId));
+      return { rules, pagesWithoutResults };
     },
 
     /** Confirma ou descarta um problema (todos os achados com o mesmo fingerprint na coleta). */

@@ -1,5 +1,6 @@
 import {
   inspectionFindingsSchema,
+  inspectionIncompleteSchema,
   inspectionSummarySchema,
   portalAssistiveSchema,
   portalTasksSchema,
@@ -11,8 +12,9 @@ import { createApp } from '../../app.js';
 import type { DB } from '../../db/client.js';
 import { collectionPages, collections, findings } from '../../db/schema.js';
 import { seed } from '../../db/seeds/seed.js';
-import { loggedInAgent } from '../../test/auth.js';
-import { seedInstitutionWithRoutes } from '../../test/collections.js';
+import { loggedInAgent, testAuditor } from '../../test/auth.js';
+import { createSnapshotStorage } from '../../infra/storage/snapshot-storage.js';
+import { seedInstitutionWithRoutes, tempDir } from '../../test/collections.js';
 import { createTestDatabase } from '../../test/db.js';
 
 let db: DB;
@@ -222,6 +224,91 @@ describe('validação dos achados (tela 3.3)', () => {
     expect(after.groups[1]!.problems[0]!.validationNote).toBe(
       'O link tem nome via aria-label no elemento pai.',
     );
+  });
+});
+
+describe('verificações que o axe não decidiu (incomplete)', () => {
+  it('lista por regra, com o motivo em português, a partir do resultado salvo', async () => {
+    const snapshots = tempDir();
+    try {
+      const withFiles = createApp({
+        db,
+        auditor: null,
+        discover: null,
+        snapshotsDir: snapshots.dir,
+      });
+      const storage = createSnapshotStorage(snapshots.dir);
+      const node = (target: string, messageKey: string) => ({
+        target: [target],
+        html: `<p class="${target}">Texto sobre imagem</p>`,
+        any: [{ id: 'color-contrast', data: { messageKey } }],
+        all: [],
+        none: [],
+      });
+      const incomplete = (nodes: object[]) => [
+        {
+          id: 'color-contrast',
+          help: 'Elements must meet minimum color contrast ratio thresholds',
+          helpUrl: 'https://dequeuniversity.com/rules/axe/4.13/color-contrast',
+          tags: ['wcag2aa', 'wcag143'],
+          nodes,
+        },
+      ];
+      // Página inicial com dois elementos; ingresso com um; a da IFB falhou (sem resultado).
+      for (const [page, nodes] of [
+        [pages[0]!, [node('banner', 'bgImage'), node('hero', 'bgGradient')]],
+        [pages[1]!, [node('banner', 'bgImage')]],
+      ] as const) {
+        const { snapshotPath } = await storage.save(collectionId, page.id, '<html></html>', {
+          incomplete: incomplete([...nodes]),
+        });
+        db.update(collectionPages)
+          .set({ snapshotPath })
+          .where(eq(collectionPages.id, page.id))
+          .run();
+      }
+      // O auditor já existe (beforeEach): só entra no app com a pasta de snapshots do teste.
+      const auditorAgent = request.agent(withFiles);
+      await auditorAgent
+        .post('/api/v1/auth/login')
+        .send({ email: testAuditor.email, password: testAuditor.password });
+      const url = `/api/v1/collections/${collectionId}/institutions/${ifa.institution.id}/incomplete`;
+      expect((await auditorAgent.get(url)).body.error.code).toBe('NOT_IN_SAMPLE');
+      await auditorAgent
+        .put(`/api/v1/collections/${collectionId}/inspection-sample`)
+        .send({ institutionIds: [ifa.institution.id] });
+
+      const result = inspectionIncompleteSchema.parse((await auditorAgent.get(url)).body);
+      expect(result.pagesWithoutResults).toBe(0);
+      expect(result.rules).toHaveLength(1);
+      expect(result.rules[0]).toMatchObject({
+        ruleId: 'color-contrast',
+        title: 'Os elementos devem ter contraste de cor suficiente',
+        wcagCriteria: '1.4.3',
+        nodesTotal: 3,
+        pages: 2,
+      });
+      expect(result.rules[0]!.nodes.map((n) => [n.functionKey, n.selector, n.reason])).toEqual([
+        [
+          'home',
+          'banner',
+          'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+        ],
+        [
+          'home',
+          'hero',
+          'A cor de fundo do elemento não pôde ser determinada devido a um gradiente de fundo',
+        ],
+        [
+          'admission',
+          'banner',
+          'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+        ],
+      ]);
+      expect((await request(withFiles).get(url)).status).toBe(401);
+    } finally {
+      snapshots.cleanup();
+    }
   });
 });
 

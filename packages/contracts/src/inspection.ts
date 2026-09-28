@@ -137,6 +137,39 @@ export const inspectionProblemSchema = z.object({
 });
 export type InspectionProblem = z.infer<typeof inspectionProblemSchema>;
 
+/**
+ * Verificações que o axe não decidiu (`incomplete`, ex.: contraste sobre imagem de fundo): ficam
+ * fora da nota (seção 3.3) e pedem olhar humano. Só leitura: a decisão do auditor sobre elas não é
+ * registrada.
+ */
+export const incompleteRuleSchema = z.object({
+  ruleId: z.string(),
+  title: z.string(),
+  helpUrl: z.string(),
+  wcagCriteria: z.string(),
+  /** Elementos não decididos, somando as páginas. */
+  nodesTotal: z.number().int(),
+  pages: z.number().int(),
+  /** Até 30 elementos por regra, com o motivo em português. */
+  nodes: z.array(
+    z.object({
+      pageUrl: z.string(),
+      functionKey: z.enum(pageFunctionKeys).nullable(),
+      selector: z.string(),
+      htmlSnippet: z.string(),
+      reason: z.string(),
+    }),
+  ),
+});
+export type IncompleteRule = z.infer<typeof incompleteRuleSchema>;
+
+export const inspectionIncompleteSchema = z.object({
+  rules: z.array(incompleteRuleSchema),
+  /** Páginas avaliadas sem o resultado do axe em disco: ficam de fora da lista. */
+  pagesWithoutResults: z.number().int(),
+});
+export type InspectionIncomplete = z.infer<typeof inspectionIncompleteSchema>;
+
 export const inspectionFindingsSchema = z.object({
   counts: z.object({
     problems: z.number().int(),
