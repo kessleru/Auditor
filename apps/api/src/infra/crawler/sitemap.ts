@@ -19,10 +19,18 @@ function locs(entries: unknown): string[] {
     .filter((loc) => loc.length > 0);
 }
 
-/** Descomprime se o conteúdo for gzip (pelo número mágico, não pela extensão). */
+/** Limite do protocolo de sitemaps para o arquivo descomprimido (50 MB). */
+export const MAX_SITEMAP_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Descomprime se o conteúdo for gzip (pelo número mágico, não pela extensão). Um gzip que passa de
+ * 50 MB ao descomprimir é recusado (RangeError), em vez de travar a API expandindo gigabytes.
+ */
 export function decodeSitemapBody(body: Buffer): string {
   const isGzip = body.length > 2 && body[0] === 0x1f && body[1] === 0x8b;
-  return (isGzip ? gunzipSync(body) : body).toString('utf8');
+  return (isGzip ? gunzipSync(body, { maxOutputLength: MAX_SITEMAP_BYTES }) : body).toString(
+    'utf8',
+  );
 }
 
 export function parseSitemap(xml: string): ParsedSitemap {
