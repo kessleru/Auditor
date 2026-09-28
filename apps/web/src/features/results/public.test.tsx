@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
-import { publicRoutes } from '../../test/fixtures';
+import { iftm, publicRoutes } from '../../test/fixtures';
 import { renderRoute, stubApi } from '../../test/render';
 
 beforeEach(() => {
@@ -131,6 +131,37 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     expect(critical.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getAllByRole('article')).toHaveLength(1);
     expect(screen.getByText('1 problema exibido')).toBeTruthy();
+  });
+
+  it('sem função em comum, o resumo fica vazio e não mostra 0 problemas', async () => {
+    const noCore = {
+      ...iftm,
+      conformity: null,
+      classification: null,
+      problems: null,
+      criticalProblems: null,
+      templateProblems: null,
+      pagesEvaluated: 0,
+    };
+    stubApi(null, {
+      routes: {
+        ...publicRoutes,
+        'GET /public/institutions/1': { institution: noCore, history: [] },
+      },
+    });
+    const { container } = renderRoute('/instituicoes/1');
+    const summary = await screen.findByRole('region', { name: 'Resumo do IFTM' });
+    expect(summary.textContent).toContain('Sem função em comum para comparar');
+    expect(within(summary).getByText('Problemas confirmados').nextElementSibling?.textContent).toBe(
+      '—',
+    );
+    expect(within(summary).getByText('Críticos').nextElementSibling?.textContent).toBe('—');
+    const basis = screen.getByRole('region', { name: 'Base da comparação' });
+    expect(basis.textContent).toContain(
+      'Nenhuma: as instituições avaliadas não têm função em comum',
+    );
+    expect(basis.textContent).toContain('80% de conformidade, 30 problemas em 12 páginas');
+    await expectNoAxeViolations(container);
   });
 
   it('portal sem dado explica a ausência de dado', async () => {
