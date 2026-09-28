@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { LayoutDashboard } from 'lucide-react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import {
   EmptyState,
   ErrorState,
   FindingCard,
+  FindingPreview,
   Logo,
   NavItem,
   PageTitle,
@@ -213,5 +214,60 @@ describe('StatGridSkeleton', () => {
     expect(screen.getByRole('status').textContent).toBe('Carregando indicadores…');
     expect(container.querySelectorAll('[aria-hidden="true"].rounded-lg')).toHaveLength(2);
     await expectNoAxeViolations(container);
+  });
+});
+
+describe('FindingPreview', () => {
+  const base = {
+    findingId: 3,
+    pageUrl: 'https://www.iftm.edu.br/',
+    selector: 'p.aviso',
+    htmlSnippet: '<p class="aviso">Inscrições <b>abertas</b> até sexta</p>',
+    screenshotUrl: null,
+    evidence: null,
+  };
+
+  it('mostra a foto do elemento e, no contraste, a amostra com as cores e a razão', async () => {
+    const { container } = render(
+      <main>
+        <FindingPreview
+          example={{
+            ...base,
+            screenshotUrl: '/api/v1/findings/3/screenshot',
+            evidence: {
+              kind: 'contrast',
+              fgColor: '#999999',
+              bgColor: '#ffffff',
+              contrastRatio: 2.85,
+              expectedContrastRatio: 4.5,
+              fontSizePx: 12,
+              bold: false,
+            },
+          }}
+        />
+      </main>,
+    );
+    const photo = screen.getByRole('img', { name: /Foto do elemento no portal/ });
+    expect(photo.getAttribute('src')).toBe('/api/v1/findings/3/screenshot');
+    const sample = screen.getByRole('img', { name: /Amostra do texto/ });
+    // O texto do próprio trecho, sem as marcações, nas cores medidas pelo axe.
+    expect(sample.textContent).toBe('Inscrições abertas até sexta');
+    expect(sample.querySelector('text')?.getAttribute('fill')).toBe('#999999');
+    expect(sample.querySelector('rect')?.getAttribute('fill')).toBe('#ffffff');
+    expect(screen.getByText(/Razão 2,85:1/).textContent?.replace(/\s+/g, ' ')).toBe(
+      'Razão 2,85:1 — mínimo 4,5:1 texto #999999 sobre fundo #ffffff, fonte de 12 px.',
+    );
+    await expectNoAxeViolations(container);
+  });
+
+  it('sem foto nem evidência não mostra nada; foto que não carrega some', () => {
+    const { container, rerender } = render(<FindingPreview example={base} />);
+    expect(container.innerHTML).toBe('');
+
+    rerender(
+      <FindingPreview example={{ ...base, screenshotUrl: '/api/v1/findings/3/screenshot' }} />,
+    );
+    fireEvent.error(screen.getByRole('img'));
+    expect(container.innerHTML).toBe('');
   });
 });

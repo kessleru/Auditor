@@ -9,6 +9,7 @@ import {
   EmptyState,
   ErrorState,
   FindingCard,
+  FindingPreview,
   Page,
   PageHeader,
 } from '../../components/ui';
@@ -200,6 +201,7 @@ export function AuditorInstitutionPage() {
                           principle={c.p.principle}
                           description={c.p.description}
                           pageUrl={c.p.example.pageUrl}
+                          preview={<FindingPreview example={c.p.example} />}
                           snippet={c.p.example.htmlSnippet}
                           template={c.p.template}
                           meta={
