@@ -28,7 +28,9 @@ function useOverflowsX(ref: RefObject<HTMLElement | null>) {
     const check = () => setOverflows(el.scrollWidth > el.clientWidth);
     check();
     const observer = new ResizeObserver(check);
+    // O contêiner muda com a janela; a tabela, com os dados (mais largos sem mudar a altura).
     observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
     return () => observer.disconnect();
   }, [ref]);
   return overflows;

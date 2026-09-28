@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { LayoutDashboard } from 'lucide-react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -112,6 +112,50 @@ describe('DataTable', () => {
 
   describe('em tela estreita', () => {
     afterEach(() => vi.unstubAllGlobals());
+
+    it('reavalia quando a tabela alarga sem o contêiner mudar de tamanho', async () => {
+      const observed: Element[] = [];
+      let notify = () => {};
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback: () => void) {
+            notify = callback;
+          }
+          observe(el: Element) {
+            observed.push(el);
+          }
+          disconnect() {}
+        },
+      );
+      let contentWidth = 358;
+      const scrollWidth = vi
+        .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+        .mockImplementation(() => contentWidth);
+      const clientWidth = vi
+        .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+        .mockReturnValue(358);
+      try {
+        render(
+          <DataTable
+            caption="Validação por regra"
+            captionHidden
+            rows={[{ id: 1, rule: 'image-alt' }]}
+            rowKey={(r) => r.id}
+            columns={[{ key: 'rule', header: 'Regra', rowHeader: true, cell: (r) => r.rule }]}
+          />,
+        );
+        expect(screen.queryByRole('region')).toBeNull();
+        // A tabela também é observada: dados mais largos chegam sem mudar a altura.
+        expect(observed.map((el) => el.tagName)).toContain('TABLE');
+        contentWidth = 700;
+        act(() => notify());
+        expect(screen.getByRole('region', { name: 'Validação por regra' })).toBeTruthy();
+      } finally {
+        scrollWidth.mockRestore();
+        clientWidth.mockRestore();
+      }
+    });
 
     it('a tabela que rola vira região focável com o nome da legenda', async () => {
       vi.stubGlobal(
