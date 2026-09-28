@@ -73,3 +73,72 @@ Outros:
 
 Depois: abrir PR da branch (o que muda, como testar, critérios de aceite; nunca atribuição a IA)
 e seguir em ciclos de revisão → correção com teste → commit.
+
+## Como trabalhar aqui (resumo para quem chega)
+
+- Ler `CLAUDE.md` e a seção do plano antes de mexer. Regras da seção 3 do plano **não mudam sem o
+  autor**: na dúvida, perguntar.
+- TDD: teste falhando → correção → `npm run lint`, `npm run typecheck`, `npm test`.
+- Commits pequenos, Conventional Commits em português, **sem** Co-Authored-By nem menção a IA.
+- Todo PR que toca `apps/web` passa pela skill `a11y-code-review`.
+- Decisão relevante vira ADR em `docs/decisoes/` (próximas: 0015 demonstração, 0017+).
+
+## Lista completa: problemas, melhorias e revisões
+
+Legenda: **[P]** problema real · **[M]** melhoria · **[D]** precisa de decisão do autor.
+Ordem = prioridade sugerida.
+
+### Qualidade da auditoria (prioridade do autor)
+
+1. **[D] Espera `networkidle`** (seção 3.2.1): portal com chat, vídeo ou analytics contínuo nunca
+   fica ocioso → tempo esgotado → ausência de dado. Proposta (ADR 0012): esperar `load` e até 30 s
+   por `networkidle`, auditar mesmo sem ele e registrar isso na página.
+2. **[D] `robots.txt` na coleta**: a coleta não confere o robots na hora de auditar (rota manual ou
+   robots alterado depois da descoberta). Proposta: conferir e falhar a página com o motivo.
+3. **[M/D] Itens `incomplete` visíveis**: hoje só o número aparece. Listar na aba de validação
+   (regra, elemento, foto — fotografar também os nós `incomplete`). Decidir se a decisão do auditor
+   sobre eles entra na conformidade ou só fica registrada.
+4. **[M] Medir fragmentação de template**: seletores com `nth-child` diferentes entre páginas podem
+   partir um problema de template em vários distintos (infla a métrica principal). Comparar, nos
+   dados da demonstração, `rule+seletor` × `rule+html normalizado`. Se confirmar → **[D]** ajustar o
+   `fingerprint` (ADR 0003).
+5. **[M] Banner de cookies/LGPD e cabeçalho fixo** cobrem a foto do elemento. Medir; se for comum,
+   rolar com margem para o cabeçalho fixo antes da foto.
+6. **[M] Coletas antigas sem foto/evidência**: dá para preencher a evidência de contraste a partir do
+   `.axe.json.gz` já salvo (foto não). Comando de preenchimento retroativo, opcional.
+7. **[M] Portal bloqueado**: mostrar na visão pública o motivo da ausência de dado ("bloqueou a
+   ferramenta" × "fora do ar"), hoje só aparece "sem dado".
+8. **[M] Confiabilidade**: registrar na coleta quantas páginas falharam por tipo de motivo (tempo,
+   HTTP, fora do domínio) para o capítulo de limitações do TCC.
+
+### Segurança e implantação
+
+9. **[P] nginx sem cabeçalhos de segurança** (CSP, `X-Content-Type-Options: nosniff`,
+   `Referrer-Policy`, `frame-ancestors 'none'`). Atenção: `add_header` numa `location` apaga os
+   herdados — repetir na `location` dos assets. CSP proposta acima.
+10. **[P] nginx: a `location ~* \.(js|css|svg|woff2?)$` vence o prefixo `/api/`**: uma rota da API
+    terminada nessas extensões seria servida como arquivo estático. Usar `location ^~ /api/`.
+11. **[M] Imagem Docker**: conferir que o build ainda passa com o `.dockerignore` novo (Docker não
+    estava rodando nesta máquina) e que `apps/api/demo/` entra na imagem.
+12. **[M] `npm audit`**: 4 moderadas em dev (esbuild antigo via `@esbuild-kit`, dependência do
+    drizzle-kit). Não afeta produção; atualizar quando o drizzle-kit permitir.
+13. **[P] Node 24 na máquina**, projeto fixa Node 22 (`.nvmrc`). Testes passaram, mas o
+    `better-sqlite3`/Chromium são compilados contra a 22: usar `nvm use` antes de coletar.
+
+### Front e acessibilidade
+
+14. **[M] Rodar o dogfood** (`npm run dogfood -- --base <url>`) e os E2E (`npm run test:e2e`) depois
+    da prévia visual: nenhum dos dois foi rodado nesta sessão.
+15. **[M] Catálogo `/dev/ui`**: ganhou o card de contraste; conferir no navegador (axe sem
+    violação).
+16. **[M] Foto em tamanho real**: a prévia limita a 320 px de altura; oferecer "abrir a foto" num
+    link, com nome acessível.
+17. **[M] Amostra de contraste**: usa `system-ui`; o portal pode usar outra fonte. Registrar a
+    família da fonte na evidência (o axe não dá; pegar do `getComputedStyle` na coleta).
+
+### Código e processo
+
+18. **[M] Spec** diz `<n>.jpg`; o código grava `<achado>.jpg`. Ajustar a spec.
+19. **[M] `docs/CONTINUAR.md`** é temporário: apagar quando a branch virar PR.
+20. **[M] README**: citar a demonstração (`DEMO_DATA`, `npm run demo:export`) e a prévia visual.
+21. **[M] Plano**: registrar ADRs 0014–0016 na tabela da seção 8.
