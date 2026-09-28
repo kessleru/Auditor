@@ -84,7 +84,11 @@ async function captureElements(page: Page, violations: Result[]): Promise<Elemen
         if (!element) continue;
         const tag = await element.evaluate((el) => el.tagName.toLowerCase());
         if (tag === 'html' || tag === 'body') continue;
-        await element.scrollIntoViewIfNeeded({ timeout: 2000 });
+        // No centro da janela, e não só "visível": um cabeçalho fixo ou um aviso de cookies no
+        // rodapé cobriria o elemento que já está na janela, mas na borda.
+        await element.evaluate((el) =>
+          el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }),
+        );
         const box = await element.boundingBox();
         if (!box || box.width < 1 || box.height < 1) continue;
         const x = Math.max(0, box.x - SCREENSHOT_MARGIN_PX);

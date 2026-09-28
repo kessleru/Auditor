@@ -48,6 +48,10 @@ público abstrato para quem não lê HTML.
    validação nem o resultado da coleta.
 9. **Foto em tamanho real.** A prévia limita a foto a 320 px de altura e oferece um link para abri-la
    inteira, em nova aba (avisado no próprio texto do link).
+10. **Elemento no centro da janela antes da foto.** Rolar só "se precisar" deixava o elemento
+    que já estava na janela onde estava, às vezes embaixo de um cabeçalho fixo ou de um aviso de
+    cookies no rodapé. Agora ele vai para o centro; continua encoberto só o que está no topo da
+    página (não há como rolar acima dele).
 
 ## O que não muda
 
