@@ -6,6 +6,7 @@ export { ConformityBar } from './ConformityBar';
 export { ConformityGauge } from './ConformityGauge';
 export { type Column, DataTable } from './DataTable';
 export { FindingCard } from './FindingCard';
+export { FindingPreview } from './FindingPreview';
 export { conformityLabel, conformityLabels, formatPercent } from './format';
 export { Logo } from './Logo';
 export { NavItem } from './NavItem';
