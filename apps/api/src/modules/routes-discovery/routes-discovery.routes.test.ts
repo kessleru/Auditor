@@ -389,6 +389,15 @@ describe('uma rota confirmada por função', () => {
       .send({ url: 'https://gov.br/biblioteca', functionKey: 'library', replaceConfirmed: true });
     expect(outside.status).toBe(422);
     expect(outside.body.error.code).toBe('OUTSIDE_DOMAIN');
+
+    // Homologação fica fora como na descoberta (3.1.6).
+    const staging = await agent.post('/api/v1/institutions/1/routes').send({
+      url: 'https://hml.iftm.edu.br/biblioteca',
+      functionKey: 'library',
+      replaceConfirmed: true,
+    });
+    expect(staging.status).toBe(422);
+    expect(staging.body.error.code).toBe('DEV_HOST');
   });
 });
 
