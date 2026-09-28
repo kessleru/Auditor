@@ -210,6 +210,15 @@ export function createRoutesService(
           'A nova rota precisa ser outra rota da mesma instituição.',
         );
       }
+      // A nova rota herda a função: se já é a confirmada de outra função, essa perderia a rota.
+      if (next.status === 'confirmed' && next.functionId !== old.functionId) {
+        throw new AppError(
+          409,
+          'FUNCTION_ALREADY_CONFIRMED',
+          `A rota ${next.url} já está confirmada para outra função.`,
+          { routeId: next.id },
+        );
+      }
 
       return repo.transaction(() => {
         const at = now();

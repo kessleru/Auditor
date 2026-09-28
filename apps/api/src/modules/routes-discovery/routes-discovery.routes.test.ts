@@ -515,6 +515,32 @@ describe('substituição de rota (3.1.7)', () => {
     );
   });
 
+  it('não substitui por rota confirmada de outra função', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const routes = await listRoutes(agent);
+    const ingresso = routes.find((r) => r.normalizedUrl === `${ORIGIN}/ingresso`)!;
+    const biblioteca = routes.find((r) => r.normalizedUrl === `${ORIGIN}/biblioteca`)!;
+    await agent
+      .patch(`/api/v1/routes/${ingresso.id}`)
+      .send({ status: 'confirmed', functionKey: 'admission' });
+    await agent
+      .patch(`/api/v1/routes/${biblioteca.id}`)
+      .send({ status: 'confirmed', functionKey: 'library' });
+
+    const res = await agent
+      .post(`/api/v1/routes/${ingresso.id}/replace`)
+      .send({ newRouteId: biblioteca.id });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('FUNCTION_ALREADY_CONFIRMED');
+    const after = await listRoutes(agent);
+    expect(after.find((r) => r.id === biblioteca.id)).toMatchObject({
+      status: 'confirmed',
+      functionKey: 'library',
+    });
+  });
+
   it('só substitui rota confirmada, por outra da mesma instituição', async () => {
     const { agent } = await setup();
     await agent.post('/api/v1/institutions/1/discover');
