@@ -348,6 +348,17 @@ describe('exportação de dados abertos (CSV)', () => {
     expect((await request(app).get('/api/v1/public/export.csv?conjunto=outro')).status).toBe(400);
   });
 
+  it('exportação tem limite de requisições por IP', async () => {
+    for (let i = 0; i < 20; i++) {
+      expect((await request(app).get('/api/v1/public/export-dictionary.csv')).status).toBe(200);
+    }
+    const blocked = await request(app).get('/api/v1/public/export.csv');
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe('TOO_MANY_REQUESTS');
+    // A navegação pública segue com o seu próprio limite, mais folgado.
+    expect((await request(app).get('/api/v1/public/summary')).status).toBe(200);
+  });
+
   it('dicionário de dados cobre todas as colunas', async () => {
     const dictionary = parse((await request(app).get('/api/v1/public/export-dictionary.csv')).text);
     const inst = parse((await request(app).get('/api/v1/public/export.csv')).text)[0]!;
