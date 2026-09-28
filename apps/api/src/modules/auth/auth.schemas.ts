@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 6;
 
 // Entrada da CLI create-auditor (não há cadastro pela API).
 export const createAuditorSchema = z.object({
