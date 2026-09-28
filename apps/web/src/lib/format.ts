@@ -26,11 +26,8 @@ export function formatMonth(iso: string): string {
   return `${MONTHS[Number(parts.month) - 1]}/${parts.year}`;
 }
 
-/** 2345 (ms) → "2,3 s"; abaixo de 100 ms, "menos de 0,1 s" (e não "0,0 s"). */
-export function formatSeconds(ms: number): string {
-  if (ms < 100) return 'menos de 0,1 s';
-  return `${(ms / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
-}
+/** 2345 (ms) → "2,3 s" (a mesma função da CLI de coleta). */
+export { formatSeconds } from '@auditoria-rf/contracts';
 
 /** 1234 → "1.234". */
 export function formatNumber(value: number): string {

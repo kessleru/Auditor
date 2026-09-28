@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeReliability } from './reliability.js';
+import { formatSeconds, summarizeReliability } from './reliability.js';
 
 const done = (loadTimeMs: number | null) =>
   ({ status: 'done', failureKind: null, loadTimeMs }) as const;
@@ -41,5 +41,14 @@ describe('summarizeReliability', () => {
 
   it('sem medida, sem tempo de carregamento', () => {
     expect(summarizeReliability([done(null)])).toEqual({ failures: [], loadTime: null });
+  });
+});
+
+describe('formatSeconds', () => {
+  it('uma casa decimal, sem mostrar 0,0 s', () => {
+    expect(formatSeconds(2345)).toBe('2,3 s');
+    expect(formatSeconds(30_000)).toBe('30,0 s');
+    expect(formatSeconds(12_345)).toBe('12,3 s');
+    expect(formatSeconds(40)).toBe('menos de 0,1 s');
   });
 });
