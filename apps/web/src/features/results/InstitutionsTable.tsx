@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { ConformityBar, DataTable } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
 import { coverageText } from './CoreFunctionsNote';
+import { noDataShort } from './noData';
 import { NotCollectedList } from './NotCollectedList';
 
 function Coverage({ row }: { row: PublicInstitution }) {
@@ -35,6 +36,8 @@ function Problems({ row }: { row: PublicInstitution }) {
 function Conformity({ row }: { row: PublicInstitution }) {
   if (row.status === 'not_collected')
     return <span className="text-label text-text-muted">Ainda não avaliado</span>;
+  if (row.status === 'no_data')
+    return <span className="text-label text-text-muted">{noDataShort(row.noDataReason)}</span>;
   return <ConformityBar value={row.conformity} label={`Conformidade do ${row.acronym}`} />;
 }
 

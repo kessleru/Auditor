@@ -18,6 +18,7 @@ import { ConformitySummary } from './ConformitySummary';
 import { ComparisonBasis } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
 import { ReviewNeededNote } from './ReviewNeededNote';
+import { noDataDescription } from './noData';
 
 type Filter = 'all' | 'critical' | 'template';
 
@@ -171,7 +172,7 @@ export function InstitutionDetailPage() {
           {institution.status === 'no_data' ? (
             <ErrorState
               title="Sem dado na última coleta"
-              description="Nenhuma página do portal pôde ser avaliada na coleta mais recente. Isso é registrado como ausência de dado: o portal não recebe nota e fica fora das médias."
+              description={noDataDescription(institution.noDataReason)}
             />
           ) : null}
 
