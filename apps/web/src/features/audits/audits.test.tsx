@@ -47,21 +47,71 @@ const idleDiscovery = {
   },
 };
 
+/** Auditoria em montagem salva no servidor (ADR 0017), na posição dada. */
+const draftOf = (
+  scope: { institutionIds: number[]; functions: string[] },
+  step: 'scope' | 'routes',
+  institutionId: number | null,
+) => ({
+  scope,
+  step,
+  institutionId,
+  createdAt: '2026-09-28T10:00:00.000Z',
+  updatedAt: '2026-09-28T10:00:00.000Z',
+});
+const draftRoutes = ({
+  institutionIds,
+  functions,
+  institutionId,
+}: {
+  institutionIds: number[];
+  functions: string[];
+  institutionId: number | null;
+}) => ({
+  'GET /audit-draft': { draft: draftOf({ institutionIds, functions }, 'routes', institutionId) },
+  'GET /discoveries': {
+    discoveries: institutionIds.map((id) => ({
+      ...idleDiscovery.discovery,
+      institutionId: id,
+      status: 'completed',
+    })),
+  },
+});
+
 describe('nova auditoria (1.1)', () => {
-  it('valida o escopo e segue para a revisão com o escopo na URL', async () => {
+  it('valida o escopo, salva sozinho enquanto o auditor escolhe e segue para a revisão', async () => {
+    const saved: { step: string; institutionIds: number[]; functions: string[] }[] = [];
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
         'GET /institutions': { institutions: [inst(1, 'IFTM'), inst(2, 'IFG')] },
+        'GET /audit-draft': { draft: null },
+        'PUT /audit-draft': (init: RequestInit | undefined) => {
+          const body = JSON.parse(String(init?.body));
+          saved.push(body);
+          return Response.json({
+            draft: draftOf(
+              { institutionIds: body.institutionIds, functions: body.functions },
+              body.step,
+              null,
+            ),
+          });
+        },
       },
     });
     const { router, container } = renderRoute('/auditorias/nova');
     await screen.findByRole('radio', { name: 'Todas as instituições ativas — 2 portais' });
+    expect(screen.getByText(/dá para sair e continuar depois de onde parou/)).toBeTruthy();
     await expectNoAxeViolations(container);
 
     await userEvent.click(screen.getByRole('radio', { name: 'Escolher instituições' }));
     for (const box of screen.getAllByRole('checkbox', { checked: true }))
       await userEvent.click(box);
+    // O formulário pela metade fica salvo no servidor, na etapa do escopo.
+    await waitFor(() =>
+      expect(saved.at(-1)).toEqual({ step: 'scope', institutionIds: [], functions: [] }),
+    );
+    expect(await screen.findByText('Escopo salvo.')).toBeTruthy();
     await userEvent.click(
       screen.getByRole('button', { name: 'Continuar para a revisão de rotas' }),
     );
@@ -75,7 +125,80 @@ describe('nova auditoria (1.1)', () => {
       screen.getByRole('button', { name: 'Continuar para a revisão de rotas' }),
     );
     await waitFor(() => expect(router.state.location.pathname).toBe('/auditorias/nova/rotas'));
-    expect(router.state.location.search).toBe('?instituicoes=2&funcoes=library');
+    expect(saved.at(-1)).toEqual({ step: 'routes', institutionIds: [2], functions: ['library'] });
+  });
+
+  it('com auditoria em montagem, "Nova auditoria" volta para onde o auditor parou', async () => {
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM'), inst(2, 'IFG')] },
+        'GET /audit-draft': {
+          draft: draftOf({ institutionIds: [1, 2], functions: ['home'] }, 'routes', 2),
+        },
+      },
+    });
+    const { router } = renderRoute('/auditorias/nova');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/auditorias/nova/rotas/2'));
+  });
+
+  it('o escopo salvo volta preenchido; descartar volta aos padrões', async () => {
+    let deleted = false;
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /institutions': { institutions: [inst(1, 'IFTM'), inst(2, 'IFG')] },
+        'GET /audit-draft': () =>
+          Response.json({
+            draft: deleted
+              ? null
+              : draftOf({ institutionIds: [2], functions: ['library'] }, 'scope', null),
+          }),
+        'DELETE /audit-draft': () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+    const { container } = renderRoute('/auditorias/nova');
+    const some = await screen.findByRole('radio', { name: 'Escolher instituições' });
+    expect((some as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: /IFG/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: /IFTM/ }) as HTMLInputElement).checked).toBe(
+      false,
+    );
+    expect(
+      screen.getAllByRole('checkbox', { checked: true }).map((c) => c.getAttribute('name')),
+    ).toHaveLength(2);
+    expect(screen.getByText(/Auditoria em montagem desde 28\/09\/2026/)).toBeTruthy();
+
+    // O foco acompanha a troca entre o botão e a pergunta (nunca cai no <body>).
+    await userEvent.click(screen.getByRole('button', { name: 'Descartar esta auditoria' }));
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toMatch(/^Descartar a auditoria em montagem\?/),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Manter' }));
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toBe('Descartar esta auditoria'),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Descartar esta auditoria' }));
+    const confirm = screen.getByRole('group', { name: 'Confirmar descarte' });
+    expect(confirm.textContent).toContain('as rotas já confirmadas');
+    await expectNoAxeViolations(container);
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Confirmar descarte' }));
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole('radio', {
+            name: 'Todas as instituições ativas — 2 portais',
+          }) as HTMLInputElement
+        ).checked,
+      ).toBe(true),
+    );
+    expect(deleted).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Descartar esta auditoria' })).toBeNull();
+    // O formulário recriado levou o botão: o foco volta para o título da página.
+    await waitFor(() => expect(document.activeElement?.tagName).toBe('H1'));
   });
 });
 
@@ -96,6 +219,11 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({
+          institutionIds: [1],
+          functions: ['home', 'admission', 'library'],
+          institutionId: 1,
+        }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': idleDiscovery,
@@ -105,9 +233,7 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    const { container } = renderRoute(
-      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
-    );
+    const { container } = renderRoute('/auditorias/nova/rotas/1');
     const toReview = await screen.findByRole('region', { name: 'Para revisar (2)' });
     const reviewed = screen.getByRole('region', { name: 'Revisadas (1)' });
     expect(screen.getByText('1 de 3 funções revisadas')).toBeTruthy();
@@ -152,6 +278,7 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({ institutionIds: [1], functions: ['home', 'admission'], institutionId: 1 }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': () =>
           Response.json({ routes: finished ? routes : [], absences: [] }),
@@ -168,9 +295,7 @@ describe('revisão de rotas (1.2)', () => {
       },
     });
     try {
-      const { container } = renderRoute(
-        '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission',
-      );
+      const { container } = renderRoute('/auditorias/nova/rotas/1');
       expect(await screen.findByText(/12 de até 200 páginas lidas/)).toBeTruthy();
       expect(screen.getByRole('button', { name: 'Descobrindo…' })).toBeTruthy();
       // O leitor de tela ouve só o andamento, sem a frase fixa do intervalo.
@@ -197,6 +322,7 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({ institutionIds: [1], functions: ['home', 'admission'], institutionId: 1 }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': () =>
           Response.json({ routes: finished ? routes : [], absences: [] }),
@@ -211,7 +337,7 @@ describe('revisão de rotas (1.2)', () => {
       },
     });
     try {
-      renderRoute('/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission');
+      renderRoute('/auditorias/nova/rotas/1');
       expect(await screen.findByText(/Descoberta na fila: começa quando outra/)).toBeTruthy();
       expect(screen.getByText(/dá para sair desta tela/)).toBeTruthy();
       const button = screen.getByRole('button', { name: 'Na fila…' }) as HTMLButtonElement;
@@ -229,6 +355,7 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({ institutionIds: [1], functions: ['home'], institutionId: 1 }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': {
@@ -254,7 +381,7 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    const { container } = renderRoute('/auditorias/nova/rotas/1?instituicoes=1&funcoes=home');
+    const { container } = renderRoute('/auditorias/nova/rotas/1');
     const last = await screen.findByText(/Última descoberta: 4 URLs/);
     // Bloqueio por proteção contra robôs é dito como tal, não como portal fora do ar.
     expect(last.textContent).toContain(
@@ -286,6 +413,11 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({
+          institutionIds: [1],
+          functions: ['home', 'admission', 'library'],
+          institutionId: 1,
+        }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes: ranked, absences: [] },
         'GET /institutions/1/discovery': idleDiscovery,
@@ -295,9 +427,7 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    const { container } = renderRoute(
-      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=home,admission,library',
-    );
+    const { container } = renderRoute('/auditorias/nova/rotas/1');
     const toReview = await screen.findByRole('region', { name: 'Para revisar (2)' });
     const admission = within(toReview).getAllByRole('listitem')[0]!;
     expect(admission.textContent).toContain('iftm.edu.br/ingresso');
@@ -341,6 +471,7 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({ institutionIds: [1], functions: ['home'], institutionId: 1 }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes, absences: [] },
         'GET /institutions/1/discovery': {
@@ -366,7 +497,7 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    renderRoute('/auditorias/nova/rotas/1?instituicoes=1&funcoes=home');
+    renderRoute('/auditorias/nova/rotas/1');
     expect(
       await screen.findByRole('heading', { name: 'Possíveis substituições de rota' }),
     ).toBeTruthy();
@@ -391,6 +522,11 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({
+          institutionIds: [1],
+          functions: ['library', 'class_schedule'],
+          institutionId: 1,
+        }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes, absences: [absent] },
         'GET /institutions/1/discovery': idleDiscovery,
@@ -404,9 +540,7 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    const { container } = renderRoute(
-      '/auditorias/nova/rotas/1?instituicoes=1&funcoes=library,class_schedule',
-    );
+    const { container } = renderRoute('/auditorias/nova/rotas/1');
     const library = within(await screen.findByRole('region', { name: 'Revisadas (1)' })).getByRole(
       'listitem',
     );
@@ -440,6 +574,11 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({
+          institutionIds: [1],
+          functions: ['home', 'admission'],
+          institutionId: null,
+        }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': {
           routes,
@@ -454,7 +593,7 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
+    renderRoute('/auditorias/nova/rotas');
     expect(await screen.findByText('2 de 2')).toBeTruthy();
     expect(screen.getByText('1 confirmada, 1 não encontrada')).toBeTruthy();
     await waitFor(() =>
@@ -468,11 +607,16 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({
+          institutionIds: [1],
+          functions: ['home', 'admission'],
+          institutionId: null,
+        }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes, absences: [] },
       },
     });
-    renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
+    renderRoute('/auditorias/nova/rotas');
     expect(await screen.findByText('1 de 2')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Iniciar coleta' }) as HTMLButtonElement).disabled,
@@ -487,9 +631,14 @@ describe('revisão de rotas (1.2)', () => {
     stubApi(auditor, {
       routes: {
         ...publicRoutes,
+        ...draftRoutes({
+          institutionIds: [1],
+          functions: ['home', 'admission'],
+          institutionId: null,
+        }),
         'GET /institutions': { institutions: [inst(1, 'IFTM')] },
         'GET /institutions/1/routes': { routes: confirmedAll, absences: [] },
-        'POST /collections': {
+        'POST /audit-draft/start': {
           collection: {
             id: 9,
             status: 'queued',
@@ -506,10 +655,172 @@ describe('revisão de rotas (1.2)', () => {
         },
       },
     });
-    const { router } = renderRoute('/auditorias/nova/rotas?instituicoes=1&funcoes=home,admission');
+    const { router } = renderRoute('/auditorias/nova/rotas');
     const start = await screen.findByRole('button', { name: 'Iniciar coleta' });
     await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(start);
     await waitFor(() => expect(router.state.location.pathname).toBe('/coletas/9'));
+  });
+});
+
+describe('descoberta em segundo plano e auditoria salva (ADR 0017)', () => {
+  const draft = draftOf({ institutionIds: [1, 2], functions: ['home'] }, 'routes', null);
+  const base = {
+    ...publicRoutes,
+    'GET /institutions': { institutions: [inst(1, 'IFTM'), inst(2, 'IFG')] },
+    'GET /institutions/1/routes': { routes: [], absences: [] },
+    'GET /institutions/2/routes': { routes: [], absences: [] },
+    'GET /audit-draft': { draft },
+  };
+
+  it('visão geral mostra a descoberta de cada instituição e põe as pendentes na fila', async () => {
+    let requested: unknown;
+    stubApi(auditor, {
+      routes: {
+        ...base,
+        'GET /discoveries': {
+          discoveries: [
+            {
+              ...idleDiscovery.discovery,
+              institutionId: 1,
+              status: 'running',
+              progress: { phase: 'pages', visited: 12, planned: 200 },
+            },
+            {
+              ...idleDiscovery.discovery,
+              institutionId: 2,
+              status: 'failed',
+              error: 'A página inicial respondeu HTTP 503.',
+            },
+          ],
+        },
+        'POST /discoveries': (init: RequestInit | undefined) => {
+          requested = JSON.parse(String(init?.body));
+          return Response.json(
+            {
+              discoveries: [
+                { ...idleDiscovery.discovery, institutionId: 1, status: 'running' },
+                { ...idleDiscovery.discovery, institutionId: 2, status: 'queued' },
+              ],
+            },
+            { status: 202 },
+          );
+        },
+      },
+    });
+    const { container } = renderRoute('/auditorias/nova/rotas');
+    expect(await screen.findByText('Descobrindo: 12 de até 200 páginas')).toBeTruthy();
+    expect(screen.getByText('Falhou')).toBeTruthy();
+    expect(screen.getByText('A página inicial respondeu HTTP 503.')).toBeTruthy();
+    expect(
+      screen.getByText(/Descoberta em segundo plano: 1 em andamento, 0 na fila, 0 concluídas/),
+    ).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Descoberta' })).toBeTruthy();
+    await expectNoAxeViolations(container);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Descobrir rotas de 1 instituição' }));
+    await waitFor(() => expect(requested).toEqual({ institutionIds: [2] }));
+    // O botão some com as duas na fila: o foco vai para o resumo da descoberta.
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toMatch(
+        /^Descoberta em segundo plano: 1 em andamento, 1 na fila/,
+      ),
+    );
+    expect(screen.queryByRole('button', { name: /Descobrir rotas de/ })).toBeNull();
+  });
+
+  it('descartar na visão geral volta para um escopo novo', async () => {
+    let deleted = false;
+    stubApi(auditor, {
+      routes: {
+        ...base,
+        'GET /audit-draft': () => Response.json({ draft: deleted ? null : draft }),
+        'GET /discoveries': { discoveries: [] },
+        'DELETE /audit-draft': () => {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+    const { router } = renderRoute('/auditorias/nova/rotas');
+    await userEvent.click(await screen.findByRole('button', { name: 'Descartar esta auditoria' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar descarte' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/auditorias/nova'));
+    expect(
+      await screen.findByRole('radio', { name: 'Todas as instituições ativas — 2 portais' }),
+    ).toBeTruthy();
+  });
+
+  it('abrir a revisão de uma instituição fica salvo como o ponto onde parou', async () => {
+    let position: unknown;
+    stubApi(auditor, {
+      routes: {
+        ...base,
+        'GET /institutions/2/discovery': {
+          discovery: { ...idleDiscovery.discovery, institutionId: 2 },
+        },
+        'PATCH /audit-draft/position': (init: RequestInit | undefined) => {
+          position = JSON.parse(String(init?.body));
+          return Response.json({ draft: { ...draft, institutionId: 2 } });
+        },
+      },
+    });
+    renderRoute('/auditorias/nova/rotas/2');
+    await screen.findByRole('heading', { level: 1, name: 'Revisão de rotas — IFG' });
+    await waitFor(() => expect(position).toEqual({ step: 'routes', institutionId: 2 }));
+    // Última do escopo: o próximo passo é a visão geral.
+    expect(screen.getByRole('navigation', { name: 'Trilha de navegação' }).textContent).toContain(
+      'Revisão de rotas',
+    );
+  });
+
+  it('fora da auditoria (vindo da gestão), revisa todas as funções sem mexer no rascunho', async () => {
+    const calls: string[] = [];
+    const fetchMock = stubApi(auditor, {
+      routes: {
+        ...base,
+        'GET /audit-draft': { draft: null },
+        'GET /institutions/1/routes': { routes: [route(3, '/noticias')], absences: [] },
+        'GET /institutions/1/discovery': idleDiscovery,
+      },
+    });
+    renderRoute('/auditorias/nova/rotas/1');
+    await screen.findByRole('heading', { level: 1, name: 'Revisão de rotas — IFTM' });
+    const trail = screen.getByRole('navigation', { name: 'Trilha de navegação' });
+    expect(within(trail).getByRole('link', { name: 'Instituições' }).getAttribute('href')).toBe(
+      '/gestao/instituicoes',
+    );
+    // Todas as funções, sem o indicador de etapa da auditoria.
+    expect(await screen.findByRole('region', { name: /Para revisar \(13\)/ })).toBeTruthy();
+    for (const [input, init] of fetchMock.mock.calls)
+      calls.push(`${init?.method ?? 'GET'} ${String(input)}`);
+    expect(calls.some((c) => c.startsWith('PATCH'))).toBe(false);
+  });
+
+  it('o painel mostra a auditoria em montagem e a descoberta em segundo plano', async () => {
+    stubApi(auditor, {
+      routes: {
+        ...base,
+        'GET /discoveries': {
+          discoveries: [
+            { ...idleDiscovery.discovery, institutionId: 1, status: 'queued' },
+            { ...idleDiscovery.discovery, institutionId: 2, status: 'completed' },
+          ],
+        },
+      },
+    });
+    const { container } = renderRoute('/painel');
+    const card = await screen.findByRole('region', { name: 'Auditoria em montagem' });
+    expect(card.textContent).toContain('2 instituições, 1 página por instituição');
+    expect(card.textContent).toContain('parou na revisão de rotas');
+    await waitFor(() =>
+      expect(card.textContent).toContain(
+        'Descoberta de rotas em segundo plano: 0 em andamento, 1 na fila, 1 concluída.',
+      ),
+    );
+    expect(
+      within(card).getByRole('link', { name: 'Continuar de onde parou' }).getAttribute('href'),
+    ).toBe('/auditorias/nova');
+    await expectNoAxeViolations(container);
   });
 });

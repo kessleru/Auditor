@@ -4,7 +4,7 @@ import { PublicLayout } from './layouts/PublicLayout';
 import { NotFoundPage } from './NotFoundPage';
 import { Root } from './Root';
 import { LoginPage } from '../features/auth/LoginPage';
-import { NewAuditPage } from '../features/audits/NewAuditPage';
+import { AuditScopePage, NewAuditPage } from '../features/audits/NewAuditPage';
 import { RouteReviewOverviewPage } from '../features/audits/RouteReviewOverviewPage';
 import { RouteReviewPage } from '../features/audits/RouteReviewPage';
 import { CollectionPage } from '../features/collections/CollectionPage';
@@ -73,6 +73,7 @@ export const routes: RouteObject[] = [
           { path: 'painel/instituicoes/:id', Component: AuditorInstitutionPage },
           { path: 'gestao/instituicoes', Component: InstitutionsAdminPage },
           { path: 'auditorias/nova', Component: NewAuditPage },
+          { path: 'auditorias/nova/escopo', Component: AuditScopePage },
           { path: 'auditorias/nova/rotas', Component: RouteReviewOverviewPage },
           { path: 'auditorias/:id/rotas/:institutionId', Component: RouteReviewPage },
           {
