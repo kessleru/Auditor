@@ -473,6 +473,37 @@ describe('cancelamento, nova tentativa e retomada', () => {
     expect((await service.waitForFinish(body.collection.id)).status).toBe('completed');
   });
 
+  it('achado novo de um problema já validado na coleta herda a decisão do auditor', async () => {
+    let fail = true;
+    const header = [{ rule: 'image-alt', targets: ['header img'] }];
+    const auditor = fakeAuditor(async (url) =>
+      fail && url.endsWith('/ingresso')
+        ? { ok: false, httpStatus: 503, error: 'HTTP 503' }
+        : okOutcome(header),
+    );
+    const { agent, service } = await setup(auditor);
+    const { body } = await create(agent, { institutionIds: [institutionA().institution.id] });
+    await service.waitForFinish(body.collection.id);
+    // O auditor descarta o problema do cabeçalho: a validação vale para o fingerprint na coleta.
+    const note = 'Imagem decorativa: o alt vazio está no elemento pai.';
+    const validatedAt = new Date('2026-09-20T12:00:00Z');
+    db.update(findings)
+      .set({ validation: 'false_positive', validationNote: note, validatedBy: 1, validatedAt })
+      .run();
+
+    fail = false;
+    const failed = service.get(body.collection.id).pages.find((p) => p.status === 'failed')!;
+    await agent.post(`/api/v1/collection-pages/${failed.id}/retry`);
+    await service.waitForFinish(body.collection.id);
+
+    const rows = db.select().from(findings).all();
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toMatchObject({ validation: 'false_positive', validationNote: note });
+      expect(row.validatedAt).toEqual(validatedAt);
+    }
+  });
+
   it('navegador que não abre encerra a coleta com o motivo, sem derrubar o servidor', async () => {
     let broken = true;
     const auditor = {
