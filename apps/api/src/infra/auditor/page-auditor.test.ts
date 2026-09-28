@@ -29,6 +29,11 @@ beforeAll(async () => {
     // Proteção contra robôs: o portal manda para um desafio noutro domínio.
     '/bloqueado': { status: 302, body: '', location: 'http://localhost:{port}/desafio' },
     '/desafio': '<!doctype html><html lang="en"><title>Challenge</title><h1>Are you human?</h1>',
+    // Aviso de cookies fixo no rodapé, por cima de um link sem nome que já está na janela.
+    '/aviso-cookies': `<!doctype html><html lang="pt-BR"><title>Aviso</title><body style="height:3000px;margin:0">
+      <main><h1>Portal</h1><a id="alvo" href="/x" style="position:absolute;top:640px;left:20px;width:200px;height:40px;background:#00ff00"></a></main>
+      <div role="dialog" aria-label="Cookies" style="position:fixed;bottom:0;left:0;right:0;height:250px;background:#0000ff;color:#fff">Aceite os cookies</div>
+    </body></html>`,
   });
 });
 
@@ -76,6 +81,25 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
       expectedContrastRatio: 4.5,
     });
 
+    // Com o que o navegador leu dos elementos: fonte, imagem, destino do link e tipo do campo.
+    const withFacts = Object.fromEntries(
+      findingsFromViolations(outcome.results.violations, 1, outcome.elementFacts).map((f) => [
+        f.ruleId,
+        f.evidenceJson,
+      ]),
+    );
+    expect(withFacts['color-contrast']).toMatchObject({
+      kind: 'contrast',
+      fontFamily: expect.stringMatching(/\S/),
+    });
+    expect(withFacts['image-alt']).toEqual({
+      kind: 'image',
+      src: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
+    });
+    expect(withFacts['link-name']).toEqual({ kind: 'link', href: `${site.origin}/` });
+    expect(withFacts['label']).toEqual({ kind: 'field', fieldType: 'text' });
+    expect(withFacts['html-has-lang']).toBeNull();
+
     // Foto de cada elemento reprovado visível (JPEG), nunca da página inteira.
     const shot = (ruleId: string, selector: string) =>
       outcome.screenshots.find((s) => s.ruleId === ruleId && s.selector === selector);
@@ -97,6 +121,56 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
     expect(outcome.results.testEngine.version).toBe('4.13.0');
     expect(outcome.html).toContain('Portal de teste');
     expect(outcome.httpStatus).toBe(200);
+    // Tempo de carregamento medido pelo navegador (Navigation Timing).
+    expect(outcome.loadTimeMs).toEqual(expect.any(Number));
+    expect(outcome.loadTimeMs).toBeGreaterThan(0);
+    expect(outcome.loadTimeMs).toBeLessThan(10_000);
+  });
+
+  it('centraliza o elemento antes da foto, fora de aviso fixo no rodapé', async () => {
+    const outcome = await auditor.audit(`${site.origin}/aviso-cookies`);
+    if (!outcome.ok) throw new Error(outcome.error);
+    const shot = outcome.screenshots.find((s) => s.ruleId === 'link-name');
+    expect(shot).toBeDefined();
+    // Cor do meio da foto: o link (verde), e não o aviso de cookies (azul) por cima dele.
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.setContent('<canvas></canvas>');
+      const [r, g, b] = await page.evaluate(
+        async (src) => {
+          // Roda no navegador; os tipos do projeto são os do Node, sem o DOM.
+          type Picture = { src: string; width: number; height: number; decode(): Promise<void> };
+          type Canvas = {
+            width: number;
+            height: number;
+            getContext(kind: '2d'): {
+              drawImage(image: Picture, x: number, y: number): void;
+              getImageData(x: number, y: number, w: number, h: number): { data: ArrayLike<number> };
+            };
+          };
+          const dom = globalThis as unknown as {
+            Image: new () => Picture;
+            document: { querySelector(selector: string): Canvas };
+          };
+          const img = new dom.Image();
+          img.src = src;
+          await img.decode();
+          const canvas = dom.document.querySelector('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          return [...Array.from(ctx.getImageData(img.width / 2, img.height / 2, 1, 1).data)];
+        },
+        `data:image/jpeg;base64,${shot!.image.toString('base64')}`,
+      );
+      expect(g).toBeGreaterThan(200);
+      expect(b).toBeLessThan(80);
+      expect(r).toBeLessThan(80);
+    } finally {
+      await browser.close();
+    }
   });
 
   it('página conforme não tem violações', async () => {

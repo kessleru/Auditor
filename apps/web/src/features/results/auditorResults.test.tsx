@@ -21,6 +21,7 @@ beforeEach(() => {
             browserVersion: 'Chromium 153',
             userAgent: 'UA',
             createdBy: 1,
+            createdByName: 'Auditora',
             createdAt: '2026-09-12T12:00:00.000Z',
             startedAt: '2026-09-12T12:00:00.000Z',
             finishedAt: '2026-09-12T15:00:00.000Z',
@@ -82,7 +83,7 @@ describe('comparativo (4.2)', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(3);
     expect(screen.getByText('1 instituição ainda não avaliada')).toBeTruthy();
     expect(within(table).getByText('Em andamento')).toBeTruthy();
-    expect(within(table).getByText('Portal não pôde ser avaliado na coleta')).toBeTruthy();
+    expect(within(table).getByText('Sem dado: bloqueou a ferramenta')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Exportar CSV' }).getAttribute('href')).toBe(
       '/api/v1/public/export.csv',
     );
@@ -116,5 +117,83 @@ describe('detalhe do auditor (4.3)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Somente automatizada (3)' }));
     expect(screen.getAllByRole('article')).toHaveLength(3);
     expect(screen.getByText('Validação pendente')).toBeTruthy();
+  });
+});
+
+describe('indicadores da pesquisa', () => {
+  it('mostra a validação por regra e o acerto da sugestão de função', async () => {
+    stubApi(auditor, {
+      routes: {
+        ...publicRoutes,
+        'GET /reports/indicators': {
+          collections: 2,
+          rules: [
+            {
+              ruleId: 'image-alt',
+              title: 'Imagens devem ter texto alternativo',
+              problems: 10,
+              confirmed: 8,
+              falsePositive: 2,
+              pending: 0,
+              confirmationRate: 0.8,
+            },
+            {
+              ruleId: 'region',
+              title: 'Todo conteúdo deve estar contido em regiões',
+              problems: 3,
+              confirmed: 0,
+              falsePositive: 0,
+              pending: 3,
+              confirmationRate: null,
+            },
+          ],
+          suggestions: [
+            {
+              functionKey: 'admission',
+              discovered: 4,
+              hits: 3,
+              otherFunction: 1,
+              noSuggestion: 0,
+              manual: 1,
+              absent: 0,
+            },
+            {
+              functionKey: 'library',
+              discovered: 0,
+              hits: 0,
+              otherFunction: 0,
+              noSuggestion: 0,
+              manual: 0,
+              absent: 0,
+            },
+          ],
+        },
+      },
+    });
+    const { container } = renderRoute('/indicadores');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Indicadores da pesquisa' }),
+    ).toBeTruthy();
+    // Geral: 8 confirmados de 10 validados; sugestão: 3 de 4.
+    expect(screen.getByText('80%', { selector: 'dd' })).toBeTruthy();
+    expect(screen.getByText('75%', { selector: 'dd' })).toBeTruthy();
+
+    const rules = screen.getByRole('table', { name: 'Validação por regra' });
+    const [, imageAlt, region] = within(rules).getAllByRole('row');
+    expect(
+      within(imageAlt!)
+        .getAllByRole('cell')
+        .map((c) => c.textContent),
+    ).toEqual(['10', '8', '2', '0', '80%']);
+    expect(within(region!).getAllByRole('cell').at(-1)?.textContent).toBe('—');
+    expect(screen.getByRole('link', { name: 'Exportar CSV' }).getAttribute('href')).toBe(
+      '/api/v1/reports/indicators/rules.csv',
+    );
+
+    const suggestions = screen.getByRole('table', { name: 'Sugestão de função' });
+    // Função sem nenhuma rota fica de fora.
+    expect(within(suggestions).getAllByRole('row')).toHaveLength(2);
+    expect(within(suggestions).getByText('3 (75%)')).toBeTruthy();
+    await expectNoAxeViolations(container);
   });
 });

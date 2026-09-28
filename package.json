@@ -25,6 +25,10 @@
     "discover": "npm run discover -w @auditoria-rf/api --",
     "dogfood": "npm run dogfood -w @auditoria-rf/api --",
     "demo:export": "npm run demo:export -w @auditoria-rf/api --",
+    "evidence:backfill": "npm run evidence:backfill -w @auditoria-rf/api --",
+    "backup": "npm run backup -w @auditoria-rf/api --",
+    "fingerprint:report": "npm run fingerprint:report -w @auditoria-rf/api --",
+    "retest": "npm run retest -w @auditoria-rf/api --",
     "test:e2e": "npm run test:e2e -w @auditoria-rf/web"
   },
   "devDependencies": {

@@ -10,6 +10,11 @@ export function createInspectionsRoutes(
   router.get('/collections/:id/inspection-summary', requireAuditor, c.summary);
   router.put('/collections/:id/inspection-sample', requireAuditor, c.setSample);
   router.get('/collections/:id/institutions/:institutionId/findings', requireAuditor, c.findings);
+  router.get(
+    '/collections/:id/institutions/:institutionId/incomplete',
+    requireAuditor,
+    c.incomplete,
+  );
   router.patch('/findings/:id/validation', requireAuditor, c.validate);
   router.get('/target-tasks', requireAuditor, c.listTasks);
   router.post('/target-tasks', requireAuditor, c.createTask);

@@ -82,6 +82,7 @@ export function CollectionsListPage({
                   header: 'Instituições',
                   cell: (row) => row.institutions.map((i) => i.acronym).join(', '),
                 },
+                { key: 'author', header: 'Autor', cell: (row) => row.createdByName },
                 {
                   key: 'progress',
                   header: 'Páginas',

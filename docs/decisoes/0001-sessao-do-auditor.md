@@ -15,7 +15,7 @@ O plano pede sessão em cookie `httpOnly`, `secure` em produção e `sameSite=la
 - Validade fixa de 12 horas (jornada de inspeção manual). Sessões expiradas são apagadas a cada novo login.
 - Logout apaga a sessão no servidor, não apenas o cookie.
 - Cookie com `path=/api`: só é enviado para a API.
-- Senhas com argon2id; mínimo de 12 caracteres. Auditor criado apenas pela CLI `npm run create-auditor`.
+- Senhas com argon2id; mínimo de 6 caracteres (eram 12 até 28/09/2026; reduzido a pedido do autor). Auditor criado apenas pela CLI `npm run create-auditor`.
 - Rate limit do login: 5 tentativas **malsucedidas** a cada 15 minutos por IP; logins bem-sucedidos não contam.
 - Login com e-mail inexistente executa uma verificação argon2 fictícia e devolve a mesma mensagem da senha errada, para não revelar quais e-mails existem.
 

@@ -154,11 +154,84 @@ describe('evidenceOf', () => {
       expectedContrastRatio: 4.5,
       fontSizePx: 16,
       bold: true,
+      fontFamily: null,
     });
   });
 
-  it('sem os dados do axe ou em outra regra, não há evidência', () => {
+  const facts = {
+    fontFamily: '"Open Sans", Arial, sans-serif',
+    src: 'https://if.edu.br/logo.png',
+    href: 'https://if.edu.br/ingresso',
+    fieldType: 'search',
+  };
+
+  it('completa o contraste com a fonte lida do elemento', () => {
+    const evidence = evidenceOf(
+      'color-contrast',
+      contrastNode({
+        fgColor: '#777777',
+        bgColor: '#ffffff',
+        contrastRatio: 4.48,
+        fontSize: '10.5pt (14px)',
+        fontWeight: 'normal',
+        expectedContrastRatio: '4.5:1',
+      }),
+      facts,
+    );
+    expect(evidence).toMatchObject({ bold: false, fontFamily: '"Open Sans", Arial, sans-serif' });
+  });
+
+  it('tamanho do alvo e distância do vizinho, medidos pelo axe', () => {
+    const node = {
+      any: [
+        { id: 'target-size', data: { minSize: 24, width: 18.5, height: 18 } },
+        { id: 'target-offset', data: { closestOffset: 10.2, minOffset: 24 } },
+      ],
+      all: [],
+      none: [],
+    } as never;
+    expect(evidenceOf('target-size', node)).toEqual({
+      kind: 'target-size',
+      widthPx: 18.5,
+      heightPx: 18,
+      minSizePx: 24,
+      closestOffsetPx: 10.2,
+      minOffsetPx: 24,
+    });
+    // Só a distância medida: a mínima é a da regra (24 px), como o tamanho.
+    const onlyOffset = {
+      any: [{ id: 'target-offset', data: { closestOffset: 10 } }],
+      all: [],
+      none: [],
+    } as never;
+    expect(evidenceOf('target-size', onlyOffset)).toMatchObject({
+      closestOffsetPx: 10,
+      minOffsetPx: 24,
+    });
+    // Alvo encoberto: o axe não mede o tamanho nem a distância.
+    const obscured = {
+      any: [{ id: 'target-size', data: { messageKey: 'obscured' } }],
+      all: [],
+      none: [],
+    } as never;
+    expect(evidenceOf('target-size', obscured)).toBeNull();
+  });
+
+  it('imagem, link e campo usam o que o navegador leu do elemento', () => {
+    const node = { any: [], all: [], none: [] } as never;
+    expect(evidenceOf('image-alt', node, facts)).toEqual({ kind: 'image', src: facts.src });
+    expect(evidenceOf('link-name', node, facts)).toEqual({ kind: 'link', href: facts.href });
+    expect(evidenceOf('label', node, facts)).toEqual({ kind: 'field', fieldType: 'search' });
+    expect(evidenceOf('select-name', node, { ...facts, fieldType: 'select' })).toEqual({
+      kind: 'field',
+      fieldType: 'select',
+    });
+  });
+
+  it('sem os dados do axe ou do elemento, ou em outra regra, não há evidência', () => {
     expect(evidenceOf('color-contrast', contrastNode({ fgColor: '#000' }))).toBeNull();
     expect(evidenceOf('image-alt', contrastNode({}))).toBeNull();
+    expect(evidenceOf('link-name', contrastNode({}), { ...facts, href: null })).toBeNull();
+    expect(evidenceOf('region', contrastNode({}), facts)).toBeNull();
   });
 });

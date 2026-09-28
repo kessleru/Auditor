@@ -58,7 +58,15 @@ const findings: InspectionFindings = {
       kind: 'template',
       page: null,
       problems: [
-        problem(10, { template: true, pages: 2, occurrences: 2, validation: 'confirmed' }),
+        problem(10, {
+          ruleId: 'color-contrast',
+          title: 'Elementos devem ter contraste de cor suficiente',
+          severity: 'moderate',
+          template: true,
+          pages: 2,
+          occurrences: 2,
+          validation: 'confirmed',
+        }),
       ] as never,
     },
     {
@@ -116,11 +124,39 @@ describe('portais em inspeção (3.0)', () => {
 
 describe('portal: contexto, abas e validação (3.3)', () => {
   it('h1 com o nome do portal, abas com contagem e falso positivo com justificativa', async () => {
+    let incompleteCalls = 0;
+    const incompleteResponse = {
+      pagesWithoutResults: 0,
+      rules: [
+        {
+          ruleId: 'color-contrast',
+          title: 'Os elementos devem ter contraste de cor suficiente',
+          helpUrl: 'https://dequeuniversity.com/rules/axe/4.13/color-contrast',
+          wcagCriteria: '1.4.3',
+          nodesTotal: 31,
+          pages: 2,
+          nodes: [
+            {
+              pageUrl: 'https://iftm.edu.br',
+              functionKey: 'home',
+              selector: '.banner p',
+              htmlSnippet: '<p>Inscrições abertas</p>',
+              reason:
+                'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+            },
+          ],
+        },
+      ],
+    };
     let patched: unknown;
     stubApi(auditor, {
       routes: {
         ...base,
         'GET /collections/5/institutions/1/findings': findings,
+        'GET /collections/5/institutions/1/incomplete': () => {
+          incompleteCalls++;
+          return Response.json(incompleteResponse);
+        },
         'PATCH /findings/11/validation': (init: RequestInit | undefined) => {
           patched = JSON.parse(String(init?.body));
           return Response.json({ finding: {} });
@@ -147,7 +183,33 @@ describe('portal: contexto, abas e validação (3.3)', () => {
 
     const sections = await screen.findAllByRole('heading', { level: 2 });
     expect(sections[0]!.textContent).toContain('Em todas as páginas (template)');
+    // Verificações que o axe não decidiu: só leitura, com o motivo em português.
+    const incomplete = await screen.findByRole('region', {
+      name: /Verificações que o axe não decidiu/,
+    });
+    expect(within(incomplete).getByText('31 elementos')).toBeTruthy();
+    expect(
+      within(incomplete).getByText(
+        'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+      ),
+    ).toBeTruthy();
+    expect(within(incomplete).getByText('Mostrando 1 de 31.')).toBeTruthy();
+    expect(within(incomplete).queryByRole('button', { name: /Confirmar/ })).toBeNull();
     await expectNoAxeViolations(container);
+
+    // Filtros por regra e severidade, para não percorrer 100+ problemas um a um.
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Regra' }),
+      'color-contrast',
+    );
+    expect(screen.getByText('1 de 2 problemas exibidos')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /template/ })).toBeTruthy();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severidade' }), 'critical');
+    expect(screen.getByText('0 de 2 problemas exibidos')).toBeTruthy();
+    expect(screen.getByText('Nenhum problema com esses filtros.')).toBeTruthy();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Regra' }), '');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severidade' }), '');
+    expect(screen.getByText('2 problemas exibidos')).toBeTruthy();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Mostrar só os pendentes' }));
     expect(screen.getByText('1 de 2 problemas exibidos')).toBeTruthy();
@@ -161,6 +223,9 @@ describe('portal: contexto, abas e validação (3.3)', () => {
     const form = within(document.getElementById(toggle.getAttribute('aria-controls')!)!);
     const register = form.getByRole('button', { name: 'Registrar falso positivo' });
     expect((register as HTMLButtonElement).disabled).toBe(true);
+    // O botão desabilitado se explica: o mínimo e o máximo aparecem no rótulo e no campo.
+    const justification = form.getByLabelText(/ao menos 10 caracteres/) as HTMLTextAreaElement;
+    expect(justification.maxLength).toBe(1000);
     await userEvent.type(
       form.getByLabelText(/Justificativa/),
       'Imagem decorativa com alt vazio correto.',
@@ -172,6 +237,8 @@ describe('portal: contexto, abas e validação (3.3)', () => {
         note: 'Imagem decorativa com alt vazio correto.',
       }),
     );
+    // Salvar a validação não relê o resultado do axe das páginas (não muda depois da coleta).
+    expect(incompleteCalls).toBe(1);
   });
 });
 
@@ -237,6 +304,16 @@ describe('tarefas-alvo (3.1)', () => {
     );
     await userEvent.click(screen.getByRole('radio', { name: 'Moderado' }));
     await userEvent.type(screen.getByLabelText(/Observação do avaliador/), 'Contato só no rodapé.');
+    // Profundidade fora do que a API aceita (inteiro de 0 a 50) é ajustada no campo.
+    const depth = screen.getByLabelText(/Profundidade/);
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '2.5');
+    await userEvent.tab();
+    expect((depth as HTMLInputElement).value).toBe('2');
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '75');
+    await userEvent.tab();
+    expect((depth as HTMLInputElement).value).toBe('50');
     await userEvent.click(submit);
     await waitFor(() =>
       expect(saved).toMatchObject({
@@ -245,6 +322,7 @@ describe('tarefas-alvo (3.1)', () => {
         taskId: 1,
         result: 'interrupted',
         interactions: 3,
+        depth: 50,
         path: ['Institucional'],
         heuristic: 'H2',
         severity: 'moderate',

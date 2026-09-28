@@ -28,6 +28,9 @@ export function createInspectionsController(service: InspectionsService) {
   const findings: RequestHandler = (req, res) => {
     res.json(service.findings(parseId(req.params.id), parseId(req.params.institutionId)));
   };
+  const incomplete: RequestHandler = async (req, res) => {
+    res.json(await service.incomplete(parseId(req.params.id), parseId(req.params.institutionId)));
+  };
   const validate: RequestHandler = (req, res) => {
     const finding = service.validate(
       parseId(req.params.id),
@@ -73,6 +76,7 @@ export function createInspectionsController(service: InspectionsService) {
     summary,
     setSample,
     findings,
+    incomplete,
     validate,
     listTasks,
     createTask,

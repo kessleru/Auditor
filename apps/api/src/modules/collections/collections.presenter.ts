@@ -1,4 +1,9 @@
-import type { Collection, CollectionPage, CollectionProgress } from '@auditoria-rf/contracts';
+import {
+  classifyFailure,
+  type Collection,
+  type CollectionPage,
+  type CollectionProgress,
+} from '@auditoria-rf/contracts';
 import type { CollectionPageWithRoute, CollectionRow } from './collections.repository.js';
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
@@ -27,9 +32,11 @@ export const toCollectionPage = (row: CollectionPageWithRoute): CollectionPage =
   status: row.status,
   httpStatus: row.httpStatus,
   error: row.error,
+  failureKind: row.status === 'failed' ? classifyFailure(row.error, row.httpStatus) : null,
   passesCount: row.passesCount,
   violationsCount: row.violationsCount,
   incompleteCount: row.incompleteCount,
   inapplicableCount: row.inapplicableCount,
   evaluatedAt: iso(row.evaluatedAt),
+  loadTimeMs: row.loadTimeMs,
 });

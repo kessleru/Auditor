@@ -5,6 +5,7 @@ import type {
   RouteReplacement,
 } from '@auditoria-rf/contracts';
 import type { DiscoveryResult } from '../../infra/crawler/index.js';
+import { isDevHost, isWithinDomain } from '../../infra/crawler/url.js';
 import { AppError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import type { InstitutionsService } from '../institutions/institutions.service.js';
@@ -122,7 +123,11 @@ export function createDiscoveryService(
    * candidata: o destino do redirecionamento ou outra rota sugerida para a mesma função. Nada é
    * aplicado: a substituição exige confirmação do auditor.
    */
-  const findReplacements = (institutionId: number, result: DiscoveryResult): RouteReplacement[] => {
+  const findReplacements = (
+    institutionId: number,
+    domain: string,
+    result: DiscoveryResult,
+  ): RouteReplacement[] => {
     const seenAt = now();
     const replacements: RouteReplacement[] = [];
     for (const check of result.checks) {
@@ -130,15 +135,21 @@ export function createDiscoveryService(
       const route = routesRepo.findByNormalizedUrl(institutionId, check.url);
       if (!route || route.status !== 'confirmed') continue;
 
+      // Destino em outro domínio (ou em homologação) não vira rota da instituição: a mudança
+      // aparece, mas a candidata vem das sugestões da mesma função.
+      const movedTo =
+        check.movedTo !== null &&
+        isWithinDomain(new URL(check.movedTo).host, domain) &&
+        !isDevHost(new URL(check.movedTo).host)
+          ? check.movedTo
+          : null;
       let candidate =
-        check.movedTo !== null
-          ? routesRepo.findByNormalizedUrl(institutionId, check.movedTo)
-          : undefined;
-      if (!candidate && check.movedTo !== null) {
+        movedTo !== null ? routesRepo.findByNormalizedUrl(institutionId, movedTo) : undefined;
+      if (!candidate && movedTo !== null) {
         candidate = routesRepo.insert({
           institutionId,
-          url: check.movedTo,
-          normalizedUrl: check.movedTo,
+          url: movedTo,
+          normalizedUrl: movedTo,
           source: result.source,
           status: 'suggested',
           discoveredAt: seenAt,
@@ -213,7 +224,7 @@ export function createDiscoveryService(
             state.progress = progress;
           });
           state.summary = persist(institutionId, result);
-          state.replacements = findReplacements(institutionId, result);
+          state.replacements = findReplacements(institutionId, institution.domain, result);
           state.status = 'completed';
         } catch (err) {
           state.status = 'failed';

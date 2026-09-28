@@ -521,6 +521,44 @@ describe('andamento', () => {
   });
 });
 
+describe('redirecionamento para caminho proibido pelo robots.txt', () => {
+  it('não pede o destino, conta como bloqueado e não como falha', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: {
+        body: 'User-agent: *\nDisallow: /restrito',
+        contentType: 'text/plain',
+      },
+      [`${ORIGIN}/`]: { body: html('Início', links('/atalho', '/a')) },
+      [`${ORIGIN}/atalho`]: { redirect: '/restrito/painel', status: 302 },
+      [`${ORIGIN}/restrito/painel`]: { body: html('Painel') },
+      [`${ORIGIN}/a`]: { body: html('A') },
+    });
+    const result = await run(site.client);
+
+    expect(site.requested).not.toContain(`${ORIGIN}/restrito/painel`);
+    expect(result.blockedByRobots).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(byUrl(result.routes)).toEqual([ORIGIN, `${ORIGIN}/a`]);
+  });
+
+  it('redirecionamento proibido para o login continua marcando a área autenticada', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: {
+        body: 'User-agent: *\nDisallow: /login',
+        contentType: 'text/plain',
+      },
+      [`${ORIGIN}/`]: { body: html('Início', links('/sistema')) },
+      [`${ORIGIN}/sistema`]: { redirect: '/login?next=/sistema', status: 302 },
+    });
+    const result = await run(site.client);
+    const status = Object.fromEntries(result.routes.map((r) => [r.url, r.status]));
+    expect(status[`${ORIGIN}/sistema`]).toBe('authenticated');
+    expect(site.requested).not.toContain(`${ORIGIN}/login?next=/sistema`);
+  });
+});
+
 describe('área autenticada', () => {
   it('marca redirecionamento para login e página com senha, sem seguir seus links', async () => {
     const site = crawlerSite({
@@ -602,6 +640,46 @@ describe('falhas da página inicial', () => {
     await expect(run(site.client)).rejects.toThrow(/robots\.txt/);
   });
 
+  it('página inicial proibida pelo robots.txt nem é pedida', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': {
+        body: 'User-agent: *\nDisallow: /$\nAllow: /noticias',
+        contentType: 'text/plain',
+      },
+      'https://if.edu.br/': { body: html('Início') },
+    });
+    await expect(run(site.client)).rejects.toThrow(
+      /proíbe o acesso da ferramenta à página inicial/,
+    );
+    expect(site.pageRequests()).toEqual([]);
+  });
+
+  it('página inicial que redireciona para caminho proibido interrompe sem pedir o destino', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': {
+        body: 'User-agent: *\nDisallow: /portal-fechado',
+        contentType: 'text/plain',
+      },
+      'https://if.edu.br/': { redirect: '/portal-fechado/', status: 302 },
+      'https://if.edu.br/portal-fechado/': { body: html('Fechado') },
+    });
+    await expect(run(site.client)).rejects.toThrow(
+      /redireciona para um endereço que o robots\.txt/,
+    );
+    expect(site.requested).not.toContain('https://if.edu.br/portal-fechado/');
+  });
+
+  it('robots.txt inacessível por erro de rede interrompe sem pedir páginas (RFC 9309)', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { networkError: true },
+      'https://if.edu.br/': { body: html('Início') },
+      [`${ORIGIN}/robots.txt`]: { networkError: true },
+      [`${ORIGIN}/`]: { body: html('Início') },
+    });
+    await expect(run(site.client)).rejects.toThrow(/RFC 9309/);
+    expect(site.pageRequests()).toEqual([]);
+  });
+
   it('robots.txt com erro de servidor interrompe a descoberta (RFC 9309)', async () => {
     const site = fakeSite({
       'https://if.edu.br/robots.txt': { status: 503, body: 'fora', contentType: 'text/plain' },
@@ -676,5 +754,45 @@ describe('verificação das rotas confirmadas (3.1.7)', () => {
       ['ok', 200, null],
       ['unreachable', null, null],
     ]);
+  });
+
+  it('301 que só acrescenta a barra final não é rota movida', async () => {
+    const site = crawlerSite({
+      [`${ORIGIN}/`]: { body: html('Início') },
+      [`${ORIGIN}/ingresso`]: { redirect: '/ingresso/', status: 301 },
+      [`${ORIGIN}/ingresso/`]: { body: html('Ingresso') },
+    });
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      checkUrls: [`${ORIGIN}/ingresso`],
+    });
+    expect(result.checks.map((c) => c.result)).toEqual(['ok']);
+  });
+
+  it('rota confirmada que o robots.txt passou a proibir não é pedida', async () => {
+    const site = fakeSite({
+      'https://if.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+      [`${ORIGIN}/robots.txt`]: {
+        body: 'User-agent: *\nDisallow: /ouvidoria\nDisallow: /fechada',
+        contentType: 'text/plain',
+      },
+      [`${ORIGIN}/`]: { body: html('Início') },
+      [`${ORIGIN}/ouvidoria`]: { body: html('Ouvidoria') },
+      [`${ORIGIN}/contato`]: { redirect: '/fechada', status: 301 },
+    });
+    const result = await discoverRoutes({
+      domain: 'if.edu.br',
+      client: site.client,
+      robotsAgent: agent,
+      checkUrls: [`${ORIGIN}/ouvidoria`, `${ORIGIN}/contato`],
+    });
+    expect(result.checks.map((c) => [c.result, c.httpStatus])).toEqual([
+      ['blocked', null],
+      ['blocked', 301],
+    ]);
+    expect(site.requested).not.toContain(`${ORIGIN}/ouvidoria`);
+    expect(site.requested).not.toContain(`${ORIGIN}/fechada`);
   });
 });

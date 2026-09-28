@@ -15,9 +15,10 @@ import { usePublicFindings, usePublicInstitution } from './api';
 import { Breadcrumb } from './Breadcrumb';
 import { ConformityHistoryChart } from './ConformityHistoryChart';
 import { ConformitySummary } from './ConformitySummary';
-import { ComparisonBasis } from './CoreFunctionsNote';
+import { ComparisonBasis, noConformityText } from './CoreFunctionsNote';
 import { QueryState } from './QueryState';
 import { ReviewNeededNote } from './ReviewNeededNote';
+import { noDataDescription } from './noData';
 
 type Filter = 'all' | 'critical' | 'template';
 
@@ -171,7 +172,7 @@ export function InstitutionDetailPage() {
           {institution.status === 'no_data' ? (
             <ErrorState
               title="Sem dado na última coleta"
-              description="Nenhuma página do portal pôde ser avaliada na coleta mais recente. Isso é registrado como ausência de dado: o portal não recebe nota e fica fora das médias."
+              description={noDataDescription(institution.noDataReason)}
             />
           ) : null}
 
@@ -180,10 +181,11 @@ export function InstitutionDetailPage() {
               <ConformitySummary
                 conformity={institution.conformity}
                 acronym={institution.acronym}
+                emptyText={noConformityText(institution)}
                 figures={[
-                  { label: 'Problemas confirmados', value: institution.problems ?? 0 },
-                  { label: 'Críticos', value: institution.criticalProblems ?? 0 },
-                  { label: 'De template', value: institution.templateProblems ?? 0 },
+                  { label: 'Problemas confirmados', value: institution.problems ?? '—' },
+                  { label: 'Críticos', value: institution.criticalProblems ?? '—' },
+                  { label: 'De template', value: institution.templateProblems ?? '—' },
                   {
                     label: 'Aguardando validação',
                     value: institution.pendingValidation,

@@ -10,8 +10,10 @@ const sections = [
   { id: 'paginas', title: 'Quais páginas são avaliadas' },
   { id: 'comparacao', title: 'Como a comparação é feita' },
   { id: 'problemas', title: 'Problemas distintos, ocorrências e template' },
+  { id: 'evidencias', title: 'Como cada problema é mostrado' },
   { id: 'manual', title: 'Camada manual' },
   { id: 'falhas', title: 'Portais que falharam' },
+  { id: 'limites', title: 'Limites da coleta automática' },
   { id: 'ferramentas', title: 'Ferramentas e última coleta' },
   { id: 'responsavel', title: 'Responsável pela pesquisa' },
 ] as const;
@@ -154,6 +156,25 @@ export function MethodologyPage() {
         </p>
       </Section>
 
+      <Section id="evidencias" title="Como cada problema é mostrado">
+        <p>
+          Na coleta, depois da verificação, a ferramenta fotografa cada elemento reprovado, com uma
+          margem ao redor e um contorno vermelho de destaque. A foto sai depois da análise: não muda
+          o resultado nem o código da página guardado.
+        </p>
+        <p>
+          Junto da foto vai o que foi medido. No contraste, uma amostra do texto com as cores, o
+          tamanho e a fonte reais, e a razão obtida ao lado da mínima exigida (por exemplo, “Razão
+          2,8:1 — mínimo 4,5:1”). No tamanho do alvo de toque, as medidas do elemento e a distância
+          até o vizinho. Na imagem sem texto alternativo, no link sem nome e no campo sem rótulo, o
+          endereço da imagem, o destino do link e o tipo do campo.
+        </p>
+        <p>
+          O código do portal nunca é carregado dentro deste site: tudo é foto ou desenho feito a
+          partir dos dados medidos. Na visão pública, só aparecem fotos de problemas confirmados.
+        </p>
+      </Section>
+
       <Section id="manual" title="Camada manual">
         <p>
           Numa subamostra de portais escolhida pelo pesquisador, os achados automatizados são
@@ -170,10 +191,52 @@ export function MethodologyPage() {
 
       <Section id="falhas" title="Portais que falharam">
         <p>
-          Quando nenhuma página de um portal pôde ser avaliada (fora do ar, tempo esgotado), o
-          resultado é registrado como <strong className="font-medium">ausência de dado</strong>: o
-          portal não recebe nota 0% e fica fora de todas as médias.
+          Quando nenhuma página de um portal pôde ser avaliada, o resultado é registrado como{' '}
+          <strong className="font-medium">ausência de dado</strong>: o portal não recebe nota 0% e
+          fica fora de todas as médias. O motivo aparece junto:
         </p>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            <strong className="font-medium">bloqueou a ferramenta</strong>: o portal recusou o
+            acesso ou mandou a ferramenta para um desafio de proteção contra robôs, em outro
+            endereço. A ferramenta não contorna bloqueios (isso mudaria o método) e nunca avalia a
+            página do desafio como se fosse do portal; a instituição pode liberar o acesso;
+          </li>
+          <li>
+            <strong className="font-medium">fora do ar ou com erro</strong>: o portal não respondeu,
+            demorou mais que o tempo da coleta ou respondeu com erro;
+          </li>
+          <li>
+            <strong className="font-medium">falha da ferramenta</strong>: o problema foi do lado da
+            pesquisa, não do portal.
+          </li>
+        </ul>
+      </Section>
+
+      <Section id="limites" title="Limites da coleta automática">
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            A ferramenta se identifica como <span className="font-mono text-code">AuditoriaRF</span>
+            , com o contato do pesquisador. Um portal pode servir outra página (ou bloquear) para
+            esse identificador, e o resultado pode diferir do que o cidadão vê.
+          </li>
+          <li>
+            As páginas são abertas numa janela de computador (1280 × 800). O comportamento em telas
+            estreitas, como a de um celular, fica para a verificação manual de ampliação.
+          </li>
+          <li>
+            A verificação roda sobre o conteúdo carregado ao abrir a página; o que só aparece depois
+            de rolar ou clicar não é avaliado.
+          </li>
+          <li>
+            Há um intervalo de pelo menos 1,5 s entre as páginas de um mesmo portal. Ao abrir cada
+            página, o navegador baixa estilos, scripts e imagens como faria para qualquer pessoa.
+          </li>
+          <li>
+            Verificações que o axe não consegue decidir sozinho (“revisão necessária”, como o
+            contraste de um texto sobre imagem) são contadas à parte e ficam fora da nota.
+          </li>
+        </ul>
       </Section>
 
       <Section id="ferramentas" title="Ferramentas e última coleta">

@@ -127,6 +127,8 @@ export const okOutcome = (
   html: '<html><body>snapshot</body></html>',
   results: fakeResults(violations),
   screenshots,
+  loadTimeMs: 1234,
+  elementFacts: {},
 });
 
 export function fakeAuditor(

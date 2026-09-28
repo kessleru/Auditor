@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
-import { publicRoutes } from '../../test/fixtures';
+import { iftm, publicRoutes } from '../../test/fixtures';
 import { renderRoute, stubApi } from '../../test/render';
 
 beforeEach(() => {
@@ -26,7 +26,7 @@ describe('visão pública (0.2)', () => {
         .getAttribute('aria-valuenow'),
     ).toBe('78');
     expect(rows[0]!.textContent).toContain('validação em andamento');
-    expect(rows[1]!.textContent).toContain('Sem dado');
+    expect(rows[1]!.textContent).toContain('Sem dado: bloqueou a ferramenta');
     expect(rows[1]!.textContent).not.toContain('0%');
 
     expect(screen.getByRole('link', { name: 'Abrir relatório do IFTM' }).getAttribute('href')).toBe(
@@ -133,9 +133,45 @@ describe('detalhe da instituição (4.3, leitura)', () => {
     expect(screen.getByText('1 problema exibido')).toBeTruthy();
   });
 
+  it('sem função em comum, o resumo fica vazio e não mostra 0 problemas', async () => {
+    const noCore = {
+      ...iftm,
+      conformity: null,
+      classification: null,
+      problems: null,
+      criticalProblems: null,
+      templateProblems: null,
+      pagesEvaluated: 0,
+    };
+    stubApi(null, {
+      routes: {
+        ...publicRoutes,
+        'GET /public/institutions/1': { institution: noCore, history: [] },
+      },
+    });
+    const { container } = renderRoute('/instituicoes/1');
+    const summary = await screen.findByRole('region', { name: 'Resumo do IFTM' });
+    expect(summary.textContent).toContain('Sem função em comum para comparar');
+    expect(within(summary).getByText('Problemas confirmados').nextElementSibling?.textContent).toBe(
+      '—',
+    );
+    expect(within(summary).getByText('Críticos').nextElementSibling?.textContent).toBe('—');
+    const basis = screen.getByRole('region', { name: 'Base da comparação' });
+    expect(basis.textContent).toContain(
+      'Nenhuma: as instituições avaliadas não têm função em comum',
+    );
+    expect(basis.textContent).toContain('80% de conformidade, 30 problemas em 12 páginas');
+    await expectNoAxeViolations(container);
+  });
+
   it('portal sem dado explica a ausência de dado', async () => {
     renderRoute('/instituicoes/2');
     expect(await screen.findByRole('heading', { name: 'Sem dado na última coleta' })).toBeTruthy();
+    // O motivo: bloqueio não é portal fora do ar (ADR 0016).
+    expect(
+      screen.getByText(/O portal bloqueou o acesso da ferramenta na coleta mais recente/),
+    ).toBeTruthy();
+    expect(screen.getByText(/user-agent AuditoriaRF/)).toBeTruthy();
     expect(screen.queryByText(/0%/)).toBeNull();
     expect(screen.queryByRole('article')).toBeNull();
   });
@@ -148,6 +184,10 @@ describe('/metodologia', () => {
     expect(screen.getByText('Chromium 153.0.8010.12')).toBeTruthy();
     expect(screen.getByText('12/09/2026')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'O que a nota não mede' })).toBeTruthy();
+    // Foto e evidência (ADR 0014), bloqueio antirrobô (ADR 0016) e limites da coleta.
+    expect(screen.getByRole('heading', { name: 'Como cada problema é mostrado' })).toBeTruthy();
+    expect(screen.getByText(/A ferramenta não contorna bloqueios/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Limites da coleta automática' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'pesquisa@example.org' })).toBeTruthy();
     await expectNoAxeViolations(container);
   });

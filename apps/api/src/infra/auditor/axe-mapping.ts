@@ -88,13 +88,52 @@ const numberFrom = (value: unknown): number | null => {
 };
 
 /**
- * Evidência que o axe já mediu para o elemento reprovado, para a interface mostrar o problema sem
- * abrir o portal (ADR 0014). Hoje só o contraste: cores, razão obtida e exigida, e a fonte.
+ * O que o navegador leu do elemento reprovado na coleta, depois do axe e do snapshot (o axe não
+ * informa): a fonte calculada, o endereço da imagem, o destino do link e o tipo do campo.
  */
-export function evidenceOf(ruleId: string, node: NodeResult): FindingEvidence | null {
+export interface ElementFacts {
+  fontFamily: string | null;
+  src: string | null;
+  href: string | null;
+  fieldType: string | null;
+}
+
+/** Regras cuja evidência vem do elemento (ElementFacts), e não do `data` do axe. */
+const IMAGE_RULES = new Set(['image-alt', 'input-image-alt']);
+const LINK_RULES = new Set(['link-name']);
+const FIELD_RULES = new Set(['label', 'select-name']);
+/** Regras para as quais vale ler o elemento na coleta. */
+export const FACT_RULES = new Set([
+  'color-contrast',
+  ...IMAGE_RULES,
+  ...LINK_RULES,
+  ...FIELD_RULES,
+]);
+
+const checkData = (node: NodeResult, checkId: string) =>
+  ([...node.any, ...node.all, ...node.none].find((c) => c.id === checkId)?.data ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+/**
+ * Evidência do elemento reprovado, para a interface mostrar o problema sem abrir o portal (ADR
+ * 0014): o que o axe já mediu (contraste, tamanho do alvo) e, com `facts`, o que o navegador leu
+ * do elemento. Sem dado suficiente, `null`: o achado fica com a foto e o código.
+ */
+export function evidenceOf(
+  ruleId: string,
+  node: NodeResult,
+  facts?: ElementFacts,
+): FindingEvidence | null {
+  if (ruleId === 'target-size') return targetSizeEvidenceOf(node);
+  if (IMAGE_RULES.has(ruleId)) return facts?.src ? { kind: 'image', src: facts.src } : null;
+  if (LINK_RULES.has(ruleId)) return facts?.href ? { kind: 'link', href: facts.href } : null;
+  if (FIELD_RULES.has(ruleId)) {
+    return facts?.fieldType ? { kind: 'field', fieldType: facts.fieldType } : null;
+  }
   if (ruleId !== 'color-contrast') return null;
-  const check = [...node.any, ...node.all, ...node.none].find((c) => c.id === 'color-contrast');
-  const data = (check?.data ?? {}) as Record<string, unknown>;
+  const data = checkData(node, 'color-contrast');
   const contrastRatio = numberFrom(data['contrastRatio']);
   // "4.5:1" → 4.5; "12.0pt (16px)" → 16.
   const expectedContrastRatio = numberFrom(
@@ -119,6 +158,26 @@ export function evidenceOf(ruleId: string, node: NodeResult): FindingEvidence | 
     expectedContrastRatio,
     fontSizePx,
     bold: data['fontWeight'] === 'bold' || (numberFrom(data['fontWeight']) ?? 0) >= 700,
+    fontFamily: facts?.fontFamily ?? null,
+  };
+}
+
+/** Tamanho e distância medidos pelo axe (checks `target-size` e `target-offset`). */
+function targetSizeEvidenceOf(node: NodeResult): FindingEvidence | null {
+  const size = checkData(node, 'target-size');
+  const offset = checkData(node, 'target-offset');
+  const widthPx = numberFrom(size['width']);
+  const heightPx = numberFrom(size['height']);
+  const closestOffsetPx = numberFrom(offset['closestOffset']);
+  if ((widthPx === null || heightPx === null) && closestOffsetPx === null) return null;
+  return {
+    kind: 'target-size',
+    widthPx,
+    heightPx,
+    minSizePx: numberFrom(size['minSize']) ?? 24,
+    closestOffsetPx,
+    // Sem o valor no data, a mínima é a da própria regra (24 px), como no tamanho.
+    minOffsetPx: numberFrom(offset['minOffset']) ?? (closestOffsetPx === null ? null : 24),
   };
 }
 
@@ -127,10 +186,11 @@ const MAX_SNIPPET = 2000;
 const isImpact = (value: ImpactValue | undefined): value is AxeImpact =>
   value === 'critical' || value === 'serious' || value === 'moderate' || value === 'minor';
 
-/** Um achado por elemento reprovado. */
+/** Um achado por elemento reprovado; `facts` (por seletor) completa a evidência. */
 export function findingsFromViolations(
   violations: readonly Result[],
   institutionId: number,
+  facts: Readonly<Record<string, ElementFacts>> = {},
 ): FindingDraft[] {
   return violations.flatMap((rule) => {
     const criteria = criteriaFromTags(rule.tags);
@@ -157,7 +217,7 @@ export function findingsFromViolations(
         help: rule.help,
         helpUrl: rule.helpUrl,
         fingerprint: fingerprintOf(rule.id, selector, institutionId),
-        evidenceJson: evidenceOf(rule.id, node),
+        evidenceJson: evidenceOf(rule.id, node, facts[selector]),
       };
     });
   });

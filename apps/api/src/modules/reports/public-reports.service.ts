@@ -1,6 +1,10 @@
 import {
+  classifyFailure,
   CONFORMITY_THRESHOLDS,
   type Methodology,
+  type NoDataReason,
+  noDataReasonOf,
+  noDataReasons,
   type PageFunctionKey,
   type PublicInstitution,
   type PublicInstitutionDetail,
@@ -22,6 +26,25 @@ const mean = (values: (number | null)[]) => {
 };
 
 type InstitutionRow = NonNullable<ReturnType<ReportsRepository['findInstitution']>>;
+
+/**
+ * Motivo mais comum entre as páginas que falharam (empate: na ordem de `noDataReasons`, do
+ * bloqueio para o resto). Sem página que falhou, `other`.
+ */
+export function mainNoDataReason(
+  pages: readonly { status: string; error: string | null; httpStatus: number | null }[],
+): NoDataReason {
+  const counts = new Map<NoDataReason, number>();
+  for (const page of pages) {
+    if (page.status !== 'failed') continue;
+    const reason = noDataReasonOf(classifyFailure(page.error, page.httpStatus), page.httpStatus);
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  return noDataReasons.reduce<NoDataReason>(
+    (best, reason) => ((counts.get(reason) ?? 0) > (counts.get(best) ?? 0) ? reason : best),
+    'other',
+  );
+}
 
 /**
  * Visão pública (somente leitura; ADR 0006): cada instituição com a sua coleta terminada mais
@@ -85,6 +108,7 @@ export function createPublicReportsService(
         ...base,
         ...empty,
         status: 'not_collected',
+        noDataReason: null,
         collectionId: null,
         collectedAt: null,
         pagesTotal: 0,
@@ -99,7 +123,12 @@ export function createPublicReportsService(
       coverage: coverageOf(entry.pages, entry.latest.functions),
     };
     if (entry.summary.status === 'no_data') {
-      return { ...common, ...empty, status: 'no_data' };
+      return {
+        ...common,
+        ...empty,
+        status: 'no_data',
+        noDataReason: mainNoDataReason(entry.pages),
+      };
     }
     // Números do ranking: só as páginas das funções do núcleo comum (ADR 0013).
     // Recalcula sobre o que já foi lido, sem consultar o banco de novo.
@@ -107,15 +136,18 @@ export function createPublicReportsService(
       problems: countedProblems,
       functions: core,
     });
+    // Sem página no núcleo (núcleo vazio: as avaliadas não têm função em comum), não há número
+    // comparável: fica vazio, nunca 0 problemas (seção 3.2.8).
     const ranked = inCore.status === 'evaluated' ? inCore : null;
     return {
       ...common,
       status: 'evaluated',
+      noDataReason: null,
       conformity: ranked?.conformity ?? null,
       classification: ranked?.classification ?? null,
-      problems: ranked?.distinctProblems ?? 0,
-      criticalProblems: ranked?.criticalProblems ?? 0,
-      templateProblems: ranked?.templateProblems ?? 0,
+      problems: ranked?.distinctProblems ?? null,
+      criticalProblems: ranked?.criticalProblems ?? null,
+      templateProblems: ranked?.templateProblems ?? null,
       pendingValidation: entry.summary.pendingValidation,
       reviewNeeded: entry.summary.incompleteRules,
       pagesEvaluated: ranked?.pagesEvaluated ?? 0,

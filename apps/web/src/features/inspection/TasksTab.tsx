@@ -45,7 +45,9 @@ function TaskForm({
   const stopwatch = useStopwatch(previous?.durationSeconds ?? 0, TASK_LIMITS.maxSeconds);
   const { seconds, running } = stopwatch;
   const [interactions, setInteractions] = useState(previous?.interactions ?? 0);
-  const [depth, setDepth] = useState(previous?.depth ?? 0);
+  // Texto do campo como digitado; o número enviado é inteiro de 0 a 50, como a API aceita.
+  const [depthText, setDepthText] = useState(String(previous?.depth ?? 0));
+  const depth = Math.min(50, Math.max(0, Math.trunc(Number(depthText) || 0)));
   const [path, setPath] = useState<string[]>(previous?.path ?? []);
   const [step, setStep] = useState('');
   const [result, setResult] = useState<TaskResult | null>(previous?.result ?? null);
@@ -163,8 +165,10 @@ function TaskForm({
               type="number"
               min={0}
               max={50}
-              value={depth}
-              onChange={(e) => setDepth(Math.max(0, Number(e.target.value)))}
+              step={1}
+              value={depthText}
+              onChange={(e) => setDepthText(e.target.value)}
+              onBlur={() => setDepthText(String(depth))}
             />
           </div>
         </div>

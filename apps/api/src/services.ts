@@ -22,6 +22,7 @@ import { createInstitutionsRepository } from './modules/institutions/institution
 import { createInstitutionsService } from './modules/institutions/institutions.service.js';
 import { createReportsRepository } from './modules/reports/reports.repository.js';
 import { createExportService } from './modules/reports/export.service.js';
+import { createIndicatorsService } from './modules/reports/indicators.service.js';
 import { createPublicReportsService } from './modules/reports/public-reports.service.js';
 import { createResultsService } from './modules/reports/results.service.js';
 import { createReportsService } from './modules/reports/reports.service.js';
@@ -126,12 +127,16 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     contactEmail: env.CRAWLER_CONTACT_EMAIL ?? null,
   });
 
-  const inspections = createInspectionsService(createInspectionsRepository(db), timing);
+  const inspections = createInspectionsService(createInspectionsRepository(db), {
+    ...timing,
+    storage,
+  });
   const results = createResultsService(
     createPublicReportsService(reportsRepository, { contactEmail: null, problems: 'valid' }),
     inspections,
   );
   const exporter = createExportService(publicReports, reportsRepository);
+  const indicators = createIndicatorsService(reportsRepository);
   const findings = createFindingsService(createFindingsRepository(db), storage);
 
   return {
@@ -145,6 +150,7 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
     inspections,
     results,
     exporter,
+    indicators,
     findings,
   };
 }

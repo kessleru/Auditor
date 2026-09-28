@@ -43,6 +43,13 @@
       "when": 1790563668410,
       "tag": "0005_evidencia_visual",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790568102391,
+      "tag": "0006_tempo_de_carregamento",
+      "breakpoints": true
     }
   ]
 }

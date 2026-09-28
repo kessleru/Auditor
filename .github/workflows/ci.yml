@@ -1,0 +1,83 @@
+# Integração contínua (Fase 12): lint, tipos e testes em todo push e PR; depois, o build de
+# produção, os fluxos principais no navegador (E2E) e o dogfooding, que falha o build se o próprio
+# motor de auditoria achar violação crítica no front.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verificacao:
+    name: Lint, tipos e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Os testes do motor abrem o Chromium de verdade contra HTML servido localmente.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  ponta-a-ponta:
+    name: E2E e dogfooding
+    needs: verificacao
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_PATH: ${{ github.workspace }}/ci-data/auditoria.sqlite
+      SNAPSHOTS_DIR: ${{ github.workspace }}/ci-data/snapshots
+      WEB_ORIGIN: http://localhost:4173
+      E2E_AUDITOR_EMAIL: ci@auditoria-rf.invalid
+      # Só existe no banco descartável deste job.
+      E2E_AUDITOR_PASSWORD: senha-descartavel-da-integracao
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Banco novo com a conta do auditor
+        run: |
+          npm run db:migrate
+          npm run db:seed
+          echo "$E2E_AUDITOR_PASSWORD" | npm run create-auditor -- --email "$E2E_AUDITOR_EMAIL" --name "Integração contínua"
+      - name: Sobe a API
+        run: |
+          node apps/api/dist/server.js > api.log 2>&1 &
+          npx wait-on --timeout 60000 http://localhost:3333/api/v1/health
+      - name: Fluxos principais (E2E)
+        run: npm run test:e2e
+      - name: Dogfooding (falha com achado crítico)
+        run: |
+          npm run preview -w @auditoria-rf/web -- --port 4173 --strictPort > preview.log 2>&1 &
+          npx wait-on --timeout 60000 http://localhost:4173
+          npm run dogfood -- --base http://localhost:4173
+      - name: Relatório do Playwright e logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            api.log
+            preview.log
+          retention-days: 7

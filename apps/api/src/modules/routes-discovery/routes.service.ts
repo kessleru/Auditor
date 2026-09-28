@@ -8,7 +8,7 @@ import type {
   updateRouteSchema,
 } from '@auditoria-rf/contracts';
 import type { z } from 'zod';
-import { normalizeUrl } from '../../infra/crawler/url.js';
+import { DEV_HOST_REASON, isDevHost, normalizeUrl } from '../../infra/crawler/url.js';
 import { AppError, NotFoundError } from '../../shared/errors.js';
 import type { InstitutionsService } from '../institutions/institutions.service.js';
 import type { RoutesRepository, RouteWithFunction } from './routes.repository.js';
@@ -158,6 +158,7 @@ export function createRoutesService(
           `A URL precisa ser do domínio ${institution.domain}.`,
         );
       }
+      if (isDevHost(host)) throw new AppError(422, 'DEV_HOST', DEV_HOST_REASON);
 
       return repo.transaction(() => {
         const fnId = functionId(input.functionKey);
@@ -207,6 +208,15 @@ export function createRoutesService(
           422,
           'INVALID_REPLACEMENT',
           'A nova rota precisa ser outra rota da mesma instituição.',
+        );
+      }
+      // A nova rota herda a função: se já é a confirmada de outra função, essa perderia a rota.
+      if (next.status === 'confirmed' && next.functionId !== old.functionId) {
+        throw new AppError(
+          409,
+          'FUNCTION_ALREADY_CONFIRMED',
+          `A rota ${next.url} já está confirmada para outra função.`,
+          { routeId: next.id },
         );
       }
 

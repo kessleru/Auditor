@@ -2,11 +2,10 @@ import {
   classifyConformity,
   type ConformityClass,
   type FindingValidation,
+  isTemplateProblem,
   type PageFunctionKey,
   pageFunctionKeys,
   type Severity,
-  TEMPLATE_MIN_PAGES,
-  TEMPLATE_THRESHOLD,
 } from '@auditoria-rf/contracts';
 
 // Indicadores da seção 3.3 do plano (ADR 0003). Funções puras.
@@ -154,7 +153,6 @@ export function summarizeInstitution(
     groups.set(finding.fingerprint, group);
   }
 
-  const canBeTemplate = evaluated.length >= TEMPLATE_MIN_PAGES;
   const problems: Problem[] = [...groups.entries()]
     .map(([fingerprint, g]) => ({
       fingerprint,
@@ -163,7 +161,7 @@ export function summarizeInstitution(
       severity: g.first.severity,
       occurrences: g.occurrences,
       pages: g.pages.size,
-      template: canBeTemplate && g.pages.size / evaluated.length >= TEMPLATE_THRESHOLD,
+      template: isTemplateProblem(g.pages.size, evaluated.length),
     }))
     // Template primeiro (maior retorno), depois críticos, depois os mais frequentes.
     .sort(

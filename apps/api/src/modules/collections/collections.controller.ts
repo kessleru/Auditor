@@ -33,10 +33,13 @@ export function createCollectionsController(
   const list: RequestHandler = (req, res) => {
     const { status } = collectionListQuerySchema.parse(req.query);
     res.json({
-      collections: service.list(status).map(({ collection, progress, institutions }) => ({
-        ...toCollection(collection, progress),
-        institutions,
-      })),
+      collections: service
+        .list(status)
+        .map(({ collection, progress, institutions, createdByName }) => ({
+          ...toCollection(collection, progress),
+          institutions,
+          createdByName,
+        })),
     });
   };
   const cancel: RequestHandler = (req, res) => {

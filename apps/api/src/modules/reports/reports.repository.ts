@@ -1,10 +1,11 @@
 import type { CollectionScope, PageFunctionKey } from '@auditoria-rf/contracts';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { DB } from '../../db/client.js';
 import {
   collectionPages,
   collections,
   findings,
+  functionAbsences,
   institutions,
   pageFunctions,
   routes,
@@ -22,6 +23,8 @@ export function createReportsRepository(db: DB) {
           passesCount: collectionPages.passesCount,
           violationsCount: collectionPages.violationsCount,
           incompleteCount: collectionPages.incompleteCount,
+          httpStatus: collectionPages.httpStatus,
+          error: collectionPages.error,
           institutionId: routes.institutionId,
           functionKey: pageFunctions.key,
         })
@@ -88,6 +91,47 @@ export function createReportsRepository(db: DB) {
         .where(inArray(collections.status, [...FINISHED]))
         .orderBy(desc(collections.finishedAt), desc(collections.id))
         .get();
+    },
+
+    /** Rotas confirmadas com função, com os indícios da descoberta (ADR 0011). */
+    confirmedRoutesWithEvidence() {
+      return db
+        .select({
+          institutionId: routes.institutionId,
+          url: routes.url,
+          source: routes.source,
+          title: routes.title,
+          linkText: routes.linkText,
+          functionKey: pageFunctions.key,
+        })
+        .from(routes)
+        .innerJoin(pageFunctions, eq(pageFunctions.id, routes.functionId))
+        .innerJoin(institutions, eq(institutions.id, routes.institutionId))
+        .where(and(eq(routes.status, 'confirmed'), eq(institutions.active, true)))
+        .all()
+        .map((r) => ({ ...r, functionKey: r.functionKey as PageFunctionKey }));
+    },
+
+    /** Endereços que a descoberta encontrou (sitemap ou rastreamento), por instituição ativa. */
+    discoveredUrls() {
+      return db
+        .select({ institutionId: routes.institutionId, url: routes.url })
+        .from(routes)
+        .innerJoin(institutions, eq(institutions.id, routes.institutionId))
+        .where(and(ne(routes.source, 'manual'), eq(institutions.active, true)))
+        .all();
+    },
+
+    /** Funções marcadas como não encontradas, por instituição ativa. */
+    functionAbsences() {
+      return db
+        .select({ functionKey: pageFunctions.key })
+        .from(functionAbsences)
+        .innerJoin(pageFunctions, eq(pageFunctions.id, functionAbsences.functionId))
+        .innerJoin(institutions, eq(institutions.id, functionAbsences.institutionId))
+        .where(eq(institutions.active, true))
+        .all()
+        .map((r) => r.functionKey as PageFunctionKey);
     },
 
     activeInstitutions() {

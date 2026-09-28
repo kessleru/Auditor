@@ -18,6 +18,7 @@ export function ConformitySummary({
   figures,
   label,
   gaugeLabel,
+  emptyText = 'Sem regra aplicável',
 }: {
   conformity: number | null;
   acronym: string;
@@ -25,6 +26,8 @@ export function ConformitySummary({
   /** Nome acessível da seção; o padrão é "Resumo do <sigla>". */
   label?: string;
   gaugeLabel?: string;
+  /** Texto no lugar do medidor quando não há conformidade. */
+  emptyText?: string;
 }) {
   return (
     <section
@@ -33,7 +36,7 @@ export function ConformitySummary({
     >
       <div className="flex flex-col items-center gap-3 sm:border-r sm:border-border sm:pr-10">
         {conformity === null ? (
-          <p className="text-body text-text-muted">Sem regra aplicável</p>
+          <p className="text-body text-text-muted">{emptyText}</p>
         ) : (
           <ConformityGauge value={conformity} label={gaugeLabel ?? `Conformidade do ${acronym}`} />
         )}

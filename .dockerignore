@@ -5,6 +5,7 @@
 **/dist
 **/data
 data
+**/backups
 .env
 .env.*
 !.env.example

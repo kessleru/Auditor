@@ -19,6 +19,7 @@ import { TasksTab } from '../features/inspection/TasksTab';
 import { ValidationTab } from '../features/inspection/ValidationTab';
 import { AuditorInstitutionPage } from '../features/results/AuditorInstitutionPage';
 import { ComparisonPage } from '../features/results/ComparisonPage';
+import { IndicatorsPage } from '../features/results/IndicatorsPage';
 import { InstitutionDetailPage } from '../features/results/InstitutionDetailPage';
 import { MethodologyPage } from '../features/results/MethodologyPage';
 import { PublicHomePage } from '../features/results/PublicHomePage';
@@ -68,6 +69,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: 'painel', Component: DashboardPage },
           { path: 'comparativo', Component: ComparisonPage },
+          { path: 'indicadores', Component: IndicatorsPage },
           { path: 'painel/instituicoes/:id', Component: AuditorInstitutionPage },
           { path: 'gestao/instituicoes', Component: InstitutionsAdminPage },
           { path: 'auditorias/nova', Component: NewAuditPage },
