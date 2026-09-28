@@ -8,6 +8,7 @@ import {
 import { ruleTexts } from '../../infra/auditor/rule-texts.js';
 import { suggestFunction } from '../../infra/crawler/suggest-function.js';
 import { toCsv } from './csv.js';
+import { analyzeFingerprints } from './fingerprint-analysis.js';
 import type { ReportsRepository } from './reports.repository.js';
 
 /** Colunas do CSV de validação por regra, com o dicionário ao lado (não divergem). */
@@ -137,6 +138,37 @@ export function createIndicatorsService(repo: ReportsRepository) {
 
     rulesDictionary(): string {
       return toCsv(['coluna', 'descricao'], RULES_CSV);
+    },
+
+    /**
+     * Como o agrupamento dos problemas (regra + seletor, ADR 0003) se compara com outras chaves,
+     * por instituição, numa coleta. Só mede: nada é regravado.
+     */
+    fingerprintReport(collectionId: number) {
+      const pages = repo.pagesOfCollection(collectionId);
+      const institutionIds = [...new Set(pages.map((p) => p.institutionId))];
+      return institutionIds
+        .map((institutionId) => {
+          const evaluated = new Set(
+            pages
+              .filter((p) => p.institutionId === institutionId && p.status === 'done')
+              .map((p) => p.id),
+          );
+          const findings = repo
+            .findingDetailsOf(collectionId, institutionId)
+            .filter((f) => evaluated.has(f.collectionPageId))
+            .map((f) => ({
+              pageId: f.collectionPageId,
+              ruleId: f.ruleId,
+              selector: f.selector,
+              htmlSnippet: f.htmlSnippet,
+            }));
+          return {
+            acronym: repo.findInstitution(institutionId)?.acronym ?? `#${institutionId}`,
+            analysis: analyzeFingerprints(findings, evaluated.size),
+          };
+        })
+        .sort((a, b) => a.acronym.localeCompare(b.acronym));
     },
   };
 }

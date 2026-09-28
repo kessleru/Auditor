@@ -488,3 +488,17 @@ describe('indicadores da pesquisa (auditor)', () => {
     expect(suggestions).toHaveLength(13);
   });
 });
+
+describe('análise do agrupamento de problemas', () => {
+  it('compara regra + seletor com outras chaves, por instituição da coleta', () => {
+    const recent = db.select().from(collections).where(eq(collections.status, 'partial')).get()!;
+    const report = app.services.indicators.fingerprintReport(recent.id);
+    expect(report.map((r) => r.acronym)).toEqual(['IFA', 'IFB']);
+    const ifaReport = report[0]!.analysis;
+    expect(ifaReport.pagesEvaluated).toBe(2);
+    // "header img" nas duas páginas: um problema de template em qualquer chave.
+    expect(ifaReport.byKey.selector).toEqual({ distinct: 3, template: 1 });
+    expect(ifaReport.byKey.html).toEqual({ distinct: 3, template: 1 });
+    expect(report[1]!.analysis).toMatchObject({ pagesEvaluated: 0, split: [], merged: [] });
+  });
+});
