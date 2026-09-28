@@ -80,7 +80,7 @@ export interface DiscoveryResult {
  */
 export interface RouteCheck {
   url: string;
-  result: 'ok' | 'not_found' | 'moved' | 'unreachable';
+  result: 'ok' | 'not_found' | 'moved' | 'unreachable' | 'blocked';
   httpStatus: number | null;
   movedTo: string | null;
 }
@@ -122,7 +122,9 @@ const offDomainError = (host: string) =>
 type PageOutcome =
   | { kind: 'page'; url: string; title: string | undefined; html: string }
   | { kind: 'authenticated'; url: string; title: string | undefined }
-  | { kind: 'skipped'; offDomainHost?: string };
+  | { kind: 'skipped'; offDomainHost?: string }
+  /** Redirecionou para um caminho que o robots.txt proíbe: o destino não foi pedido. */
+  | { kind: 'blocked'; url: string };
 
 /** O que se sabe de uma URL pelos links que apontam para ela. */
 interface LinkInfo {
@@ -326,6 +328,12 @@ export async function discoverRoutes({
   };
 
   const record = (outcome: PageOutcome) => {
+    if (outcome.kind === 'blocked') {
+      // O servidor respondeu: não é falha, só um caminho que a ferramenta não pode seguir.
+      state.blockedByRobots.add(outcome.url);
+      consecutiveFailures = 0;
+      return;
+    }
     if (outcome.kind === 'skipped') {
       if (outcome.offDomainHost) state.offDomainHost = outcome.offDomainHost;
       state.failed++;
@@ -355,7 +363,13 @@ export async function discoverRoutes({
 
   const visit = async (url: string): Promise<PageOutcome> => {
     try {
-      return analyzePage(await client.get(url, { intervalMs }), origin, domain);
+      const res = await client.get(url, {
+        intervalMs,
+        followRedirect: (next) => allowedByRobots(next, origin, robots),
+      });
+      return res.blockedRedirect
+        ? blockedOutcome(res.requestedUrl, res.blockedRedirect)
+        : analyzePage(res, origin, domain);
     } catch (err) {
       if (err instanceof FetchFailedError) return { kind: 'skipped' };
       throw err;
@@ -437,7 +451,7 @@ export async function discoverRoutes({
 
   const checks: RouteCheck[] = [];
   if (checkUrls.length > 0) report({ phase: 'checks' });
-  for (const url of checkUrls) checks.push(await checkRoute(client, url, intervalMs));
+  for (const url of checkUrls) checks.push(await checkRoute(client, url, intervalMs, robots));
 
   return {
     checks,
@@ -467,9 +481,21 @@ async function openPortal(
   domain: string,
 ) {
   const loaded = await loadRobots(client, baseUrl, robotsAgent, domain);
+  // O robots.txt vale antes da primeira página: a inicial proibida nem é pedida (3.1.1).
+  if (!loaded.robots.isAllowed(`${loaded.origin}/`)) {
+    throw new DiscoveryError(
+      'O robots.txt do portal proíbe o acesso da ferramenta à página inicial.',
+    );
+  }
   const homeResponse = await client.get(`${loaded.origin}/`, {
     intervalMs: crawlInterval(loaded.robots),
+    followRedirect: (next) => allowedByRobots(next, loaded.origin, loaded.robots),
   });
+  if (homeResponse.blockedRedirect) {
+    throw new DiscoveryError(
+      'A página inicial redireciona para um endereço que o robots.txt do portal proíbe.',
+    );
+  }
   return { ...loaded, homeResponse };
 }
 
@@ -512,6 +538,23 @@ async function loadRobots(
     robotsTxtFound: content !== null,
     origin,
   };
+}
+
+/**
+ * Pode seguir o redirecionamento? Na origem do portal, só se o robots.txt permitir; para outro
+ * host (ex.: login central da instituição), o redirecionamento segue como antes.
+ */
+function allowedByRobots(next: string, origin: string, robots: RobotsRules): boolean {
+  return !isSameOrigin(next, origin) || robots.isAllowed(next);
+}
+
+/** Redirecionamento recusado: para login é área autenticada; senão, caminho proibido. */
+function blockedOutcome(requestedUrl: string, target: string): PageOutcome {
+  if (isAuthUrl(target)) {
+    const url = normalizeUrl(requestedUrl);
+    return url ? { kind: 'authenticated', url, title: undefined } : { kind: 'skipped' };
+  }
+  return { kind: 'blocked', url: normalizeUrl(target) ?? target };
 }
 
 function analyzePage(res: HttpResponse, origin: string, domain: string): PageOutcome {
@@ -610,9 +653,17 @@ async function checkRoute(
   client: HttpClient,
   url: string,
   intervalMs: number | undefined,
+  robots: RobotsRules,
 ): Promise<RouteCheck> {
+  // Rota confirmada que o robots.txt passou a proibir não é pedida.
+  if (!robots.isAllowed(url)) return { url, result: 'blocked', httpStatus: null, movedTo: null };
   try {
-    const res = await client.get(url, { intervalMs });
+    const res = await client.get(url, {
+      intervalMs,
+      followRedirect: (next) => allowedByRobots(next, new URL(url).origin, robots),
+    });
+    if (res.blockedRedirect)
+      return { url, result: 'blocked', httpStatus: res.status, movedTo: null };
     const firstHop = res.redirects[0];
     const movedTo = normalizeUrl(res.url);
     // "/x" → "/x/" é o mesmo endereço normalizado: não é mudança de rota.
