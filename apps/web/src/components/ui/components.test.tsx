@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { LayoutDashboard } from 'lucide-react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expectNoAxeViolations } from '../../test/axe';
 import {
   Badge,
@@ -106,6 +106,48 @@ describe('DataTable', () => {
       'row',
     );
     await expectNoAxeViolations(container);
+    // Cabe na largura: nenhuma parada de foco a mais.
+    expect(container.firstElementChild?.getAttribute('tabindex')).toBeNull();
+  });
+
+  describe('em tela estreita', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('a tabela que rola vira região focável com o nome da legenda', async () => {
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          disconnect() {}
+        },
+      );
+      const scrollWidth = vi
+        .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+        .mockReturnValue(700);
+      const clientWidth = vi
+        .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+        .mockReturnValue(358);
+      try {
+        const { container } = render(
+          <DataTable
+            caption="Validação por regra"
+            captionHidden
+            rows={[{ id: 1, rule: 'image-alt', total: 3 }]}
+            rowKey={(r) => r.id}
+            columns={[
+              { key: 'rule', header: 'Regra', rowHeader: true, cell: (r) => r.rule },
+              { key: 'total', header: 'Problemas', align: 'end', cell: (r) => r.total },
+            ]}
+          />,
+        );
+        const region = screen.getByRole('region', { name: 'Validação por regra' });
+        expect(region.getAttribute('tabindex')).toBe('0');
+        await expectNoAxeViolations(container);
+      } finally {
+        scrollWidth.mockRestore();
+        clientWidth.mockRestore();
+      }
+    });
   });
 });
 
