@@ -474,6 +474,38 @@ describe('substituição de rota (3.1.7)', () => {
     });
   });
 
+  it('redirecionamento permanente para fora do domínio não vira candidata', async () => {
+    const { agent } = await setup();
+    await agent.post('/api/v1/institutions/1/discover');
+    await waitForDiscovery(agent);
+    const biblioteca = (await listRoutes(agent)).find(
+      (r) => r.normalizedUrl === `${ORIGIN}/biblioteca`,
+    )!;
+    await agent
+      .patch(`/api/v1/routes/${biblioteca.id}`)
+      .send({ status: 'confirmed', functionKey: 'library' });
+
+    discover = crawl(
+      fakeSite({
+        'https://iftm.edu.br/robots.txt': { redirect: `${ORIGIN}/robots.txt` },
+        [`${ORIGIN}/robots.txt`]: { status: 404, body: '' },
+        [`${ORIGIN}/`]: { body: html('IFTM') },
+        [`${ORIGIN}/biblioteca`]: { redirect: 'https://www.gov.br/biblioteca', status: 301 },
+        'https://www.gov.br/biblioteca': { body: html('Biblioteca') },
+      }),
+    );
+    await agent.post('/api/v1/institutions/1/discover');
+    const discovery = await waitForDiscovery(agent);
+    expect(discovery.replacements[0]).toMatchObject({
+      reason: 'moved',
+      httpStatus: 301,
+      candidateUrl: null,
+    });
+    expect((await listRoutes(agent)).map((r) => r.normalizedUrl)).not.toContain(
+      'https://www.gov.br/biblioteca',
+    );
+  });
+
   it('só substitui rota confirmada, por outra da mesma instituição', async () => {
     const { agent } = await setup();
     await agent.post('/api/v1/institutions/1/discover');
