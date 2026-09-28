@@ -21,10 +21,21 @@ export interface HttpResponse {
   redirects: { url: string; status: number }[];
   contentType: string;
   body: Buffer;
+  /**
+   * Destino de um redirecionamento que `followRedirect` recusou (ex.: caminho proibido pelo
+   * robots.txt). A resposta é a do salto recusado, sem corpo: o destino não foi pedido.
+   */
+  blockedRedirect?: string;
+}
+
+export interface GetOptions {
+  intervalMs?: number;
+  /** Pode seguir o redirecionamento para este endereço? Sem a função, segue sempre. */
+  followRedirect?: (url: string) => boolean;
 }
 
 export interface HttpClient {
-  get(url: string, options?: { intervalMs?: number }): Promise<HttpResponse>;
+  get(url: string, options?: GetOptions): Promise<HttpResponse>;
 }
 
 export class FetchFailedError extends Error {
@@ -144,6 +155,7 @@ export function createHttpClient({
   const once = async (
     requestedUrl: string,
     intervalMs: number,
+    followRedirect: GetOptions['followRedirect'],
   ): Promise<{ response: HttpResponse; retryAfter: string | null }> => {
     const redirects: HttpResponse['redirects'] = [];
     let current = requestedUrl;
@@ -175,6 +187,21 @@ export function createHttpClient({
             'redirecionamento para endereço inválido',
             false,
           );
+        }
+        if (followRedirect && !followRedirect(next)) {
+          return {
+            retryAfter: null,
+            response: {
+              requestedUrl,
+              url: current,
+              status: res.status,
+              redirected: redirects.length > 0,
+              redirects,
+              contentType: '',
+              body: Buffer.alloc(0),
+              blockedRedirect: next,
+            },
+          };
         }
         redirects.push({ url: current, status: res.status });
         current = next;
@@ -214,12 +241,12 @@ export function createHttpClient({
   };
 
   return {
-    async get(requestedUrl, { intervalMs = minIntervalMs } = {}) {
+    async get(requestedUrl, { intervalMs = minIntervalMs, followRedirect } = {}) {
       for (let attempt = 0; ; attempt++) {
         const last = attempt >= retries;
         let outcome;
         try {
-          outcome = await once(requestedUrl, intervalMs);
+          outcome = await once(requestedUrl, intervalMs, followRedirect);
         } catch (err) {
           // Falha de rede passageira (conexão caiu, tempo esgotado): uma nova tentativa.
           if (last || !(err instanceof FetchFailedError) || !err.transient) throw err;
