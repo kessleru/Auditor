@@ -5,7 +5,7 @@ import { type Browser, type BrowserContext, chromium, errors, type Page } from '
 import { MIN_REQUEST_INTERVAL_MS } from '../crawler/http.js';
 import { type HostThrottle, sharedHostThrottle } from '../crawler/throttle.js';
 import { isWithinDomain } from '../crawler/url.js';
-import { selectorOf } from './axe-mapping.js';
+import { type ElementFacts, FACT_RULES, selectorOf } from './axe-mapping.js';
 
 // Auditoria automatizada de uma página (seção 3.2 do plano).
 
@@ -44,6 +44,8 @@ export type AuditOutcome =
       screenshots: ElementScreenshot[];
       /** Tempo até o fim do evento `load`, em ms; `null` se o navegador não informou. */
       loadTimeMs: number | null;
+      /** O que o navegador leu dos elementos reprovados, por seletor (completa a evidência). */
+      elementFacts: Record<string, ElementFacts>;
     }
   | { ok: false; httpStatus: number | null; error: string };
 
@@ -133,6 +135,79 @@ async function measureLoadTime(page: Page): Promise<number | null> {
     return ms === null ? null : Math.round(ms);
   } catch {
     return null;
+  }
+}
+
+const MAX_FACT_ELEMENTS = 500;
+const MAX_FACT_LENGTH = 500;
+
+/**
+ * Lê dos elementos reprovados o que o axe não informa (fonte calculada, endereço da imagem,
+ * destino do link, tipo do campo), numa única chamada ao navegador. Só lê, depois do axe e do
+ * snapshot; alvo em iframe ou shadow DOM fica de fora, e uma falha aqui só deixa o achado sem essa
+ * parte da evidência.
+ */
+async function readElementFacts(
+  page: Page,
+  violations: Result[],
+): Promise<Record<string, ElementFacts>> {
+  const wanted = new Map<string, string>();
+  for (const rule of violations) {
+    if (!FACT_RULES.has(rule.id)) continue;
+    for (const node of rule.nodes) {
+      const [target] = node.target;
+      if (node.target.length !== 1 || typeof target !== 'string') continue;
+      if (wanted.size >= MAX_FACT_ELEMENTS) break;
+      wanted.set(selectorOf(node.target), target);
+    }
+  }
+  if (wanted.size === 0) return {};
+  const entries = [...wanted];
+  try {
+    const facts = await page.evaluate(
+      ({ targets, max }) => {
+        // Roda no navegador; os tipos do projeto são os do Node, sem o DOM.
+        type BrowserElement = {
+          tagName: string;
+          getAttribute(name: string): string | null;
+          currentSrc?: string;
+          src?: string;
+          href?: unknown;
+          type?: string;
+        };
+        const dom = globalThis as unknown as {
+          document: { querySelector(selector: string): BrowserElement | null };
+          getComputedStyle(el: BrowserElement): { fontFamily: string };
+        };
+        const clip = (value: string | null | undefined) => (value ? value.slice(0, max) : null);
+        return targets.map((target) => {
+          try {
+            const el = dom.document.querySelector(target);
+            if (!el) return null;
+            const tag = el.tagName.toLowerCase();
+            return {
+              fontFamily: clip(dom.getComputedStyle(el).fontFamily),
+              src: clip(el.currentSrc || el.src || el.getAttribute('src')),
+              href: clip(typeof el.href === 'string' ? el.href : el.getAttribute('href')),
+              fieldType:
+                tag === 'input'
+                  ? (el.type ?? 'text')
+                  : tag === 'select' || tag === 'textarea'
+                    ? tag
+                    : null,
+            };
+          } catch {
+            return null;
+          }
+        });
+      },
+      { targets: entries.map(([, target]) => target), max: MAX_FACT_LENGTH },
+    );
+    return Object.fromEntries(
+      entries.flatMap(([selector], i) => (facts[i] ? [[selector, facts[i]]] : [])),
+    );
+  } catch {
+    return {};
   }
 }
 
@@ -304,6 +379,7 @@ export function createPlaywrightAuditor({
           }
           const html = await page.content();
           const loadTimeMs = await measureLoadTime(page);
+          const elementFacts = await readElementFacts(page, results.violations);
           const screenshots = await captureElements(page, results.violations);
           return {
             ok: true,
@@ -313,6 +389,7 @@ export function createPlaywrightAuditor({
             results,
             screenshots,
             loadTimeMs,
+            elementFacts,
           };
         } catch (err) {
           // Desafio que nunca termina de carregar (tempo esgotado já no outro domínio): o motivo

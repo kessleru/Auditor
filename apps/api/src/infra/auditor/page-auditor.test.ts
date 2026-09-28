@@ -76,6 +76,25 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
       expectedContrastRatio: 4.5,
     });
 
+    // Com o que o navegador leu dos elementos: fonte, imagem, destino do link e tipo do campo.
+    const withFacts = Object.fromEntries(
+      findingsFromViolations(outcome.results.violations, 1, outcome.elementFacts).map((f) => [
+        f.ruleId,
+        f.evidenceJson,
+      ]),
+    );
+    expect(withFacts['color-contrast']).toMatchObject({
+      kind: 'contrast',
+      fontFamily: expect.stringMatching(/\S/),
+    });
+    expect(withFacts['image-alt']).toEqual({
+      kind: 'image',
+      src: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
+    });
+    expect(withFacts['link-name']).toEqual({ kind: 'link', href: `${site.origin}/` });
+    expect(withFacts['label']).toEqual({ kind: 'field', fieldType: 'text' });
+    expect(withFacts['html-has-lang']).toBeNull();
+
     // Foto de cada elemento reprovado visível (JPEG), nunca da página inteira.
     const shot = (ruleId: string, selector: string) =>
       outcome.screenshots.find((s) => s.ruleId === ruleId && s.selector === selector);

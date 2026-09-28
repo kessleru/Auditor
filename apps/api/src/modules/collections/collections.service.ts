@@ -212,7 +212,11 @@ export function createCollectionsService({
           outcome.results,
         );
         const counts = countRules(outcome.results);
-        const drafts = findingsFromViolations(outcome.results.violations, page.institutionId);
+        const drafts = findingsFromViolations(
+          outcome.results.violations,
+          page.institutionId,
+          outcome.elementFacts,
+        );
         const inserted = repo.transaction(() => {
           repo.updatePage(page.id, {
             status: 'done',
