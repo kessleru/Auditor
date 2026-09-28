@@ -1,10 +1,13 @@
 import {
   classifyConformity,
+  pageFailureKindLabels,
   pageFunctionLabels,
   type CollectionEvent,
   type PageFunctionKey,
   pageFunctionKeys,
+  summarizeReliability,
 } from '@auditoria-rf/contracts';
+import { toCollectionPage } from '../modules/collections/collections.presenter.js';
 import type { Services } from '../services.js';
 
 export interface CollectArgs {
@@ -17,6 +20,7 @@ export interface CollectArgs {
 
 const CLASS_LABEL = { good: 'Bom', partial: 'Parcial', critical: 'Crítico' } as const;
 const percent = (value: number) => `${(value * 100).toFixed(1).replace('.', ',')}%`;
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
 
 export class CollectCommandError extends Error {}
 
@@ -91,6 +95,23 @@ export async function runCollect(
   print(`Situação: ${finished.status}`);
   print(`Versões: axe-core ${finished.axeVersion} · ${finished.browserVersion}`);
   print(`User-agent: ${finished.userAgent}`);
+
+  const reliability = summarizeReliability(
+    services.collections.get(finished.id).pages.map(toCollectionPage),
+  );
+  if (reliability.failures.length > 0) {
+    print(
+      `Falhas por motivo: ${reliability.failures
+        .map(({ kind, count }) => `${pageFailureKindLabels[kind]} ${count}`)
+        .join(' · ')}.`,
+    );
+  }
+  if (reliability.loadTime) {
+    const { measured, medianMs, maxMs } = reliability.loadTime;
+    print(
+      `Carregamento: mediana ${seconds(medianMs)}, máximo ${seconds(maxMs)} (${measured} página(s)).`,
+    );
+  }
 
   const report = services.reports.summarizeCollection(finished.id, finished.scope);
   if (report.institutions.length > 1) {

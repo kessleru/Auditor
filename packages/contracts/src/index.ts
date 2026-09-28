@@ -8,5 +8,6 @@ export * from './health.js';
 export * from './inspection.js';
 export * from './institutions.js';
 export * from './public.js';
+export * from './reliability.js';
 export * from './results.js';
 export * from './routes.js';
