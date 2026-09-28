@@ -215,7 +215,7 @@ export function InstitutionsAdminPage() {
                       cell: (row) => (
                         <span className="flex flex-wrap items-center justify-end gap-2">
                           <Link
-                            to={`/auditorias/nova/rotas/${row.id}?instituicoes=${row.id}`}
+                            to={`/auditorias/nova/rotas/${row.id}`}
                             aria-label={`Revisar rotas do ${row.acronym}`}
                             className="min-h-6 font-medium text-accent-text underline-offset-2 hover:underline"
                           >

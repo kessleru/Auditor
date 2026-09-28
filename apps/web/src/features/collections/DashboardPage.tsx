@@ -13,6 +13,7 @@ import {
   StatGroupSkeleton,
 } from '../../components/ui';
 import { formatDate, formatNumber } from '../../lib/format';
+import { DraftCard } from '../audits/DraftCard';
 import { useResultsOverview } from '../results/auditorApi';
 import { NotCollectedList } from '../results/NotCollectedList';
 import { noDataShort } from '../results/noData';
@@ -152,6 +153,7 @@ export function DashboardPage() {
           </ButtonLink>
         }
       />
+      <DraftCard />
       <QueryState
         query={collections}
         loadingText="Carregando…"
