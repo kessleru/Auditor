@@ -194,6 +194,7 @@ describe('descoberta de rotas', () => {
       blockedByRobots: 0,
       failed: 0,
       stoppedEarly: null,
+      offDomainHost: null,
       checks: [],
     });
     expect(await waitForDiscovery(agent)).toMatchObject({ status: 'completed', progress: null });
@@ -218,6 +219,7 @@ describe('descoberta de rotas', () => {
       blockedByRobots: 0,
       failed: 0,
       stoppedEarly: null,
+      offDomainHost: null,
       checks: [],
     });
     expect((await waitForDiscovery(agent)).status).toBe('completed');

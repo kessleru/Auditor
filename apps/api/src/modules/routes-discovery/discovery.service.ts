@@ -113,6 +113,7 @@ export function createDiscoveryService(
       blockedByRobots: result.blockedByRobots,
       failed: result.failed,
       stoppedEarly: result.stoppedEarly,
+      offDomainHost: result.offDomainHost,
     };
   };
 
