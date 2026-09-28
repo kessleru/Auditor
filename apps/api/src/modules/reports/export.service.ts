@@ -17,6 +17,11 @@ const DICTIONARY: Record<ExportDataset, [coluna: string, tipo: string, descricao
       'texto',
       'avaliado | sem_dado (a coleta não avaliou nenhuma página; não é 0%) | nao_coletado.',
     ],
+    [
+      'motivo_sem_dado',
+      'texto',
+      'Só quando sem_dado, o motivo mais comum entre as páginas: bloqueio (o portal bloqueou a ferramenta: desafio antirrobô ou HTTP 401/403/429) | indisponivel (não respondeu ou respondeu com erro) | ferramenta (falha da própria ferramenta) | outro.',
+    ],
     ['coleta_id', 'inteiro', 'Coleta terminada mais recente que incluiu a instituição.'],
     ['coleta_data', 'data ISO 8601', 'Fim da coleta (UTC).'],
     [
@@ -116,6 +121,14 @@ export function createExportService(publicReports: PublicReportsService, repo: R
               { evaluated: 'avaliado', no_data: 'sem_dado', not_collected: 'nao_coletado' }[
                 i.status
               ],
+              i.noDataReason === null
+                ? null
+                : {
+                    blocked: 'bloqueio',
+                    unavailable: 'indisponivel',
+                    tool: 'ferramenta',
+                    other: 'outro',
+                  }[i.noDataReason],
               i.collectionId,
               i.collectedAt,
               i.conformity === null ? null : i.conformity.toFixed(4),

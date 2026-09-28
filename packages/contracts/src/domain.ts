@@ -81,6 +81,35 @@ export const pageFailureKindLabels: Record<PageFailureKind, string> = {
   other: 'Outro motivo',
 };
 
+/**
+ * Por que um portal ficou sem dado na visão pública (ADR 0016): bloqueou a ferramenta (desafio
+ * antirrobô, HTTP 401/403/429), não respondeu ou respondeu com erro, ou a própria ferramenta
+ * falhou. Distinguir importa: bloqueio não é portal fora do ar.
+ */
+export const noDataReasons = ['blocked', 'unavailable', 'tool', 'other'] as const;
+export type NoDataReason = (typeof noDataReasons)[number];
+
+export const noDataReasonLabels: Record<NoDataReason, string> = {
+  blocked: 'O portal bloqueou o acesso da ferramenta',
+  unavailable: 'O portal não respondeu ou respondeu com erro',
+  tool: 'Falha da própria ferramenta durante a coleta',
+  other: 'Nenhuma página pôde ser avaliada',
+};
+
+const BLOCKING_STATUSES = new Set([401, 403, 429]);
+
+/** Motivo público da falha de uma página, a partir do motivo agrupado e do status HTTP. */
+export function noDataReasonOf(kind: PageFailureKind, httpStatus: number | null): NoDataReason {
+  if (kind === 'off_domain') return 'blocked';
+  if (kind === 'http') {
+    if (httpStatus !== null && BLOCKING_STATUSES.has(httpStatus)) return 'blocked';
+    return 'unavailable';
+  }
+  if (kind === 'timeout' || kind === 'network') return 'unavailable';
+  if (kind === 'tool') return 'tool';
+  return 'other';
+}
+
 export const wcagPrinciples = ['perceivable', 'operable', 'understandable', 'robust'] as const;
 export type WcagPrinciple = (typeof wcagPrinciples)[number];
 

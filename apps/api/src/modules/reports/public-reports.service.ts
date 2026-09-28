@@ -1,6 +1,9 @@
 import {
   CONFORMITY_THRESHOLDS,
   type Methodology,
+  type NoDataReason,
+  noDataReasonOf,
+  noDataReasons,
   type PageFunctionKey,
   type PublicInstitution,
   type PublicInstitutionDetail,
@@ -9,6 +12,7 @@ import {
   TEMPLATE_MIN_PAGES,
   TEMPLATE_THRESHOLD,
 } from '@auditoria-rf/contracts';
+import { classifyFailure } from '../../infra/auditor/failure-kind.js';
 import { AXE_TAGS } from '../../infra/auditor/page-auditor.js';
 import { ruleTexts } from '../../infra/auditor/rule-texts.js';
 import { NotFoundError } from '../../shared/errors.js';
@@ -22,6 +26,24 @@ const mean = (values: (number | null)[]) => {
 };
 
 type InstitutionRow = NonNullable<ReturnType<ReportsRepository['findInstitution']>>;
+
+/**
+ * Motivo mais comum entre as páginas que falharam (empate: na ordem de `noDataReasons`, do
+ * bloqueio para o resto).
+ */
+function mainNoDataReason(
+  pages: readonly { status: string; error: string | null; httpStatus: number | null }[],
+): NoDataReason {
+  const counts = new Map<NoDataReason, number>();
+  for (const page of pages) {
+    if (page.status !== 'failed') continue;
+    const reason = noDataReasonOf(classifyFailure(page.error, page.httpStatus), page.httpStatus);
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  return noDataReasons.reduce((best, reason) =>
+    (counts.get(reason) ?? 0) > (counts.get(best) ?? 0) ? reason : best,
+  );
+}
 
 /**
  * Visão pública (somente leitura; ADR 0006): cada instituição com a sua coleta terminada mais
@@ -85,6 +107,7 @@ export function createPublicReportsService(
         ...base,
         ...empty,
         status: 'not_collected',
+        noDataReason: null,
         collectionId: null,
         collectedAt: null,
         pagesTotal: 0,
@@ -99,7 +122,12 @@ export function createPublicReportsService(
       coverage: coverageOf(entry.pages, entry.latest.functions),
     };
     if (entry.summary.status === 'no_data') {
-      return { ...common, ...empty, status: 'no_data' };
+      return {
+        ...common,
+        ...empty,
+        status: 'no_data',
+        noDataReason: mainNoDataReason(entry.pages),
+      };
     }
     // Números do ranking: só as páginas das funções do núcleo comum (ADR 0013).
     // Recalcula sobre o que já foi lido, sem consultar o banco de novo.
@@ -111,6 +139,7 @@ export function createPublicReportsService(
     return {
       ...common,
       status: 'evaluated',
+      noDataReason: null,
       conformity: ranked?.conformity ?? null,
       classification: ranked?.classification ?? null,
       problems: ranked?.distinctProblems ?? 0,

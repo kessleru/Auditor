@@ -22,6 +22,8 @@ export function createReportsRepository(db: DB) {
           passesCount: collectionPages.passesCount,
           violationsCount: collectionPages.violationsCount,
           incompleteCount: collectionPages.incompleteCount,
+          httpStatus: collectionPages.httpStatus,
+          error: collectionPages.error,
           institutionId: routes.institutionId,
           functionKey: pageFunctions.key,
         })

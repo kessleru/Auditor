@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { conformityClasses } from './conformity.js';
-import { findingValidations, pageFunctionKeys, severities, wcagPrinciples } from './domain.js';
+import {
+  findingValidations,
+  noDataReasons,
+  pageFunctionKeys,
+  severities,
+  wcagPrinciples,
+} from './domain.js';
 import { findingExampleSchema } from './findings.js';
 
 // Visão pública (somente leitura). Cada instituição aparece com a sua coleta mais recente
@@ -14,6 +20,8 @@ export const publicInstitutionSchema = z.object({
   acronym: z.string(),
   domain: z.string(),
   status: z.enum(publicInstitutionStatuses),
+  /** Por que ficou sem dado (o motivo mais comum entre as páginas); `null` se não é `no_data`. */
+  noDataReason: z.enum(noDataReasons).nullable(),
   collectionId: z.number().int().nullable(),
   collectedAt: z.string().nullable(),
   // Conformidade e problemas medidos no NÚCLEO COMUM: as funções avaliadas em todas as
