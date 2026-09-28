@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countRules,
   criteriaFromTags,
+  evidenceOf,
   findingsFromViolations,
   fingerprintOf,
   principleOf,
@@ -125,5 +126,39 @@ describe('findingsFromViolations', () => {
       1,
     );
     expect(finding?.htmlSnippet).toHaveLength(2001);
+  });
+});
+
+describe('evidenceOf', () => {
+  const contrastNode = (data: Record<string, unknown>) =>
+    ({ any: [{ id: 'color-contrast', data }], all: [], none: [] }) as never;
+
+  it('extrai cores, razão e fonte do achado de contraste', () => {
+    expect(
+      evidenceOf(
+        'color-contrast',
+        contrastNode({
+          fgColor: '#bbbbbb',
+          bgColor: '#ffffff',
+          contrastRatio: 1.9249,
+          fontSize: '12.0pt (16px)',
+          fontWeight: 'bold',
+          expectedContrastRatio: '4.5:1',
+        }),
+      ),
+    ).toEqual({
+      kind: 'contrast',
+      fgColor: '#bbbbbb',
+      bgColor: '#ffffff',
+      contrastRatio: 1.92,
+      expectedContrastRatio: 4.5,
+      fontSizePx: 16,
+      bold: true,
+    });
+  });
+
+  it('sem os dados do axe ou em outra regra, não há evidência', () => {
+    expect(evidenceOf('color-contrast', contrastNode({ fgColor: '#000' }))).toBeNull();
+    expect(evidenceOf('image-alt', contrastNode({}))).toBeNull();
   });
 });

@@ -256,10 +256,16 @@ export function createCollectionsRepository(db: DB) {
     },
 
     insertFindings(collectionPageId: number, drafts: readonly FindingInsert[]) {
-      if (drafts.length === 0) return;
-      db.insert(findings)
+      if (drafts.length === 0) return [];
+      return db
+        .insert(findings)
         .values(drafts.map((d) => ({ ...d, collectionPageId })))
-        .run();
+        .returning({ id: findings.id, ruleId: findings.ruleId, selector: findings.selector })
+        .all();
+    },
+
+    setScreenshotPath(findingId: number, screenshotPath: string) {
+      db.update(findings).set({ screenshotPath }).where(eq(findings.id, findingId)).run();
     },
 
     /** Retomada após reinício: o que estava em execução volta para a fila. */

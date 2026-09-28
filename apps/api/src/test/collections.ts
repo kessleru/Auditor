@@ -5,7 +5,11 @@ import type { AxeResults, Result } from 'axe-core';
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db/client.js';
 import { functionAbsences, institutions, pageFunctions, routes, users } from '../db/schema.js';
-import type { AuditOutcome, PageAuditor } from '../infra/auditor/page-auditor.js';
+import type {
+  AuditOutcome,
+  ElementScreenshot,
+  PageAuditor,
+} from '../infra/auditor/page-auditor.js';
 
 /** Instituição com rotas já confirmadas, gravada direto no banco (sem validação de domínio). */
 export function seedInstitutionWithRoutes(
@@ -113,12 +117,16 @@ export function fakeResults(
   } as unknown as AxeResults;
 }
 
-export const okOutcome = (violations: Parameters<typeof fakeResults>[0] = []): AuditOutcome => ({
+export const okOutcome = (
+  violations: Parameters<typeof fakeResults>[0] = [],
+  screenshots: ElementScreenshot[] = [],
+): AuditOutcome => ({
   ok: true,
   httpStatus: 200,
   finalUrl: 'http://local/',
   html: '<html><body>snapshot</body></html>',
   results: fakeResults(violations),
+  screenshots,
 });
 
 export function fakeAuditor(

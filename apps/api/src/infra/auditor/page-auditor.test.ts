@@ -66,6 +66,26 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
       selector: '#logo',
     });
     expect(byRule['label']?.selector).toBe('#busca');
+    expect(byRule['color-contrast']?.evidenceJson).toMatchObject({
+      kind: 'contrast',
+      fgColor: '#bbbbbb',
+      bgColor: '#ffffff',
+      expectedContrastRatio: 4.5,
+    });
+
+    // Foto de cada elemento reprovado visível (JPEG), nunca da página inteira.
+    const shot = (ruleId: string, selector: string) =>
+      outcome.screenshots.find((s) => s.ruleId === ruleId && s.selector === selector);
+    for (const [ruleId, selector] of [
+      ['color-contrast', 'p'],
+      ['label', '#busca'],
+      ['link-name', '#logo'],
+    ]) {
+      expect([...(shot(ruleId!, selector!)?.image.subarray(0, 2) ?? [])]).toEqual([0xff, 0xd8]);
+    }
+    expect(shot('html-has-lang', 'html')).toBeUndefined();
+    // A foto sai depois do snapshot: o destaque não aparece no HTML salvo.
+    expect(outcome.html).not.toContain('data-auditoria-rf-alvo');
 
     // A imagem com alt passa em image-alt, mas a regra continua violada: conta como violação.
     const counts = countRules(outcome.results);

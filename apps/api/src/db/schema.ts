@@ -4,6 +4,7 @@ import {
   axeImpacts,
   collectionPageStatuses,
   collectionStatuses,
+  type FindingEvidence,
   findingValidations,
   heuristics,
   routeSources,
@@ -177,6 +178,10 @@ export const findings = sqliteTable(
     help: text('help').notNull(),
     helpUrl: text('help_url').notNull(),
     fingerprint: text('fingerprint').notNull(),
+    /** Evidência medida pelo axe (hoje, só a de contraste). ADR 0014. */
+    evidenceJson: text('evidence_json', { mode: 'json' }).$type<FindingEvidence>(),
+    /** Foto do elemento tirada na coleta, relativa a SNAPSHOTS_DIR. */
+    screenshotPath: text('screenshot_path'),
     validation: text('validation', { enum: findingValidations }).notNull().default('pending'),
     validationNote: text('validation_note'),
     validatedBy: integer('validated_by').references(() => users.id),
