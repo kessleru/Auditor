@@ -1,5 +1,6 @@
 import {
   auditorInstitutionDetailSchema,
+  indicatorsSchema,
   methodologySchema,
   publicFindingsResponseSchema,
   publicInstitutionDetailSchema,
@@ -17,6 +18,7 @@ import {
   collections,
   findings,
   institutions,
+  pageFunctions,
   routes,
   users,
 } from '../../db/schema.js';
@@ -378,5 +380,100 @@ describe('resultados do auditor (4.1, 4.2, 4.3)', () => {
       ['link-name', 'pending'],
     ]);
     expect(detail.manual).toEqual({ tasks: [], barriers: [] });
+  });
+});
+
+describe('indicadores da pesquisa (auditor)', () => {
+  it('taxa de confirmação por regra, por problema distinto, na coleta mais recente', async () => {
+    expect((await request(app).get('/api/v1/reports/indicators')).status).toBe(401);
+    const agent = await loggedInAgent(app, db);
+    const { collections: count, rules } = indicatorsSchema.parse(
+      (await agent.get('/api/v1/reports/indicators')).body,
+    );
+    // IFA e IFB estão na mesma coleta recente; a antiga não entra.
+    expect(count).toBe(1);
+    expect(rules.map(({ title: _t, ...r }) => r)).toEqual([
+      // "header img" nas duas páginas é um problema só.
+      {
+        ruleId: 'image-alt',
+        problems: 1,
+        confirmed: 1,
+        falsePositive: 0,
+        pending: 0,
+        confirmationRate: 1,
+      },
+      {
+        ruleId: 'label',
+        problems: 1,
+        confirmed: 0,
+        falsePositive: 1,
+        pending: 0,
+        confirmationRate: 0,
+      },
+      {
+        ruleId: 'link-name',
+        problems: 1,
+        confirmed: 0,
+        falsePositive: 0,
+        pending: 1,
+        confirmationRate: null,
+      },
+    ]);
+    expect(rules[0]!.title).not.toBe('Images must have alternative text'); // em português
+
+    const csv = await agent.get('/api/v1/reports/indicators/rules.csv');
+    expect(csv.headers['content-type']).toMatch(/text\/csv/);
+    const lines = csv.text
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .split('\r\n');
+    expect(lines[0]).toBe(
+      'regra,titulo,problemas,confirmados,falsos_positivos,pendentes,taxa_confirmacao',
+    );
+    expect(lines[1]).toMatch(/^image-alt,.*,1,1,0,0,1\.0000$/);
+    expect(lines[3]).toMatch(/^link-name,.*,1,0,0,1,$/);
+    const dictionary = (await agent.get('/api/v1/reports/indicators/rules-dictionary.csv')).text;
+    for (const column of lines[0]!.split(',')) expect(dictionary).toContain(`${column},`);
+  });
+
+  it('acerto da sugestão de função nas rotas confirmadas', async () => {
+    const { institution: ife } = seedInstitutionWithRoutes(db, {
+      domain: 'if-e.edu.br',
+      acronym: 'IFE',
+      urls: [],
+      markOthersAbsent: false,
+    });
+    const functionId = (key: string) =>
+      db.select().from(pageFunctions).where(eq(pageFunctions.key, key)).get()!.id;
+    const discovered = (url: string, key: string, title: string | null) =>
+      db
+        .insert(routes)
+        .values({
+          institutionId: ife.id,
+          url,
+          normalizedUrl: url,
+          source: 'crawler',
+          status: 'confirmed',
+          functionId: functionId(key),
+          title,
+        })
+        .run();
+    discovered('https://if-e.edu.br/processo-seletivo', 'admission', 'Processo seletivo'); // acerto
+    discovered('https://biblioteca.if-e.edu.br', 'library', null); // acerto pelo subdomínio
+    discovered('https://if-e.edu.br/biblioteca', 'courses', 'Biblioteca'); // sugeria outra
+    discovered('https://if-e.edu.br/pagina-123', 'contact', 'Página'); // sem sugestão
+
+    const agent = await loggedInAgent(app, db);
+    const { suggestions } = indicatorsSchema.parse(
+      (await agent.get('/api/v1/reports/indicators')).body,
+    );
+    const row = (key: string) => suggestions.find((s) => s.functionKey === key);
+    expect(row('admission')).toMatchObject({ discovered: 1, hits: 1, otherFunction: 0 });
+    expect(row('library')).toMatchObject({ discovered: 1, hits: 1, manual: 1 });
+    expect(row('courses')).toMatchObject({ discovered: 1, hits: 0, otherFunction: 1 });
+    expect(row('contact')).toMatchObject({ discovered: 1, hits: 0, noSuggestion: 1 });
+    // Rotas das fixtures foram informadas à mão; IFD marcou tudo como não encontrado.
+    expect(row('home')).toMatchObject({ discovered: 0, manual: 3, absent: 1 });
+    expect(suggestions).toHaveLength(13);
   });
 });

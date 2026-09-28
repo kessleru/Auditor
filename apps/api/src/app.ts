@@ -77,7 +77,7 @@ export function createApp({
       requireAuditor,
     ),
   );
-  api.use(createResultsRoutes(createResultsController(s.results), requireAuditor));
+  api.use(createResultsRoutes(createResultsController(s.results, s.indicators), requireAuditor));
   api.use(createInspectionsRoutes(createInspectionsController(s.inspections), requireAuditor));
   api.use(
     createFindingsRoutes(
