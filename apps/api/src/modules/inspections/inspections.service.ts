@@ -283,14 +283,22 @@ export function createInspectionsService(
         .filter((p) => p.status === 'done' && p.snapshotPath);
       const byRule = new Map<string, IncompleteRule & { pageIds: Set<number> }>();
       let pagesWithoutResults = 0;
-      for (const page of pages) {
-        let results: Pick<AxeResults, 'incomplete'>;
-        try {
-          if (!storage) throw new Error('sem armazenamento');
-          results = JSON.parse(
-            await storage.read(storage.resultsPathFor(page.snapshotPath as string)),
-          );
-        } catch {
+      // As páginas são lidas em paralelo; a ordem da lista continua a das páginas.
+      const loaded = await Promise.all(
+        pages.map(async (page) => {
+          try {
+            if (!storage) throw new Error('sem armazenamento');
+            const results = JSON.parse(
+              await storage.read(storage.resultsPathFor(page.snapshotPath as string)),
+            ) as Pick<AxeResults, 'incomplete'>;
+            return { page, results };
+          } catch {
+            return { page, results: null };
+          }
+        }),
+      );
+      for (const { page, results } of loaded) {
+        if (!results) {
           pagesWithoutResults++;
           continue;
         }

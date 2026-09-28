@@ -124,33 +124,38 @@ describe('portais em inspeção (3.0)', () => {
 
 describe('portal: contexto, abas e validação (3.3)', () => {
   it('h1 com o nome do portal, abas com contagem e falso positivo com justificativa', async () => {
+    let incompleteCalls = 0;
+    const incompleteResponse = {
+      pagesWithoutResults: 0,
+      rules: [
+        {
+          ruleId: 'color-contrast',
+          title: 'Os elementos devem ter contraste de cor suficiente',
+          helpUrl: 'https://dequeuniversity.com/rules/axe/4.13/color-contrast',
+          wcagCriteria: '1.4.3',
+          nodesTotal: 31,
+          pages: 2,
+          nodes: [
+            {
+              pageUrl: 'https://iftm.edu.br',
+              functionKey: 'home',
+              selector: '.banner p',
+              htmlSnippet: '<p>Inscrições abertas</p>',
+              reason:
+                'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
+            },
+          ],
+        },
+      ],
+    };
     let patched: unknown;
     stubApi(auditor, {
       routes: {
         ...base,
         'GET /collections/5/institutions/1/findings': findings,
-        'GET /collections/5/institutions/1/incomplete': {
-          pagesWithoutResults: 0,
-          rules: [
-            {
-              ruleId: 'color-contrast',
-              title: 'Os elementos devem ter contraste de cor suficiente',
-              helpUrl: 'https://dequeuniversity.com/rules/axe/4.13/color-contrast',
-              wcagCriteria: '1.4.3',
-              nodesTotal: 31,
-              pages: 2,
-              nodes: [
-                {
-                  pageUrl: 'https://iftm.edu.br',
-                  functionKey: 'home',
-                  selector: '.banner p',
-                  htmlSnippet: '<p>Inscrições abertas</p>',
-                  reason:
-                    'A cor de fundo do elemento não pôde ser determinada devido a uma imagem de fundo',
-                },
-              ],
-            },
-          ],
+        'GET /collections/5/institutions/1/incomplete': () => {
+          incompleteCalls++;
+          return Response.json(incompleteResponse);
         },
         'PATCH /findings/11/validation': (init: RequestInit | undefined) => {
           patched = JSON.parse(String(init?.body));
@@ -229,6 +234,8 @@ describe('portal: contexto, abas e validação (3.3)', () => {
         note: 'Imagem decorativa com alt vazio correto.',
       }),
     );
+    // Salvar a validação não relê o resultado do axe das páginas (não muda depois da coleta).
+    expect(incompleteCalls).toBe(1);
   });
 });
 

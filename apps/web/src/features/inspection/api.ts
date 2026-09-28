@@ -16,7 +16,9 @@ import { apiRequest } from '../../lib/api';
 export const inspectionKeys = {
   summary: (c: number) => ['inspection', c] as const,
   findings: (c: number, i: number) => ['inspection', c, i, 'findings'] as const,
-  incomplete: (c: number, i: number) => ['inspection', c, i, 'incomplete'] as const,
+  // Fora do prefixo ['inspection', c, i]: o resultado do axe não muda depois da coleta e não deve
+  // ser relido a cada validação salva.
+  incomplete: (c: number, i: number) => ['inspection-incomplete', c, i] as const,
   tasks: (c: number, i: number) => ['inspection', c, i, 'tasks'] as const,
   assistive: (c: number, i: number) => ['inspection', c, i, 'assistive'] as const,
 };
@@ -53,6 +55,7 @@ export const useInspectionFindings = (c: number, i: number) =>
 export const useInspectionIncomplete = (c: number, i: number) =>
   useQuery({
     queryKey: inspectionKeys.incomplete(c, i),
+    staleTime: Infinity,
     queryFn: () =>
       apiRequest(`/collections/${c}/institutions/${i}/incomplete`, {
         schema: inspectionIncompleteSchema,
