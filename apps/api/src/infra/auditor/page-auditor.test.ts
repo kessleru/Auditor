@@ -26,6 +26,9 @@ beforeAll(async () => {
     '/conforme': htmlFixture('conforme.html'),
     '/erro': { status: 500, body: 'erro' },
     '/edital.pdf': { status: 200, body: '%PDF-1.4', contentType: 'application/pdf' },
+    // Proteção contra robôs: o portal manda para um desafio noutro domínio.
+    '/bloqueado': { status: 302, body: '', location: 'http://localhost:{port}/desafio' },
+    '/desafio': '<!doctype html><html lang="en"><title>Challenge</title><h1>Are you human?</h1>',
   });
 });
 
@@ -123,6 +126,17 @@ describe('createPlaywrightAuditor', { timeout: 60_000 }, () => {
     const outcome = await auditor.audit(`${site.origin}/edital.pdf`);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.error).toMatch(/não é uma página HTML|baixa um arquivo/);
+  });
+
+  it('página que termina fora do domínio da instituição vira falha, sem auditar o desafio', async () => {
+    expect(await auditor.audit(`${site.origin}/bloqueado`, { domain: '127.0.0.1' })).toEqual({
+      ok: false,
+      httpStatus: 200,
+      error:
+        'A página redirecionou para localhost, fora do domínio da instituição (127.0.0.1): provável proteção contra robôs. A ferramenta não contorna bloqueios; o portal fica sem dado.',
+    });
+    // No próprio domínio, segue normal.
+    expect((await auditor.audit(`${site.origin}/conforme`, { domain: '127.0.0.1' })).ok).toBe(true);
   });
 
   it('informa as versões usadas', async () => {

@@ -158,6 +158,8 @@ describe('execução da coleta', () => {
 
     const { body } = await create(agent, { institutionIds: [institution.id] });
     const finished = await service.waitForFinish(body.collection.id);
+    // O motor confere se a página terminou no domínio da instituição (ADR 0016).
+    expect(auditor.domains).toEqual(['if-a.edu.br', 'if-a.edu.br', 'if-a.edu.br']);
     expect(finished).toMatchObject({
       status: 'completed',
       axeVersion: '4.13.0',

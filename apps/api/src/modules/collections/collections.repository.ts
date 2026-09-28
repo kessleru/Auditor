@@ -23,6 +23,8 @@ type CollectionPageRow = typeof collectionPages.$inferSelect;
 export type CollectionPageWithRoute = CollectionPageRow & {
   url: string;
   institutionId: number;
+  /** Domínio da instituição: a página que termina fora dele não é auditada (ADR 0016). */
+  domain: string;
   functionKey: PageFunctionKey | null;
 };
 export type FindingInsert = Omit<typeof findings.$inferInsert, 'id' | 'collectionPageId'>;
@@ -39,21 +41,25 @@ export function createCollectionsRepository(db: DB) {
         page: collectionPages,
         url: routes.url,
         institutionId: routes.institutionId,
+        domain: institutions.domain,
         functionKey: pageFunctions.key,
       })
       .from(collectionPages)
       .innerJoin(routes, eq(routes.id, collectionPages.routeId))
+      .innerJoin(institutions, eq(institutions.id, routes.institutionId))
       .leftJoin(pageFunctions, eq(pageFunctions.id, collectionPages.functionId));
 
   const flatten = (row: {
     page: CollectionPageRow;
     url: string;
     institutionId: number;
+    domain: string;
     functionKey: string | null;
   }): CollectionPageWithRoute => ({
     ...row.page,
     url: row.url,
     institutionId: row.institutionId,
+    domain: row.domain,
     functionKey: row.functionKey as PageFunctionKey | null,
   });
 

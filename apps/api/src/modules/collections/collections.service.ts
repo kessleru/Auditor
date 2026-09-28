@@ -201,7 +201,7 @@ export function createCollectionsService({
         progress: repo.progress(page.collectionId),
       });
 
-      const outcome = await requireAuditor().audit(page.url);
+      const outcome = await requireAuditor().audit(page.url, { domain: page.domain });
       // Interrompida pelo desligamento: continua `running` e volta para a fila ao reiniciar.
       if (stopping) return;
       if (outcome.ok) {

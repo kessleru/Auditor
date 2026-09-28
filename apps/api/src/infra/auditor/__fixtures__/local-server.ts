@@ -4,7 +4,10 @@ import type { AddressInfo } from 'node:net';
 
 /** Servidor HTTP local para os testes do motor de auditoria (sem rede externa). */
 export async function startLocalSite(
-  pages: Record<string, string | { status: number; body: string; contentType?: string }>,
+  pages: Record<
+    string,
+    string | { status: number; body: string; contentType?: string; location?: string }
+  >,
 ) {
   const server: Server = createServer((req, res) => {
     const page = pages[req.url ?? '/'];
@@ -16,8 +19,16 @@ export async function startLocalSite(
       status,
       body,
       contentType = 'text/html; charset=utf-8',
-    } = typeof page === 'string' ? { status: 200, body: page } : page;
-    res.writeHead(status, { 'content-type': contentType }).end(body);
+      location,
+    } = typeof page === 'string' ? { status: 200, body: page, location: undefined } : page;
+    // `{port}` na Location vira a porta deste servidor (redirecionar para outro host local).
+    const port = (server.address() as AddressInfo).port;
+    res
+      .writeHead(status, {
+        'content-type': contentType,
+        ...(location && { location: location.replace('{port}', String(port)) }),
+      })
+      .end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
