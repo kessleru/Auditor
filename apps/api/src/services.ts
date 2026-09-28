@@ -30,6 +30,7 @@ import {
   createDiscoveryService,
   type DiscoverFn,
 } from './modules/routes-discovery/discovery.service.js';
+import { createDiscoveryRunsRepository } from './modules/routes-discovery/discovery-runs.repository.js';
 import { createRoutesRepository } from './modules/routes-discovery/routes.repository.js';
 import { createRoutesService } from './modules/routes-discovery/routes.service.js';
 
@@ -41,6 +42,8 @@ export interface ServiceOptions {
   auditor?: PageAuditor | null;
   snapshotsDir?: string;
   concurrency?: number;
+  /** Descobertas de rotas ao mesmo tempo (instituições diferentes). */
+  discoveryConcurrency?: number;
 }
 
 /** User-agent da ferramenta: contato do .env ou, sem ele, o e-mail do primeiro auditor. */
@@ -99,11 +102,15 @@ export function createServices(db: DB, options: ServiceOptions = {}) {
   const routes = createRoutesService(routesRepository, institutions, timing);
   const discovery = createDiscoveryService(
     routesRepository,
+    createDiscoveryRunsRepository(db),
     institutions,
     options.discover === undefined
       ? perUserAgent(userAgent, buildDiscover)
       : () => options.discover ?? null,
-    timing,
+    {
+      ...timing,
+      concurrency: options.discoveryConcurrency ?? env.DISCOVERY_CONCURRENCY,
+    },
   );
   const collections = createCollectionsService({
     repo: createCollectionsRepository(db),

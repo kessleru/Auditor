@@ -2,11 +2,11 @@ import {
   type CreateInstitutionInput,
   type CreateRouteInput,
   discoveryResponseSchema,
-  type DiscoveryState,
   functionAbsenceResponseSchema,
   institutionListResponseSchema,
   institutionResponseSchema,
   type PageFunctionKey,
+  isDiscoveryActive,
   routeListResponseSchema,
   routeResponseSchema,
   type UpdateInstitutionInput,
@@ -67,8 +67,8 @@ export const useRoutes = (institutionId: number) =>
   });
 
 /**
- * Andamento da descoberta; consulta a cada 3 s enquanto está em execução. As rotas só são gravadas
- * no fim: quando ela deixa de rodar, a lista de rotas é recarregada.
+ * Andamento da descoberta; consulta a cada 3 s enquanto está na fila ou em execução. As rotas só
+ * são gravadas no fim: quando ela termina, a lista de rotas é recarregada.
  */
 export function useDiscovery(institutionId: number) {
   const qc = useQueryClient();
@@ -80,16 +80,17 @@ export function useDiscovery(institutionId: number) {
           schema: discoveryResponseSchema,
         })
       ).discovery,
-    refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false),
+    refetchInterval: (query) =>
+      query.state.data && isDiscoveryActive(query.state.data.status) ? 3000 : false,
   });
-  const status = query.data?.status;
-  const previous = useRef<DiscoveryState['status'] | undefined>(status);
+  const active = query.data ? isDiscoveryActive(query.data.status) : false;
+  const previous = useRef(active);
   useEffect(() => {
-    if (previous.current === 'running' && status !== 'running') {
+    if (previous.current && !active) {
       void qc.invalidateQueries({ queryKey: auditKeys.routes(institutionId) });
     }
-    previous.current = status;
-  }, [status, qc, institutionId]);
+    previous.current = active;
+  }, [active, qc, institutionId]);
   return query;
 }
 

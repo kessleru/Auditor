@@ -1,14 +1,17 @@
-import type {
-  DiscoveryProgress,
-  DiscoveryState,
-  DiscoverySummary,
-  RouteReplacement,
+import {
+  type DiscoveryProgress,
+  type DiscoveryState,
+  type DiscoverySummary,
+  isDiscoveryActive,
+  type RouteReplacement,
 } from '@auditoria-rf/contracts';
 import type { DiscoveryResult } from '../../infra/crawler/index.js';
+import { createWorkerPool } from '../../infra/queue/worker-pool.js';
 import { isDevHost, isWithinDomain } from '../../infra/crawler/url.js';
-import { AppError } from '../../shared/errors.js';
+import { AppError, NotFoundError } from '../../shared/errors.js';
 import { logger } from '../../shared/logger.js';
 import type { InstitutionsService } from '../institutions/institutions.service.js';
+import type { DiscoveryRun, DiscoveryRunsRepository } from './discovery-runs.repository.js';
 import type { RoutesRepository } from './routes.repository.js';
 
 /**
@@ -21,37 +24,59 @@ export type DiscoverFn = (
   onProgress?: (progress: DiscoveryProgress) => void,
 ) => Promise<DiscoveryResult>;
 
-interface DiscoveryRun {
-  state: DiscoveryState;
-  done: Promise<void>;
-}
+const NOT_CONFIGURED =
+  'Crie a conta do auditor (o e-mail dele identifica a ferramenta aos portais) ou defina CRAWLER_CONTACT_EMAIL no .env.';
 
 /**
- * Descoberta de rotas em segundo plano, uma por instituição de cada vez. O estado fica em memória:
- * reiniciar o servidor perde só o andamento, nunca rotas já gravadas.
+ * Descoberta de rotas em segundo plano (ADR 0017). A fila fica no banco (`discovery_runs`), como a
+ * da coleta: o auditor pode sair da tela, e o que estava na fila ou em execução quando a API parou
+ * recomeça ao reiniciar. Uma rodada por instituição de cada vez; o intervalo por host (3.1.3)
+ * continua valendo entre instituições que rodam ao mesmo tempo.
  */
 export function createDiscoveryService(
   routesRepo: RoutesRepository,
+  runsRepo: DiscoveryRunsRepository,
   institutions: InstitutionsService,
   /**
    * Resolvida a cada descoberta: o contato do user-agent pode aparecer depois que o servidor
    * subiu (ex.: o launcher cria o auditor com a API no ar). `null` = sem contato.
    */
   getDiscover: () => DiscoverFn | null,
-  { now = () => new Date() }: { now?: () => Date } = {},
+  { now = () => new Date(), concurrency = 2 }: { now?: () => Date; concurrency?: number } = {},
 ) {
-  const runs = new Map<number, DiscoveryRun>();
+  /** Desligando: nada novo é pego e a rodada interrompida volta para a fila ao reiniciar. */
+  let stopping = false;
+  /** Quem espera alguma rodada terminar (CLI e testes). */
+  const waiters = new Set<() => void>();
 
   const idle = (institutionId: number): DiscoveryState => ({
     institutionId,
     status: 'idle',
     progress: null,
+    queuedAt: null,
     startedAt: null,
     finishedAt: null,
     error: null,
     summary: null,
     replacements: [],
   });
+
+  const toState = (run: DiscoveryRun): DiscoveryState => ({
+    institutionId: run.institutionId,
+    status: run.status,
+    progress: run.status === 'running' ? run.progress : null,
+    queuedAt: run.createdAt.toISOString(),
+    startedAt: run.startedAt?.toISOString() ?? null,
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+    error: run.error,
+    summary: run.summary,
+    replacements: run.replacements,
+  });
+
+  const stateOf = (institutionId: number) => {
+    const run = runsRepo.latest([institutionId]).get(institutionId);
+    return run ? toState(run) : idle(institutionId);
+  };
 
   /** Grava as rotas encontradas. Rotas já conhecidas só têm `last_seen_at` atualizado. */
   const persist = (institutionId: number, result: DiscoveryResult): DiscoverySummary => {
@@ -176,74 +201,196 @@ export function createDiscoveryService(
     return replacements;
   };
 
+  /** Lê o portal e grava o resultado da rodada; erro vira falha registrada, nunca exceção. */
+  const execute = async (run: DiscoveryRun) => {
+    try {
+      const institution = institutions.get(run.institutionId);
+      const discover = getDiscover();
+      if (!discover) throw new Error(NOT_CONFIGURED);
+      const confirmed = routesRepo
+        .listByInstitution(run.institutionId, 'confirmed')
+        .map((r) => r.url);
+      const result = await discover(institution.domain, confirmed, (progress) => {
+        if (!stopping) runsRepo.setProgress(run.id, progress);
+      });
+      // Interrompida pelo desligamento: continua `running` e volta para a fila ao reiniciar.
+      if (stopping) return;
+      const summary = persist(run.institutionId, result);
+      const replacements = findReplacements(run.institutionId, institution.domain, result);
+      runsRepo.complete(run.id, { summary, replacements, at: now() });
+    } catch (err) {
+      if (stopping) return;
+      runsRepo.fail(run.id, err instanceof Error ? err.message : String(err), now());
+      logger.warn({ err, institutionId: run.institutionId }, 'descoberta de rotas falhou');
+    } finally {
+      for (const notify of [...waiters]) notify();
+    }
+  };
+
+  const pool = createWorkerPool<DiscoveryRun>({
+    concurrency,
+    claim: async () => (stopping ? null : runsRepo.claimNext(now())),
+    process: execute,
+    onError: (err) => logger.error({ err }, 'erro na fila da descoberta'),
+    onClaimError: (err) => logger.error({ err }, 'erro ao buscar a próxima descoberta'),
+  });
+
+  /** Checagens comuns: instituição existe e está ativa, crawler configurado, nada em andamento. */
+  const assertCanStart = (institutionId: number) => {
+    const institution = institutions.get(institutionId);
+    if (!getDiscover()) throw new AppError(503, 'CRAWLER_NOT_CONFIGURED', NOT_CONFIGURED);
+    if (!institution.active) {
+      throw new AppError(409, 'INSTITUTION_INACTIVE', 'A instituição está inativa.');
+    }
+    if (isDiscoveryActive(stateOf(institutionId).status)) {
+      throw new AppError(
+        409,
+        'DISCOVERY_RUNNING',
+        'Já há uma descoberta na fila ou em andamento para esta instituição.',
+      );
+    }
+    return institution;
+  };
+
+  const enqueue = (institutionId: number, requestedBy: number | null) => {
+    runsRepo.insert({ institutionId, requestedBy, status: 'queued', at: now() });
+  };
+
+  const requireInstitutions = (institutionIds: readonly number[]) => {
+    const known = new Set(institutions.list().map((i) => i.id));
+    const missing = institutionIds.filter((id) => !known.has(id));
+    if (missing.length > 0) {
+      throw new NotFoundError(`Instituição não encontrada: ${missing.join(', ')}.`);
+    }
+  };
+
+  const list = (institutionIds: readonly number[]): DiscoveryState[] => {
+    requireInstitutions(institutionIds);
+    const latest = runsRepo.latest(institutionIds);
+    return institutionIds.map((id) => {
+      const run = latest.get(id);
+      return run ? toState(run) : idle(id);
+    });
+  };
+
   return {
     /** A substituição foi decidida pelo auditor: some da lista de pendências. */
     resolveReplacement(institutionId: number, routeId: number) {
-      const state = runs.get(institutionId)?.state;
-      if (state) state.replacements = state.replacements.filter((r) => r.routeId !== routeId);
+      const run = runsRepo.latest([institutionId]).get(institutionId);
+      if (!run || run.replacements.every((r) => r.routeId !== routeId)) return;
+      runsRepo.setReplacements(
+        run.id,
+        run.replacements.filter((r) => r.routeId !== routeId),
+      );
     },
 
     get(institutionId: number): DiscoveryState {
       institutions.get(institutionId);
-      return runs.get(institutionId)?.state ?? idle(institutionId);
+      return stateOf(institutionId);
     },
 
-    start(institutionId: number): DiscoveryState {
-      const institution = institutions.get(institutionId);
-      const run = getDiscover();
-      if (!run) {
-        throw new AppError(
-          503,
-          'CRAWLER_NOT_CONFIGURED',
-          'Crie a conta do auditor (o e-mail dele identifica a ferramenta aos portais) ou defina CRAWLER_CONTACT_EMAIL no .env.',
-        );
-      }
-      if (!institution.active) {
-        throw new AppError(409, 'INSTITUTION_INACTIVE', 'A instituição está inativa.');
-      }
-      if (runs.get(institutionId)?.state.status === 'running') {
-        throw new AppError(
-          409,
-          'DISCOVERY_RUNNING',
-          'Já há uma descoberta em andamento para esta instituição.',
-        );
-      }
+    /** Situação da descoberta de várias instituições (visão geral da revisão de rotas). */
+    list,
 
-      const state: DiscoveryState = {
-        ...idle(institutionId),
+    /** Põe a instituição na fila; a descoberta roda em segundo plano. */
+    start(institutionId: number, requestedBy: number | null = null): DiscoveryState {
+      assertCanStart(institutionId);
+      enqueue(institutionId, requestedBy);
+      pool.kick();
+      return stateOf(institutionId);
+    },
+
+    /**
+     * Descoberta em lote: põe na fila as instituições pedidas que estão ativas e sem descoberta
+     * em andamento; as demais ficam como estão.
+     */
+    startMany(institutionIds: readonly number[], requestedBy: number | null): DiscoveryState[] {
+      requireInstitutions(institutionIds);
+      if (!getDiscover()) throw new AppError(503, 'CRAWLER_NOT_CONFIGURED', NOT_CONFIGURED);
+      const latest = runsRepo.latest(institutionIds);
+      const active = new Set(
+        institutions
+          .list()
+          .filter((i) => i.active)
+          .map((i) => i.id),
+      );
+      for (const id of institutionIds) {
+        const run = latest.get(id);
+        if (active.has(id) && !(run && isDiscoveryActive(run.status))) enqueue(id, requestedBy);
+      }
+      pool.kick();
+      return list(institutionIds);
+    },
+
+    /**
+     * Instituições do escopo que nunca foram olhadas (sem rota, sem função marcada como não
+     * encontrada e sem descoberta) entram na fila sozinhas: é o primeiro passo da revisão. As que
+     * falharam ou já têm rotas só são descobertas de novo a pedido do auditor.
+     */
+    startMissing(institutionIds: readonly number[], requestedBy: number | null): number[] {
+      if (!getDiscover()) return [];
+      const withRuns = runsRepo.institutionsWithRuns(institutionIds);
+      const active = new Set(
+        institutions
+          .list()
+          .filter((i) => i.active)
+          .map((i) => i.id),
+      );
+      const missing = institutionIds.filter(
+        (id) =>
+          active.has(id) &&
+          !withRuns.has(id) &&
+          routesRepo.listByInstitution(id).length === 0 &&
+          routesRepo.listAbsences(id).length === 0,
+      );
+      for (const id of missing) enqueue(id, requestedBy);
+      if (missing.length > 0) pool.kick();
+      return missing;
+    },
+
+    /**
+     * Descoberta imediata, fora da fila (CLI): mesma execução e mesmo registro da rodada, sem
+     * pegar as rodadas que a API pôs na fila.
+     */
+    async runNow(institutionId: number): Promise<DiscoveryState> {
+      assertCanStart(institutionId);
+      const run = runsRepo.insert({
+        institutionId,
+        requestedBy: null,
         status: 'running',
-        progress: { phase: 'robots', visited: 0, planned: null },
-        startedAt: now().toISOString(),
-      };
-      const done = (async () => {
-        try {
-          const confirmed = routesRepo
-            .listByInstitution(institutionId, 'confirmed')
-            .map((r) => r.url);
-          const result = await run(institution.domain, confirmed, (progress) => {
-            state.progress = progress;
-          });
-          state.summary = persist(institutionId, result);
-          state.replacements = findReplacements(institutionId, institution.domain, result);
-          state.status = 'completed';
-        } catch (err) {
-          state.status = 'failed';
-          state.error = err instanceof Error ? err.message : String(err);
-          logger.warn({ err, institutionId }, 'descoberta de rotas falhou');
-        } finally {
-          state.progress = null;
-          state.finishedAt = now().toISOString();
-        }
-      })();
-
-      runs.set(institutionId, { state, done });
-      return state;
+        at: now(),
+      });
+      await execute(run);
+      return stateOf(institutionId);
     },
 
-    /** Aguarda a descoberta em andamento terminar (testes e CLI). */
+    /** Aguarda a descoberta da instituição sair da fila e terminar (testes). */
     async waitFor(institutionId: number): Promise<DiscoveryState> {
-      await runs.get(institutionId)?.done;
-      return this.get(institutionId);
+      for (;;) {
+        institutions.get(institutionId);
+        const state = stateOf(institutionId);
+        if (!isDiscoveryActive(state.status)) return state;
+        await new Promise<void>((resolve) => {
+          const done = () => {
+            waiters.delete(done);
+            resolve();
+          };
+          waiters.add(done);
+        });
+      }
+    },
+
+    /** Retomada após reinício: rodadas interrompidas voltam para a fila e a fila recomeça. */
+    resume() {
+      runsRepo.resetInterrupted();
+      pool.kick();
+    },
+
+    idle: () => pool.idle(),
+
+    /** Encerra já (servidor): a rodada em execução recomeça na próxima inicialização. */
+    close() {
+      stopping = true;
     },
   };
 }

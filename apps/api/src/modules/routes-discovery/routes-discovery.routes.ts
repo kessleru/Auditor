@@ -8,6 +8,8 @@ export function createRoutesDiscoveryRoutes(
   const router = Router();
   router.post('/institutions/:id/discover', requireAuditor, controller.startDiscovery);
   router.get('/institutions/:id/discovery', requireAuditor, controller.getDiscovery);
+  router.get('/discoveries', requireAuditor, controller.listDiscoveries);
+  router.post('/discoveries', requireAuditor, controller.startDiscoveries);
   router.get('/institutions/:id/routes', requireAuditor, controller.listRoutes);
   router.post('/institutions/:id/routes', requireAuditor, controller.createRoute);
   router.patch('/routes/:id', requireAuditor, controller.updateRoute);
